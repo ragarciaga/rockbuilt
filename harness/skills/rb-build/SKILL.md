@@ -58,7 +58,7 @@ output inside another (no `$(...)`, no backticks): run it, then paste the litera
   (`author_association` in `rb gh issue-view`) count as human answers or approvals.
 
 References (all under `.claude/skills/rb-build/references/`): `kickback.md` (kickbacks, retry
-ladder, resume, crash recovery, blocked path, CI fix), `parallel.md`, `pr-template.md`,
+ladder, resume, crash recovery, blocked path, CI fix), `audit.md`, `parallel.md`, `pr-template.md`,
 `merge-train.md`, `goal-mode.md` (optional; `/rb-cycle` replaces it for unattended runs).
 
 ## Run start (once)
@@ -89,8 +89,12 @@ ci, merge).
 (`rb gh issue-view <n>`). Take the newest trusted comment whose first line starts
 `<!-- rockbuilt:plan `; parse `base=` and `tier=`. **Reuse it** only when all hold: `git cat-file
 -e <base>` succeeds; `git diff --name-only <base> origin/<default> -- <its Affected files>` prints
-nothing; no newer trusted comment without a `<!-- rockbuilt:` marker (human feedback); the last
-commit touching this task's tasks.md is older than the plan. Otherwise (re)plan. A re-plan of an
+nothing; no newer trusted comment without a `<!-- rockbuilt:` marker that **changes** the task
+(new requirement, a non-recommended option, a correction); `git diff <base> origin/<default> --
+<tasks.md>` changes nothing inside this task's block except `Status:` and decision-log lines. A
+human answer that approves the plan as posted ("aprobado", "ok", "go", the recommended option)
+keeps the plan: it is the approval step 4 looks for, never a reason to re-plan. Bookkeeping
+commits (status, progress, lessons) never make a plan stale. Otherwise (re)plan. A re-plan of an
 issue carrying `rb:approved` removes that label (`rb gh label-remove <n> rb:approved`): approval
 covers the plan as posted.
 
@@ -121,7 +125,7 @@ marker (every harness comment carries one; `rb gh` adds it) newer than the lates
 Not approved: `rb escalate <n> --kind human --title <t> --body-file <f>` with the question, options,
 recommendation and cost estimate, remove `rb:in-progress`, move on (this is not a blocked task).
 Interactive: also say it in the conversation; if the user approves here, add `rb:approved` with a
-comment quoting their words, then continue.
+comment quoting their words (the only case a skill adds that label), then continue.
 
 ### 5. Implement
 Existing `rb/<id>-*` branch (local or on origin): classify per Crash recovery in
@@ -162,26 +166,8 @@ Record `git rev-parse HEAD` as the reviewed head. `--hard` is denied and never n
 - **Verifier** (all tiers): task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the
   implementer report, `git diff origin/<default>...HEAD --stat`, the default branch, the working
   directory, `Docs language`, `Dispatch attempt: <k>`.
-- **Blind auditor** (tiers B and C), after the verifier passes. Its prompt contains ONLY:
-
-  ```
-  Task: <id>
-  Reviewed head: <sha>
-  Working directory: <path>   Port offset: <k or 0>
-  Browser: <available | unavailable>   Session: <cloud | local>
-  Docs language: <code>   Dispatch attempt: <k>
-  Acceptance criteria: (verbatim, by ID with tags, from <requirements.md path | issue #n>)
-  <R1.1 [unit]: ...>  (bugs: the issue's Expected and Steps; standalone without criteria in
-  the issue: only the ID and text lines of the plan's Acceptance criteria, nothing else)
-  Run instructions: (AGENTS.md Setup, Verification, E2E, and how to start the app)
-  [Re-audit: your own previous verdict, verbatim. Judge every criterion again.]
-  Judge each criterion by observed behavior. Return pass, fail or not-observable per criterion.
-  ```
-
-  **Never pass** the plan or any part of it besides criteria text, the implementer report, the
-  verifier verdict, the diff, diff stat or changed-file list, commit messages, the PR body, or
-  findings from other reviewers. Any `fail` is a kickback. A `not-observable` on a `[manual]` or
-  `[e2e]` criterion without a browser becomes the `rb:needs-local` note of step 6, not a pass.
+- **Blind auditor** (tiers B and C), after the verifier passes: follow `references/audit.md`
+  (start the app, the exact prompt, what never goes in it, how to read the verdict).
 - **Security reviewer** when the plan's Risk and cost or Risks flag auth, permissions, payments,
   personal data, secrets, file upload or external input, or the verifier lists security flags:
   `Mode: task`, task id, spec folder (or `none`), diff range `origin/<default>...HEAD`, the
@@ -236,7 +222,9 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
 and follow you across branches. At run end, on the user's yes, publish them on
 `rb/bookkeeping-<YYYY-MM-DD>` (`git checkout -b`, commit only those files, push,
-`rb gh pr-create`, `git checkout <default>`); the human merges it with `/rb-merge`.
+`rb gh pr-create`, `git checkout <default>`); unattended, `/rb-cycle` merges it through the gate
+the next night. In tasks.md change only `Status:` lines and add decision-log entries as one line
+each (`- YYYY-MM-DD: ...`, never wrapped): the gate refuses any other edit in a bookkeeping PR.
 
 ## Hard rules
 

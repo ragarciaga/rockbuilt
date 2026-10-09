@@ -578,3 +578,22 @@ test('auditor may write only under .rockbuilt/audit/', () => {
   mkdirSync(path.join(cwd, 'src-real'), { recursive: true });
   assert.equal(w('.rockbuilt/audit/x.mjs').deny, true);
 });
+
+test('cost CLIs: runners, .bin paths, data-pushing tools and package scripts', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-cost-'));
+  try {
+    writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { deploy: 'vercel deploy --prod', test: 'node --test', 'db:push': 'prisma db push', dev: 'next dev' } }));
+    const sh = (command, agent) => decide({ tool_name: 'Bash', tool_input: { command }, agent_type: agent, cwd: dir }).deny;
+    const IMPL = 'rb-implementer';
+    for (const c of ['npm run deploy', 'pnpm deploy', 'yarn deploy', 'npm run db:push', 'pnpm exec vercel deploy', 'yarn vercel deploy', 'yarn exec vercel deploy',
+      'node node_modules/.bin/vercel deploy --prod', 'npx prisma db push', 'npx prisma migrate deploy', 'npx drizzle-kit push', 'npx stripe charges create']) {
+      assert.equal(sh(c, IMPL), true, `denied: ${c}`);
+      assert.equal(sh(c), true, `denied for the main session too: ${c}`);
+    }
+    for (const c of ['npm test', 'npm run dev', 'npx prisma generate', 'npx prisma migrate dev', 'npx drizzle-kit generate', 'stripe listen', 'npm install', 'pnpm install']) {
+      assert.equal(sh(c), false, `allowed: ${c}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

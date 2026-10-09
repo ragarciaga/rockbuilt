@@ -27,6 +27,19 @@ flowchart LR
 <Workflow | Agent | Hybrid>, because <reason: is the path known in advance?>. Risks of the rejected
 option: <list>. (ADR: docs/adr/NNNN-slug.md) (R..)
 
+<Only for Agent or Hybrid; delete otherwise.>
+- Instructions: <role, goal, what it must never do> (R..)
+- Tools: <name, what it can change, approval needed: none | tool-level | agent-level> (R..)
+- Memory: <none | per-run | across runs>, scoped by <user | tenant | thread>; never shared across
+  users (R..)
+- Stop condition and step budget: <when it stops, max steps or cost per run> (R..)
+- Scorers: <what is graded against ground truth, in evals.md> (R..)
+
+## UI
+<Only for features with screens; delete otherwise.> Screens and states (empty, loading, error,
+success), each with the criterion it serves (R..), and a link to the mockup or design file
+(`.pen`, Figma, image). rb-e2e-writer uses this list to know which flows to cover.
+
 ## Data model / schema impact
 - <Table/collection/file>: <new | changed fields>, migration: <name or none> (R..)
 - Data retention and deletion: <rule> (R..)
@@ -52,6 +65,7 @@ option: <list>. (ADR: docs/adr/NNNN-slug.md) (R..)
 - Input validation: <schema, where> (R..)
 - Secrets: <env var names, never logged> (R..)
 - Personal data: <what, retention> (R..)
+- Agent memory and tools (Agent or Hybrid): no memory or tool result leaks across users or tenants (R..)
 - New dependencies and their risk: <list or none>
 - Security gate required: <yes/no, reason>
 

@@ -652,3 +652,18 @@ test('bin/rb runs as a process', () => {
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'npm install');
 });
+
+test('doctor: warns about deploy config under auto autonomy and npm ci without a lockfile', async () => {
+  const { repoWith } = await import('./rb-helpers.mjs');
+  const root = repoWith({
+    'AGENTS.md': '# App\n\nDocs language: es\nProject type: web\nDefault branch: main\nAutonomy: auto\n\n## Verification\n```bash\nnpm test\n```\n\n## Setup\n```bash\nnpm ci\n```\n',
+    'vercel.json': '{}',
+    '.github/workflows/rockbuilt-ci.yml': 'name: rockbuilt-ci\n',
+  });
+  const r = runDoctor(root, { ghStatusFn: () => ({ installed: true, authenticated: false, detail: 'offline' }) });
+  const byName = Object.fromEntries(r.checks.map((c) => [c.name, c]));
+  assert.equal(byName.deploy.status, 'WARN');
+  assert.match(byName.deploy.detail, /reach production/);
+  assert.equal(byName['CI workflow'].status, 'WARN');
+  assert.match(byName['CI workflow'].detail, /package-lock\.json/);
+});

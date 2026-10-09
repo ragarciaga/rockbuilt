@@ -141,7 +141,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   for (const stage of need) {
     const s = body.status[stage];
     if (!s) no('status-line', `missing ${stage} line`);
-    else if (s.outcome !== 'pass') no('status-line', `${stage} outcome=${s.outcome}`);
+    // needs-local: the auditor could not observe a criterion in the cloud; the human checked it on
+    // their machine and asked for the merge in the current conversation.
+    else if (s.outcome !== 'pass' && !(stage === 'rb-auditor' && s.outcome === 'needs-local' && humanApproved)) no('status-line', `${stage} outcome=${s.outcome}`);
     else if (!shaMatches(s.head, head)) no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
   }
 

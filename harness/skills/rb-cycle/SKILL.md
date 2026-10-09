@@ -61,7 +61,8 @@ No command substitution: run a command, paste its literal output into the next.
 
 1. Clean tree and crash recovery exactly as rb-build Run start step 2 (unattended: never move the
    user's work; escalate on `<ctl>` with the `Dirty tree` template and close the run).
-2. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`, `rb sync`.
+2. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`, `rb sync --run <run id>`
+   (with the lock held it also clears `rb:in-progress` claims left by a run that died).
 3. **Previous bookkeeping.** If `rb gh pr-list --state open --head-prefix rb/bookkeeping-` shows a
    PR and merges are on (section 5 conditions): `rb merge-gate <pr> --run <run id> --json`. The
    gate merges a bookkeeping PR without reviewers when it only touches tasks.md, progress.md and
@@ -98,11 +99,16 @@ No command substitution: run a command, paste its literal output into the next.
    `todo`, dependencies done or merged, issue not labelled `rb:blocked`, `rb:needs-human`,
    `rb:needs-local`, `rb:hold`, `rb:pr-open`).
 4. **Issues.** `rb gh issue-list --label rb:bug --state open` and `--label rb:task`. Drop issues
+   whose body carries `<!-- rockbuilt:task T<n> spec=` (spec tasks are built only from an
+   approved tasks.md on the default branch, step 3; the spec PR may still be open), issues
    already covered by a tasks.md, issues carrying a waiting label above or `rb:in-progress` after
    sync, issues with an open rb PR, and untrusted authors (digest).
-5. **Order:** CI-fix items, then answered escalations, then spec tasks (spec number order,
+5. **Feature verification.** A spec folder whose tasks are all `done`, with no `test-report.md`
+   on the default branch and no open `rb/verify-*` PR for it: one `rb-verify` item (E2E,
+   security, evals per its unattended rules; its PR waits for the human).
+6. **Order:** CI-fix items, then answered escalations, then spec tasks (spec number order,
    dependencies first, then task number), then `rb:bug` (oldest first), then `rb:task` (oldest
-   first). Cut at `Max tasks per run`: every item that dispatches an implementer counts.
+   first), then feature verification. Cut at `Max tasks per run`: every item that dispatches an implementer counts.
 
 ## 4. Work the queue
 
@@ -114,6 +120,7 @@ digest), and the time budget (its `ageMinutes` 150 or more: no new item). Then:
 - Spec task or `rb:task`: rb-build "Per task", with its unattended rules (escalate, never ask).
 - `rb:bug`: rb-fix with its unattended rules (missing information or a manual reproduction
   becomes an escalation).
+- Feature verification: `.claude/skills/rb-verify/SKILL.md` for that spec folder, unattended.
 - Parallel: when `Parallel` allows and `rb parallel <spec-dir> --max <Max parallel> --json`
   returns 2 or more ready tasks of the same spec, run them as a batch per `parallel.md`.
 
@@ -143,8 +150,10 @@ every merge; the lock is already held.
 3. **Digest** from `references/digest-template.md`, in the docs language, written to
    `.rockbuilt/digest-<run id>.md`; `rb digest post --file .rockbuilt/digest-<run id>.md`.
 4. `rb lock release --run <run id>`.
-5. Final report (also the routine's transcript), at most 8 lines: run id, merged PRs, PRs and
-   escalations waiting for the human (numbers), blocked items, next run's first items, digest
+5. Final report (also the routine's transcript and its notification), at most 8 lines. **First
+   line**, in the docs language: how many items wait for the human, split into `needs-human` and
+   `needs-local`, with their issue numbers (or "nothing waits for you"); the owner reads it as a
+   phone notification. Then: run id, merged PRs, PRs and escalations waiting for the human, blocked items, next run's first items, digest
    comment link.
 
 ## 7. Limits (hard)

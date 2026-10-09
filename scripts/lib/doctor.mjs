@@ -92,9 +92,24 @@ function checkVendored(root) {
 }
 
 function checkCi(root) {
-  return exists(path.join(root, '.github', 'workflows', 'rockbuilt-ci.yml'))
-    ? pass('CI workflow', '.github/workflows/rockbuilt-ci.yml present')
-    : warn('CI workflow', '.github/workflows/rockbuilt-ci.yml missing: no CI means no automatic merge; run `rb vendor`');
+  if (!exists(path.join(root, '.github', 'workflows', 'rockbuilt-ci.yml'))) {
+    return warn('CI workflow', '.github/workflows/rockbuilt-ci.yml missing: no CI means no automatic merge; run `rb vendor`');
+  }
+  const setup = sectionCommands(readContract(root).text, 'Setup') || [];
+  if (setup.some((c) => /^npm ci\b/.test(c)) && !exists(path.join(root, 'package-lock.json'))) {
+    return warn('CI workflow', 'Setup runs `npm ci` but there is no package-lock.json: CI will fail; commit the lockfile or change ## Setup');
+  }
+  return pass('CI workflow', '.github/workflows/rockbuilt-ci.yml present');
+}
+
+const DEPLOY_FILES = ['vercel.json', 'netlify.toml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'app.yaml', 'Procfile'];
+
+// Automatic merges reach production when the host deploys the default branch on push.
+function checkDeploy(root, autonomy) {
+  const found = DEPLOY_FILES.filter((f) => exists(path.join(root, f)));
+  if (!found.length) return [];
+  if (/supervised/i.test(autonomy || '')) return [pass('deploy', `${found.join(', ')}; Autonomy: supervised, every merge is human`)];
+  return [warn('deploy', `${found.join(', ')} found: if the host deploys the default branch on push, tier A/B merges reach production unattended. Use preview deploys for main or set Autonomy: supervised`)];
 }
 
 function checkPlaywright(root, types) {
@@ -170,7 +185,7 @@ export function runDoctor(cwd, { ghStatusFn = ghStatus, gh = null } = {}) {
   checks.push(...checkGithub(root, ghStatusFn(cwd), gh));
   if (root) {
     const types = projectTypesFrom(readContract(root).text);
-    checks.push(...checkContract(root), ...checkVendored(root), checkCi(root), ...checkSettings(root, types), checkGitignore(root), ...checkPlaywright(root, types));
+    checks.push(...checkContract(root), ...checkVendored(root), checkCi(root), ...checkDeploy(root, headerField(readContract(root).text || '', 'Autonomy')), ...checkSettings(root, types), checkGitignore(root), ...checkPlaywright(root, types));
     const b = readBaseline(root);
     if (!b) checks.push(warn('baseline', 'no .rockbuilt/baseline.json; run `rb baseline`'));
     else checks.push(b.green ? pass('baseline', `green at ${String(b.sha).slice(0, 7)} (${b.date})`) : warn('baseline', `red at ${String(b.sha).slice(0, 7)}`));

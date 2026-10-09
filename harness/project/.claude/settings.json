@@ -7,7 +7,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/tools/rockbuilt/guard.mjs"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/tools/rockbuilt/guard.mjs"
+            ],
             "timeout": 10
           }
         ]
@@ -37,6 +39,30 @@
       "Bash(git worktree*)",
       "Bash(git reset --soft*)",
       "Bash(git stash list*)",
+      "Bash(git checkout*)",
+      "Bash(git restore --staged*)",
+      "Bash(git restore *)",
+      "Bash(git apply*)",
+      "Bash(git cat-file*)",
+      "Bash(git revert*)",
+      "Bash(git -C *)",
+      "Bash(git for-each-ref*)",
+      "Bash(git remote*)",
+      "Bash(sleep *)",
+      "Bash(curl -s -o /dev/null http://localhost*)",
+      "Bash(curl -s http://localhost*)",
+      "Bash(kill *)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(pytest*)",
+      "Bash(python -m pytest*)",
+      "Bash(python3 -m pytest*)",
       "Bash(npm run *)",
       "Bash(npm test*)",
       "Bash(npm ci*)",

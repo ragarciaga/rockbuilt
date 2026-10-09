@@ -1,6 +1,7 @@
 // rb sync (DESIGN.md section 11 step 2): tasks done from merged PRs, merged branches cleaned, labels repaired.
 import { readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { holdsLock } from './control.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
 import { currentBranch } from './repo.mjs';
@@ -45,7 +46,7 @@ export function setTaskStatus(text, taskId, spanish) {
   return { text, changed: false };
 }
 
-export function syncProject(root, c, { log = () => {} } = {}) {
+export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   const result = { tasks: [], ambiguous: [], branches: { deleted: [], kept: [] }, labels: [], github: 'ok' };
   const specs = specDirs(root).map((dir) => ({ dir, rel: toPosix(path.relative(root, dir)), text: readText(path.join(dir, 'tasks.md')) }));
   for (const s of specs) s.parsed = parseTasks(s.text);
@@ -118,6 +119,16 @@ export function syncProject(root, c, { log = () => {} } = {}) {
         for (const i of ops.issueList(c, { labels: [label], state: 'closed' })) {
           ops.labelRemove(c, i.number, label);
           result.labels.push({ issue: i.number, removed: label });
+        }
+      }
+      // A run that holds the lock is the only one working: rb:in-progress left on an open issue
+      // without an open PR is a claim from a run that died (timeout, exhausted context).
+      if (run && holdsLock(c, run).held) {
+        const prOpen = new Set(ops.issueList(c, { labels: ['rb:pr-open'], state: 'open' }).map((i) => i.number));
+        for (const i of ops.issueList(c, { labels: ['rb:in-progress'], state: 'open' })) {
+          if (prOpen.has(i.number)) continue;
+          ops.labelRemove(c, i.number, 'rb:in-progress');
+          result.labels.push({ issue: i.number, removed: 'rb:in-progress', reason: 'stale claim' });
         }
       }
     } catch (e) {

@@ -39,6 +39,12 @@ dispatch: Agent tool with `subagent_type: "rb-<name>"`.
 eval datasets) goes on `rb/verify-<slug>` (slug = spec folder name without `NN-`) with its own
 PR. Never on the default branch, never on a task branch.
 
+**Unattended** (dispatched by `/rb-cycle`): never ask. A missing precondition (credential, budget,
+browser) becomes an escalation (`rb escalate --kind human|local`, templates in
+`.claude/skills/rb-cycle/references/escalation-templates.md`) and that gate is skipped, not
+failed. Evals that call a paid model run only within an approved `Paid services` entry and cap;
+otherwise escalate the estimate. The `rb/verify-*` PR is human-only: open it, never merge it.
+
 ## Input
 
 A spec folder, for example `docs/specs/03-login/`. If none was named, pick the most recent spec

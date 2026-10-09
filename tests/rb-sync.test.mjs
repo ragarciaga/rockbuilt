@@ -143,6 +143,13 @@ test('rb sync: marks tasks done from merged PRs, deletes merged branches, repair
 
   const again = await rbJson(root, ['sync'], { ghRunner: gh.runner });
   assert.deepEqual(again.json.tasks, [], 'idempotent');
+
+  // With the lock held, a stale claim on an open issue without an open PR is cleared.
+  s.issues[5] = { number: 5, title: 'T8', body: '', state: 'open', labels: ['rb:in-progress', 'rb:pr-open'] };
+  assert.equal((await rbJson(root, ['lock', 'acquire', '--run', 'r1'], { ghRunner: gh.runner })).code, 0);
+  await rbJson(root, ['sync', '--run', 'r1'], { ghRunner: gh.runner });
+  assert.deepEqual(s.issues[4].labels, [], 'stale claim cleared');
+  assert.deepEqual(s.issues[5].labels, ['rb:in-progress', 'rb:pr-open'], 'claim with an open PR kept');
 });
 
 test('rb sync without GitHub degrades: local branches only, github skipped', async () => {

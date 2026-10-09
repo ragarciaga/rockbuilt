@@ -508,3 +508,19 @@ test('control ensure rotates a full control issue unless it is locked or stopped
   assert.ok(!gh.state.issues[first].labels.includes('rb:control'));
   assert.equal((await rbJson(root, ['control', 'ensure', '--repo', REPO], io)).json.number, next, 'stable after rotation');
 });
+
+test('merge-gate: an auditor needs-local verdict merges only with --human-approved', async () => {
+  const root = project();
+  const body = `Closes #3\n\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor', HEAD, 'needs-local')}\n<!-- rockbuilt:tier B -->\n`;
+  let gh = fakeGh();
+  seed(gh, { tier: 'B', body });
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.some((x) => /rb-auditor outcome=needs-local/.test(x.detail)));
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body });
+  r = await gate(root, gh, ['--human-approved']);
+  assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
+  assert.equal(gh.state.merges.length, 1);
+});

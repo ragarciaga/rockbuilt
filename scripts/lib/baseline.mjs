@@ -167,17 +167,40 @@ export function runBaseline(root, { log = () => {} } = {}) {
   return record;
 }
 
-// --check: reuse a green main-checkout baseline when the default branch has not moved, else re-run there.
+// Known failures as recorded on the default branch: a task branch can never relax its own ratchet.
+function knownFailuresAt(root, branch) {
+  const r = spawnSync('git', ['show', `${branch}:docs/rockbuilt/known-failures.json`], { cwd: root, encoding: 'utf8', windowsHide: true });
+  if (r.status === 0) {
+    try {
+      const j = JSON.parse(r.stdout);
+      if (j && typeof j.commands === 'object' && j.commands) return j;
+    } catch { /* invalid: fall through */ }
+    return { commands: {} };
+  }
+  return /does not exist|exists on disk, but not in|bad revision|unknown revision/i.test(r.stderr || '') ? { commands: {} } : readKnownFailures(root);
+}
+
+// --check on a branch or in a worktree: run Verification on this checkout's code, ratchet against the
+// default branch's known failures, record nothing. On the default branch in the main checkout: reuse
+// a green baseline when the branch has not moved, else re-run there.
 export function checkBaseline(root, opts = {}) {
   const main = mainCheckoutRoot(root);
   const previous = readBaseline(main);
   const branch = defaultBranch(main);
+  if (isLinkedWorktree(root) || currentBranch(root) !== branch) {
+    const commands = verificationCommands(root);
+    const log = opts.log || (() => {});
+    const results = commands.map((cmd) => runCommand(cmd, root, (c) => log(`running: ${c}`)));
+    const ratchet = evaluateRatchet(results, knownFailuresAt(root, branch));
+    const record = { sha: headSha(root), branch: currentBranch(root), date: new Date().toISOString(), commands: results, exitGreen: results.every((r) => r.exitCode === 0), green: ratchet.green, ratchet, worktree: isLinkedWorktree(root) };
+    return { reran: true, moved: false, scope: 'branch', defaultBranch: branch, root, record };
+  }
   const tip = headSha(main, branch) || headSha(main);
   if (previous && previous.green && previous.sha && previous.sha === tip) {
-    return { reran: false, moved: false, defaultBranch: branch, root: main, record: previous };
+    return { reran: false, moved: false, scope: 'default', defaultBranch: branch, root: main, record: previous };
   }
   const record = runBaseline(main, opts);
-  return { reran: true, moved: Boolean(previous && previous.sha !== tip), defaultBranch: branch, root: main, record };
+  return { reran: true, moved: Boolean(previous && previous.sha !== tip), scope: 'default', defaultBranch: branch, root: main, record };
 }
 
 // --accept: write the current failures into known-failures.json (tier C: the human decides).

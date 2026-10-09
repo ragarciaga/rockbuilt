@@ -27,6 +27,7 @@ Max tasks per run: 6
 | Conventions | Patterns the scout observed consistently AND that a fresh reader would violate. Not linter rules |
 | Verification | CI workflow steps first, then package scripts. Commands must run from the repo root |
 | E2E | Existing Playwright/Cypress script. Omit the section if none and project type is not web |
+| Run | The dev-server script that listens on `$PORT` (`npm run dev`, `next dev -p $PORT`). Omit if there is no app to open in a browser |
 | Evals | Existing eval script. Omit if none and project type is not ai |
 | Setup | Lockfile-matching install (`npm ci`, `pnpm install --frozen-lockfile`, ...) plus required codegen |
 | Autonomy | `Sensitive paths`: legacy or risky areas the map found (billing, auth helpers outside the floor globs, data import scripts). `Tier A paths`: only on the user's request. `Paid services`: only what the user explicitly approved, each with a monthly cap; otherwise `none` |

@@ -31,8 +31,10 @@ through `rb gh <op>`, never `gh issue`, `gh pr` or `gh label`. Agents: `subagent
 The id is `B<n>` (n = issue number), branch `rb/B<n>-<slug>`; `L<n>` in degraded mode. "As in
 build" means `.claude/skills/rb-build/SKILL.md` and its references: bookkeeping files stay out of
 commits, kickbacks, retry ladder, resume, crash recovery and the blocked path follow
-`references/kickback.md`, the PR body follows `references/pr-template.md`, merges follow
-`references/merge-train.md`, escalations use
+`.claude/skills/rb-build/references/kickback.md`, the blind audit follows
+`.claude/skills/rb-build/references/audit.md`, the PR body follows
+`.claude/skills/rb-build/references/pr-template.md`, merges follow
+`.claude/skills/rb-build/references/merge-train.md`, escalations use
 `.claude/skills/rb-cycle/references/escalation-templates.md`.
 
 Use this path only for a bug: behavior that contradicts a spec, a test, documentation or obvious

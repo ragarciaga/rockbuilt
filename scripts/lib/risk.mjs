@@ -12,7 +12,7 @@ export const tierRank = (t) => TIERS.indexOf(String(t || '').toUpperCase());
 
 export const FLOOR_PATHS = [
   { rule: 'data-schema', globs: ['**/migrations/**', 'prisma/schema.prisma', 'drizzle/**', 'supabase/**', '**/*.sql'] },
-  { rule: 'auth-permissions-payments', globs: ['**/auth/**', '**/middleware.*', '**/permissions/**', '**/payments/**', '**/billing/**', '**/*stripe*', '**/*policy*', '**/rls*'] },
+  { rule: 'auth-permissions-payments', globs: ['**/auth/**', '**/middleware.*', '**/permissions/**', '**/payments/**', '**/billing/**', '**/stripe/**', '**/*stripe.*', '**/*stripe-*', '**/*stripe_*', '**/*Stripe*', '**/*policy*', '**/rls*'] },
   { rule: 'infra-deploy-ci', globs: ['.github/**', 'vercel.json', 'netlify.toml', 'Dockerfile*', 'docker-compose*', 'fly.toml', 'render.yaml', 'wrangler.toml', '**/*.tf', 'supabase/config.toml'] },
   { rule: 'harness-secrets', globs: ['AGENTS.md', 'CLAUDE.md', '.claude/**', '.cursor/**', '.codex/**', '.agents/**', 'tools/rockbuilt/**', 'docs/rockbuilt/**', '.env*', '**/*.env', '.mcp.json', '.npmrc', '.yarnrc*', '.gitleaks*', '.gitattributes', '.husky/**'] },
   { rule: 'architecture', globs: ['docs/adr/**', '**/design.md'] },
@@ -51,6 +51,8 @@ export const PAID_PY = [
 const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/i;
 // Base lookups ignore the harness and prose: a string in a README or in the vendored rb tables is not prior use.
 const BASE_EXCLUDES = [':(exclude)tools/rockbuilt', ':(exclude).claude', ':(exclude).agents', ':(exclude).codex', ':(exclude).cursor', ':(exclude)docs', ':(exclude)*.md'];
+// Hosts that name a standard or a code host, not a paid API (SVG xmlns, JSON schema, repo links).
+const NAMESPACE_HOSTS = /^(www\.)?(w3\.org|schema\.org|json-schema\.org|xmlns\.com|purl\.org|ogp\.me|github\.com|gitlab\.com|npmjs\.com|www\.npmjs\.com|registry\.npmjs\.org|nodejs\.org|developer\.mozilla\.org|opensource\.org|creativecommons\.org|fonts\.googleapis\.com|fonts\.gstatic\.com)$/i;
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|example\.(com|org|net)|.*\.example\.(com|org|net)|.*\.local|.*\.test|.*\.localhost)$/i;
 const SECRET_NAME = /(_KEY|_SECRET|_TOKEN)$|_API/;
 const ENV_PATTERNS = [
@@ -217,6 +219,8 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
       const p = normalizePath(f.path);
       const source = isSource(p);
       const py = /\.py$/i.test(p);
+      const config = /\.(ya?ml|toml|json|jsonc)$/i.test(p);
+      const copy = Boolean(matchAny(p, ['**/locales/**', '**/i18n/**', '**/messages/**']));
       for (const line of f.added) {
         if (source && !isComment(line)) {
           for (const mod of py ? pyModules(line) : jsModules(line)) {
@@ -228,9 +232,12 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
             if (inBase === true) continue;
             add('cost', p, `imports paid SDK ${mod}`); floor = true;
           }
+        }
+        // Hosts: code and config files (an endpoint in src/config/endpoints.json is still a call).
+        if ((source || (config && !copy)) && !isComment(line)) {
           for (const m of line.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,}|localhost|\[::1\]|\d+\.\d+\.\d+\.\d+)(?::\d+)?/gi)) {
             const host = m[1].toLowerCase();
-            if (LOCAL_HOSTS.test(host) || seen.has(`host:${host}`)) continue;
+            if (LOCAL_HOSTS.test(host) || NAMESPACE_HOSTS.test(host) || seen.has(`host:${host}`)) continue;
             seen.add(`host:${host}`);
             if (baseHas(host) === true) continue;
             add('cost', p, `new external host ${host}`); floor = true;
@@ -264,6 +271,8 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
   for (const p of notA.slice(0, 20)) add('tier-b', p, 'outside the tier A list');
   return { tier: 'B', reasons, changedLines: changed };
 }
+
+const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
 
 const STATUS = { A: 'added', M: 'modified', D: 'deleted', R: 'renamed', C: 'copied', T: 'modified', U: 'modified' };
 
@@ -303,8 +312,15 @@ export function gitDiffFiles(root, baseRef) {
     const c = counts.get(p) || { additions: 0, deletions: 0 };
     files.push({ path: p, previousPath: prev, status: STATUS[code] || 'modified', ...c, added: added.get(p) || [] });
   }
+  // Bookkeeping files the orchestrator edits during a run (task status, progress, lessons) count only
+  // when the branch committed them: an uncommitted claim or lesson is not part of the task's diff.
+  const committed = new Set(git(root, ['-c', 'core.quotepath=false', 'diff', '--name-only', '-M', from, 'HEAD']).stdout.split(/\r?\n/).filter(Boolean).map(normalizePath));
+  for (let i = files.length - 1; i >= 0; i--) {
+    if (BOOKKEEPING_RE.test(files[i].path) && !committed.has(files[i].path)) files.splice(i, 1);
+  }
   const untracked = git(root, ['-c', 'core.quotepath=false', 'ls-files', '--others', '--exclude-standard']);
   for (const p of untracked.stdout.split(/\r?\n/).filter(Boolean)) {
+    if (BOOKKEEPING_RE.test(normalizePath(p))) continue;
     const text = readText(path.join(root, p)) ?? '';
     const lines = text.split(/\r?\n/);
     if (lines.length && lines[lines.length - 1] === '') lines.pop();

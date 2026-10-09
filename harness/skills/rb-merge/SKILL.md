@@ -91,7 +91,9 @@ Only when the user asks to undo a specific merged PR ("revierte el PR 12").
 
 1. Confirm the PR number and title back in one line.
 2. `rb revert <pr>`: creates `rb/revert-<pr>`, reverts the merge commit, pushes and opens a PR
-   labelled `rb:tier-b`. Report the new PR number.
+   labelled `rb:tier-c` and `rb:needs-human` (revert PRs merge only when the user asks). Report
+   the new PR number; when its CI is green and the user confirms, merge it with
+   `rb merge-gate <n> --human-approved`.
 3. `git fetch origin`, `git checkout rb/revert-<pr>`, `rb baseline --check`, `git checkout
    <default>`. Report the result.
 4. The revert PR merges when the user asks ("merge #<revert pr>"), through sections 2 to 4. If the

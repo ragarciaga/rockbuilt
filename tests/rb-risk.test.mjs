@@ -256,3 +256,26 @@ test('classify and diff parser units', () => {
   assert.deepEqual(d.get('x'), ['one', 'two']);
   assert.equal(classify({ files: [] }).tier, 'A');
 });
+
+test('git mode: uncommitted bookkeeping edits (task claim, lessons) do not raise the tier', async () => {
+  const root = base({ 'docs/specs/01-x/tasks.md': '- Status: todo\n', '.claude/LESSONS.md': '# Lessons\n' });
+  write(root, 'tests/a.test.js', 'test\n');
+  commitAll(root, 'tests only');
+  write(root, 'docs/specs/01-x/tasks.md', '- Status: in-progress\n');
+  write(root, '.claude/LESSONS.md', '# Lessons\n- new gotcha\n');
+  write(root, 'docs/progress.md', 'progress\n');
+  const r = await tierOf(root, {}, { commit: false });
+  assert.equal(r.tier, 'A', JSON.stringify(r.reasons));
+  write(root, '.claude/LESSONS.md', '# Lessons\n- committed by the task\n');
+  commitAll(root, 'task touches lessons');
+  assert.equal((await tierOf(root, {}, { commit: false })).tier, 'C', 'committed harness edits still count');
+});
+
+test('cost scan: hosts in config files count; namespaces and look-alike names do not', () => {
+  const c = (p, l) => classify({ files: [{ path: p, status: 'added', additions: 1, deletions: 0, added: [l] }], baseHas: () => false }).tier;
+  assert.equal(c('src/config/endpoints.json', '{"u": "https://api.openai.com/v1"}'), 'C');
+  assert.equal(c('src/Icon.jsx', '<svg xmlns="http://www.w3.org/2000/svg">'), 'B');
+  assert.equal(c('src/striped.css', '.a{}'), 'A');
+  assert.equal(c('src/lib/stripe-client.ts', 'x'), 'C');
+  assert.equal(c('locales/es/messages.json', '{"a": "https://help.site.io"}'), 'A');
+});

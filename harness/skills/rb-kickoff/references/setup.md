@@ -57,7 +57,8 @@ writing.
 adds the `test:e2e` script once package.json exists. The skeleton issue pins the packages
 (`npm install -D -E @playwright/test @playwright/mcp`, `npx playwright install chromium`).
 Locally, after the install, the user restarts Claude Code, approves the `playwright` MCP server
-and confirms it with `/mcp`. AGENTS.md `## E2E` holds `npm run test:e2e`.
+and confirms it with `/mcp`. AGENTS.md `## E2E` holds `npm run test:e2e`, and `## Run` the dev server command on `$PORT`
+(the orchestrator starts it so the blind auditor can open the app).
 
 Add allow rules for the chosen toolchain to `.claude/settings.json`, one `Bash(cmd *)` rule per
 tool the Verification and Setup commands use beyond npm (for example `Bash(uv *)`,

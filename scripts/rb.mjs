@@ -31,7 +31,7 @@ export const COMMANDS = {
   worktree: 'add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list',
   timing: 'start|end <task> <phase> | report [--write]',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
-  sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels',
+  sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
   'merge-gate': 'Merge a PR only if every gate condition holds  <pr> --run <id> | --human-approved [--dry-run]',
   revert: 'Open a revert PR for a merged PR  <pr>',
@@ -232,7 +232,8 @@ const handlers = {
     } catch {
       c = null;
     }
-    const r = syncProject(root, c, { log: flags.json ? () => {} : io.err });
+    const run = typeof flags.run === 'string' ? flags.run : null;
+    const r = syncProject(root, c, { log: flags.json ? () => {} : io.err, run });
     return { data: r, text: syncText(r), code: 0 };
   },
 

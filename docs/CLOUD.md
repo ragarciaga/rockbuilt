@@ -118,7 +118,13 @@ quedan marcadas `rb:needs-local` con los comandos exactos para correr las prueba
 Run /rb-cycle.
 ```
 
-7. Elige el entorno del paso 3 y guarda.
+7. Elige el entorno del paso 3.
+8. **Notificaciones:** activa el aviso al terminar la corrida (push al celular, correo o ambos).
+   Es la única forma de que te enteres sin abrir GitHub: la rutina actúa con tu propio token, y
+   GitHub no te notifica las acciones que haces tú mismo, así que las etiquetas
+   `rb:needs-human` y `rb:needs-local` no te llegan como notificación de GitHub. La primera línea
+   del reporte final de cada corrida dice cuántas cosas esperan por ti y en qué issues.
+9. Guarda.
 
 Las rutinas corren **sin pedir aprobación**. Cualquier acción que en tu computador te pediría
 confirmar, en la rutina se niega. Por eso el harness nunca depende de una confirmación cuando

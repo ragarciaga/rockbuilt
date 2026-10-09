@@ -199,7 +199,9 @@ Everything else: production code inside an approved spec task, bug fixes, refact
 
 The human answers by commenting on the issue (an answer, or "aprobado") and removing
 `rb:needs-human`, or by adding `rb:approved`. The next run picks it up. Approval covers the plan
-as posted; a plan revised afterwards needs approval again.
+as posted; a plan revised afterwards needs approval again. An approving answer never makes the
+plan stale (only an answer that changes the task does), and bookkeeping commits never do either:
+otherwise every approval would trigger a re-plan and a new escalation (evidence 20.9).
 
 The spec gate stays human: requirements.md and design.md are approved by the user once per
 feature (they are architecture and design decisions). Tasks derived from an approved spec do not
@@ -314,8 +316,10 @@ All four live in GitHub so they survive a fresh cloud clone.
 4. Answers: issues where the human answered (`rb:approved`, or `rb:needs-human` removed with a
    reply) return to the queue.
 5. Queue: ready tasks (approved specs, status todo, dependencies done or merged), `rb:task` and
-   `rb:bug` issues from trusted authors (OWNER, MEMBER, COLLABORATOR), and CI failures on open
-   `rb/*` PRs. Up to `Max tasks per run`.
+   `rb:bug` issues from trusted authors (OWNER, MEMBER, COLLABORATOR), CI failures on open
+   `rb/*` PRs, and feature verification (rb-verify) for a spec whose tasks are all done and that
+   has no test report yet (its PR is human-only). Issues carrying a spec task marker are built
+   only from the approved tasks.md, never as standalone issues. Up to `Max tasks per run`.
 6. For each task: the build loop (section 12). Parallel batches when `rb parallel` allows.
 7. Merge train over eligible PRs (section 8).
 8. `rb digest post`; `rb lock release`.
@@ -352,8 +356,8 @@ outside `rb merge-gate`.
 
 Layers, from strongest to weakest:
 
-1. **GitHub side.** `rockbuilt-ci` (verification, secret scan with gitleaks, harness-file change
-   detection), branch protection when available, and `rb merge-gate` as the only merge path.
+1. **GitHub side.** `rockbuilt-ci` (verification, secret scan with gitleaks, a warning on
+   harness-file changes; it runs on PR open, push and reopen, not on label changes), branch protection when available, and `rb merge-gate` as the only merge path.
 2. **Permissions** in `.claude/settings.json` (and `.cursor/cli.json`): narrow allow rules; deny
    `Read(./.env*)`, force pushes, `reset --hard`, `git clean`, `rm -rf` variants,
    `git checkout -- .`, `git restore .`, `npm exec`, `npx -y` of unknown packages is not allowed
@@ -394,7 +398,8 @@ The guard is a tripwire, not a sandbox. It must never be the only thing preventi
 token, so anything the human can do on GitHub (add `rb:approved`, comment an answer, pass
 `--human-approved`), a misbehaving orchestrator could also do. The harness reduces it (markers on
 every harness comment, `--human-approved` only when the human asked in the current conversation,
-the digest records every human-approved merge, `rb:approved` is never added by a skill) but cannot
+the digest records every human-approved merge, `rb:approved` is added by a skill only when the
+human approves in the current conversation, with a comment quoting their words) but cannot
 remove it without a separate bot identity for the harness (roadmap).
 
 ## 14. Costs
@@ -404,7 +409,11 @@ paid APIs or SDKs, new third-party services or accounts, infrastructure, paid pl
 (including GitHub Pro), and running E2E or evals against paid endpoints. Tests and CI use mocks
 for paid services. Evals that call a paid model run only after the user approves a budget, recorded
 in AGENTS.md `Paid services`. GitHub Actions on a free private repo has a monthly free quota; when
-exhausted, Actions stop (no charge unless the user set a spending limit); `rb doctor` warns.
+exhausted, Actions stop (no charge unless the user set a spending limit). `rockbuilt-ci` runs on
+PR open, push and reopen only (not on label changes) to save minutes. `rb doctor` warns when the
+repo has deploy config (`vercel.json`, `netlify.toml`, `fly.toml`, `render.yaml`, `wrangler.toml`):
+if the host deploys the default branch on push, every automatic merge reaches production, so the
+user should confirm previews or choose `Autonomy: supervised`.
 
 ## 15. Spec, tasks and plan formats
 
@@ -499,6 +508,16 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    accepted renames into bookkeeping paths and omitted patches; `.git/hooks` was writable by the
    implementer; a commit status could stand in for CI; harness comments without markers could be
    read as human answers; deploy CLIs were not blocked.
+9. 2026-10-09, second review of v0.3 (confirmed by running code where noted): `rb baseline
+   --check` on a task branch reused the cached default-branch result and never ran the branch
+   code (confirmed); an approving answer made the plan stale, so tier C looped every night;
+   uncommitted bookkeeping edits (task claim, LESSONS) raised every task to B or C (confirmed);
+   the CI harness-file step failed every bookkeeping PR that touched LESSONS; the auditor could
+   pass with no UI criterion observed because nobody started the app; a `needs-local` audit
+   left the PR stuck; dead runs left `rb:in-progress` forever; package scripts, `pnpm exec`,
+   `yarn <bin>`, `.bin` paths, prisma/drizzle push and stripe escaped the cost guard (confirmed);
+   CI used the npm cache without a lockfile; the cycle never ran feature verification; escalations
+   produced no notification because GitHub does not notify the owner of his own token's actions.
 
 ## 21. rb command interface (binding for skills and the CLI)
 

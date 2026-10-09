@@ -100,9 +100,30 @@ test('rb baseline in a worktree: ratchet and record come from the main checkout'
   write(root, 'docs/rockbuilt/known-failures.json', JSON.stringify({ commands: { [CMD]: { knownFailingTests: ['legacy rounding'] } } }));
   const again = await rbJson(wt.json.path, ['baseline']);
   assert.equal(again.json.green, true);
+  // --check in a worktree runs the worktree's code, ratchets against the default branch, records nothing.
   const check = await rbJson(wt.json.path, ['baseline', '--check']);
-  assert.equal(check.code, 0);
+  assert.equal(check.code, 0, check.err);
+  assert.equal(check.json.scope, 'branch');
   const real = (p) => realpathSync.native(p).toLowerCase();
-  assert.equal(real(check.json.root), real(root));
-  assert.ok(existsSync(path.join(root, '.rockbuilt', 'baseline.json')), '--check records in the main checkout');
+  assert.equal(real(check.json.root), real(wt.json.path));
+  write(wt.json.path, 'tests/b.test.mjs', "import test from 'node:test';\nimport assert from 'node:assert';\ntest('new break', () => assert.equal(1, 2));\n");
+  const red = await rbJson(wt.json.path, ['baseline', '--check']);
+  assert.notEqual(red.code, 0, 'a new failure in the worktree code must fail --check');
+  assert.ok(!existsSync(path.join(wt.json.path, '.rockbuilt', 'baseline.json')));
+});
+
+test('rb baseline --check on a task branch runs the branch code, not the cached default baseline', async () => {
+  const root = project();
+  write(root, 'docs/rockbuilt/known-failures.json', JSON.stringify({ commands: { [CMD]: { knownFailingTests: ['legacy rounding'] } } }));
+  commitAll(root, 'known');
+  assert.equal((await rbJson(root, ['baseline', '--check'])).code, 0);
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('git', ['checkout', '-q', '-b', 'rb/T1-x'], { cwd: root });
+  write(root, 'tests/b.test.mjs', "import test from 'node:test';\nimport assert from 'node:assert';\ntest('new break', () => assert.equal(1, 2));\n");
+  // The branch also tries to relax its own ratchet: the default branch list still applies.
+  write(root, 'docs/rockbuilt/known-failures.json', JSON.stringify({ commands: { [CMD]: { knownFailingTests: ['legacy rounding', 'new break'] } } }));
+  commitAll(root, 'break');
+  const r = await rbJson(root, ['baseline', '--check']);
+  assert.notEqual(r.code, 0, 'cached green default baseline must not hide the branch failure');
+  assert.equal(r.json.scope, 'branch');
 });

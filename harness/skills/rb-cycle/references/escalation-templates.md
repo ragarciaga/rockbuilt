@@ -85,8 +85,9 @@ npx playwright install chromium
 el resultado esperado de cada uno.>
 
 **Cómo responder:** comenta "ok" o pega las últimas líneas de la salida si falló, y quita
-`rb:needs-local`<, y `rb:hold` del PR #<pr> si pasó>. Luego vuelve a tu rama de trabajo
-(`git checkout <rama por defecto>`).
+`rb:needs-local`. Luego vuelve a tu rama de trabajo (`git checkout <rama por defecto>`).
+<Si el PR #<pr> espera esta prueba: el auditor no pudo observarla en la nube, así que el merge
+es tuyo. Cuando pase, abre una sesión y di "fusiona el PR <pr>" (`/rb-merge`).>
 ~~~~
 
 ## 3. Short templates (same rules, same reason line)
@@ -115,3 +116,7 @@ el resultado esperado de cada uno.>
   commands, the revert PR already opened by `rb revert`; recommendation "fusiona el PR de revert
   #<n> (di 'fusiona el PR <n>') o corrige con `/rb-fix`".
 - **Dirty tree** (`dirty-tree`, human, control issue): the changed paths; nothing was touched.
+- **Tier rose at merge** (`tier-rose-at-merge`, human): "El PR #<pr> subió a nivel C al revisar
+  el diff vivo antes del merge: <razones de `rb risk`>. Lo etiqueté `rb:tier-c`; el merge es
+  tuyo. Opciones: 1. revisarlo y fusionarlo (di 'fusiona el PR <pr>'), 2. pedir que se divida la
+  parte C en otra tarea (recomendado si el resto es B)."

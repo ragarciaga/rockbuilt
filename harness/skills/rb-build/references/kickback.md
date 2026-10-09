@@ -120,8 +120,8 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
 1. **Already used?** The PR branch has a commit whose subject ends `(CI, <id>)`: the attempt is
    spent. Escalate (`CI red after fix`) once and move on.
 2. **Classify.** A secret-scan (gitleaks) failure is never auto-fixed: escalate `--kind human`
-   (the secret must be rotated). A harness-file change detection failure means tier C: label
-   `rb:tier-c` instead of the A or B label and escalate. A check with the same name also failing on
+   (the secret must be rotated). The `Harness files` step only warns (the gate already makes
+   those PRs tier C); it never needs a CI fix. A check with the same name also failing on
    the default branch head (`rb gh checks <default sha>`) is unrelated: do not burn the attempt,
    escalate (`CI red, unrelated`) in the digest.
 3. **Fix.** Check out the PR branch (`git fetch origin`, `git checkout <branch>`,

@@ -49,6 +49,13 @@ npm run build
 npm run test:e2e
 ```
 
+## Run
+```bash
+# Web projects: the one command that starts the app on $PORT (default 3000) for browser checks.
+# The orchestrator starts it for the blind auditor; delete this section if there is no app to run.
+npm run dev
+```
+
 ## Evals
 ```bash
 # Delete this section if the project has no AI behavior to grade.

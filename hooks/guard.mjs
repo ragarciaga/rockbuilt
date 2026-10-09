@@ -707,18 +707,57 @@ const COST_CLIS = new Map([
   ['pulumi', new Set(['preview', 'version', 'about', 'whoami'])],
 ]);
 const RUNNERS = new Set(['npx', 'bunx', 'pnpx']);
+// CLIs judged by their arguments: a denied pattern on the joined arguments.
+const COST_ARG_RULES = new Map([
+  ['prisma', /^(db\s+(push|execute|seed)|migrate\s+(deploy|reset|resolve))\b/],
+  ['drizzle-kit', /^(push|migrate|drop)\b/],
+  ['stripe', /^(?!(--version|-v|--help|-h|help|listen|login|version)\b)/],
+  ['twilio', /^(?!(--version|--help|help)\b)/],
+]);
+const PKG_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+const PKG_SUBCOMMANDS = new Set(['install', 'i', 'ci', 'add', 'remove', 'rm', 'uninstall', 'update', 'up', 'test', 't', 'run', 'run-script', 'exec', 'x', 'dlx', 'init', 'create', 'list', 'ls', 'outdated', 'audit', 'why', 'pack', 'publish', 'link', 'config', 'cache', 'version', 'view', 'info', 'help', 'start', 'build', 'dev', 'install-test', 'it']);
 
-function costCliReason(w) {
+function readScripts(cwd) {
+  try { return JSON.parse(readFileSync(path.join(cwd || '.', 'package.json'), 'utf8')).scripts || {}; } catch { return {}; }
+}
+
+function costCliReason(w, cwd, depth = 0) {
   let words = w;
   let name = commandName(words[0]);
-  // npx vercel, pnpm dlx vercel, yarn dlx vercel, npm exec vercel, bunx vercel
+  // npx vercel, bunx vercel, pnpm dlx/exec vercel, yarn dlx/exec vercel, yarn vercel, npm exec vercel,
+  // node node_modules/.bin/vercel
   if (RUNNERS.has(name)) words = words.slice(1);
-  else if ((name === 'pnpm' || name === 'yarn') && words[1] === 'dlx') words = words.slice(2);
+  else if ((name === 'pnpm' || name === 'yarn' || name === 'bun') && (words[1] === 'dlx' || words[1] === 'exec' || words[1] === 'x')) words = words.slice(2);
   else if (name === 'npm' && (words[1] === 'exec' || words[1] === 'x')) words = words.slice(2);
+  else if (name === 'node' && words[1] && /(^|[\\/])node_modules[\\/]\.bin[\\/]/.test(words[1])) words = words.slice(1);
+  else if (PKG_MANAGERS.has(name)) {
+    // npm run <script>, pnpm <script>, yarn <script or bin>: judge what the script runs.
+    const rest = words.slice(1).filter((x) => !/^-/.test(x));
+    let script = null;
+    if (rest[0] === 'run' || rest[0] === 'run-script') script = rest[1];
+    else if (name !== 'npm' && rest[0] && !PKG_SUBCOMMANDS.has(rest[0])) script = rest[0];
+    else if (rest[0] === 'start' || rest[0] === 'test' || rest[0] === 't') script = rest[0] === 't' ? 'test' : rest[0];
+    if (!script) return null;
+    const body = readScripts(cwd)[script];
+    if (typeof body !== 'string') {
+      // yarn vercel / pnpm vercel with no such script runs the binary.
+      return name !== 'npm' ? costCliReason([script, ...rest.slice(1)], cwd, depth + 1) : null;
+    }
+    if (depth > 3) return null;
+    for (const seg of splitCommands(body)) {
+      const r = costCliReason(seg.filter((x) => typeof x === 'string'), cwd, depth + 1);
+      if (r) return `script "${script}" runs ${r}`;
+    }
+    return null;
+  }
   words = words.filter((x, i) => i === 0 || !/^-(y|-yes|-package=.*)$/.test(x));
   while (words.length && /^-/.test(words[0])) words = words.slice(1);
   if (!words.length) return null;
   name = commandName(words[0]).replace(/@.*$/, '');
+  if (COST_ARG_RULES.has(name)) {
+    const args = words.slice(1).join(' ');
+    return COST_ARG_RULES.get(name).test(args) ? `${name} ${args}`.trim() + ' changes live data or spends money: escalate it to the human (tier C)' : null;
+  }
   if (!COST_CLIS.has(name)) return null;
   const allowed = COST_CLIS.get(name);
   const sub = words.slice(1).find((x) => !/^-/.test(x) || x === '--version' || x === '-v' || x === '--help' || x === '-h');
@@ -732,7 +771,7 @@ function everyoneSegmentReason(seg, role, ctx) {
   if (env) return env;
   const w = seg.words;
   if (!w.length) return null;
-  const cost = costCliReason(w);
+  const cost = costCliReason(w, ctx.cwd);
   if (cost) return cost;
   const name = commandName(w[0]);
   if (name === 'git') {

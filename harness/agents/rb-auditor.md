@@ -41,10 +41,11 @@ issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, 
 2. Locate the area, not the intent: `git diff --stat --format= <default>...HEAD` tells you which
    screens, routes or commands to exercise. You may read code only to learn how to reach a
    behavior (a route path, a CLI flag, a form field), never to decide whether it is correct.
-3. Get the software running with the run instructions. Prefer what the allowlist permits:
+3. Get the software running with the run instructions. The orchestrator starts the app and gives
+   you `App URL`; you cannot start servers yourself. Otherwise use what the allowlist permits:
    `npx playwright test` (its `webServer` starts the app), `npm test`, `npm run test*`,
-   `node --test`, `pytest`. If the app must be running and you cannot start or reach it, the
-   affected criteria are not-observable with that reason.
+   `node --test`, `pytest`. If a UI criterion needs the app and `App URL` is `none` or does not
+   answer, stop with `outcome=incomplete` and the reason "app not reachable".
 4. For each criterion, exercise the behavior the way a user or caller would:
    - UI: Playwright MCP. Navigate, take an accessibility snapshot, act through roles and labels,
      then observe the outcome the criterion names (text shown, URL, a protected page loading, a
@@ -76,6 +77,8 @@ issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, 
 - Otherwise, any `not-observable` on an `[e2e]` criterion because `Browser: unavailable` in a
   cloud session, or because a credential exists only on the user's machine:
   `outcome=needs-local`, with the exact steps the user should run locally.
+- Otherwise, any other `not-observable` on an `[e2e]` or `[manual]` criterion:
+  `outcome=incomplete` with the reason. Only `[unit]` criteria may be not-observable in a pass.
 - Otherwise `outcome=pass`. A `[unit]` criterion with no user-visible surface may be
   not-observable without failing the audit; say so explicitly.
 - Never guess a pass. Never infer behavior from reading the implementation or the tests.
