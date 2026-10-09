@@ -37,17 +37,26 @@ Mientras el repo de Rockbuilt sea privado, cada persona del equipo necesita acce
 
 ## Proyecto nuevo
 
-1. Crea una carpeta vacía, abre Claude Code ahí y corre `/rockbuilt:install`. Después abre una
-   sesión nueva para que carguen los comandos.
-2. Escribe `/rb-kickoff` o simplemente "quiero construir ...". Si tienes notas, pégalas; si no,
+**En la nube (lo normal).**
+
+1. En GitHub crea el repo vacío, privado y **con README** (así existe la rama `main`).
+2. Dale acceso a la app de Claude: GitHub, Settings, Applications, Claude, Configure,
+   Repository access, agrega el repo, Save. Sin esto la sesión no puede clonarlo ni empujar.
+3. Abre una sesión en claude.ai/code con dos repos: el nuevo y `ragarciaga/rockbuilt` (de ahí
+   sale el harness que se instala en el proyecto).
+4. Escribe `/rb-kickoff` o simplemente "quiero construir ...". Si tienes notas, pégalas; si no,
    describe la idea. Puedes dictar por voz.
-3. Responde la entrevista, en rondas de preguntas con la opción recomendada primero. Incluye una
+5. Responde la entrevista, en rondas de preguntas con la opción recomendada primero. Incluye una
    recomendación honesta de seguir o no, y si el proyecto necesita IA.
-4. Aprueba el brief. Rockbuilt crea el repo privado en GitHub, llena `AGENTS.md`, escribe el
-   brief y los ADRs, crea el issue de control y el issue del esqueleto (la app arrancando con sus
-   pruebas en verde), y abre el PR de arranque. Ese PR lo fusionas tú.
-5. `/rb-build` sobre el issue del esqueleto, o deja que la rutina nocturna lo tome.
-6. `/rb-spec` para la primera funcionalidad. Desde ahí el resto es automático.
+6. Aprueba el brief. Rockbuilt instala el harness, llena `AGENTS.md`, escribe el brief y los
+   ADRs, crea las etiquetas, el issue de control y el issue del esqueleto (la app arrancando con
+   sus pruebas en verde), y abre el PR de arranque. Ese PR lo fusionas tú.
+7. Crea la rutina nocturna (docs/CLOUD.md, paso 4). Esa noche construye el esqueleto.
+8. `/rb-spec` en una sesión para la primera funcionalidad. Desde ahí la rutina construye cada
+   noche y tú solo respondes lo que te pregunte.
+
+**En tu computador.** Crea una carpeta vacía, abre Claude Code ahí, corre `/rockbuilt:install`,
+abre una sesión nueva y sigue desde el paso 4. Ahí Rockbuilt sí puede crear el repo con `gh`.
 
 ## Proyecto en curso
 

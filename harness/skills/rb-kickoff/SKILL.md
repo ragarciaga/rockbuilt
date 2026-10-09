@@ -128,8 +128,9 @@ Read `references/setup.md` for exact commands and failure handling.
 1. **Repo.** Confirm name, owner and visibility (private by default). New repo: `git init -b
    main` if needed, then `gh repo create <owner>/<name> --private --source . --remote origin`.
    If that fails (always the case in cloud sessions, where repos cannot be created), ask the user
-   to create the repo in the GitHub UI, **with a README** so the default branch exists, and give
-   you its URL; then wire it as `origin`. Confirm the owner/name and default branch back.
+   to create the repo in the GitHub UI, **with a README** so the default branch exists, give the
+   Claude GitHub app access to it (GitHub, Settings, Applications, Claude, Configure, Repository
+   access), and give you its URL; then wire it as `origin`. Confirm the owner/name and default branch back.
 2. **Vendor the harness.** `rb vendor --type <types> --lang <lang> --tools <tools>` (plugin or
    `../rockbuilt` path, see above). Report what it created, merged and skipped. From now on use
    `node tools/rockbuilt/rb.mjs`.
