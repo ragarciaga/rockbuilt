@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+// Wrapper so `rb` works from the Bash PATH on Windows Git Bash, macOS and Linux.
+// bin/package.json pins this file to CommonJS: extensionless ESM entry points fail on older Node 20.x,
+// so it uses dynamic import() and locates itself via argv[1] (realpath follows PATH symlinks).
+Promise.all([import('node:fs'), import('node:path'), import('node:url')]).then(async ([fs, path, url]) => {
+  const self = fs.realpathSync(process.argv[1]);
+  const cli = path.join(path.dirname(self), '..', 'scripts', 'rb.mjs');
+  const { main } = await import(url.pathToFileURL(cli).href);
+  process.exitCode = await main(process.argv.slice(2));
+}).catch((e) => {
+  process.stderr.write(`rb: ${e && e.stack ? e.stack : e}\n`);
+  process.exitCode = 1;
+});

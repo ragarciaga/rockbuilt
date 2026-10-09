@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { compare, parseBudgets } from '../src/budgets.js';
+
+test('parseBudgets loads category amounts', () => {
+  const b = parseBudgets({ comida: 600000, transporte: 150000 });
+  assert.equal(b.get('comida'), 600000);
+  assert.equal(b.size, 2);
+});
+
+test('parseBudgets names the invalid category', () => {
+  assert.throws(() => parseBudgets({ comida: -5 }), /comida/);
+});
+
+test('compare marks a category over budget as excedido', () => {
+  const rows = compare({ comida: 700000 }, parseBudgets({ comida: 600000 }));
+  assert.deepEqual(rows[0], { category: 'comida', spent: 700000, budget: 600000, diff: -100000, status: 'excedido' });
+});
+
+test('compare lists a category without budget as sin tope', () => {
+  const rows = compare({ hogar: 50000 }, new Map());
+  assert.equal(rows[0].status, 'sin tope');
+});

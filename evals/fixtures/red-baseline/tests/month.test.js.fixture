@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { inMonth } from '../src/expenses.js';
+
+// Red on purpose (eval fixture): inMonth does not validate its argument yet.
+test('inMonth rejects a month that is not YYYY-MM', () => {
+  assert.throws(() => inMonth([], '2026/10'), /YYYY-MM/);
+});

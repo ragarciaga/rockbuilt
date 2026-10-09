@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { parseBudgets } from '../src/budgets.js';
+
+test('parseBudgets loads category amounts', () => {
+  const b = parseBudgets({ comida: 600000, transporte: 150000 });
+  assert.equal(b.get('comida'), 600000);
+  assert.equal(b.size, 2);
+});
+
+test('parseBudgets names the invalid category', () => {
+  assert.throws(() => parseBudgets({ comida: -5 }), /comida/);
+});

@@ -1,0 +1,5 @@
+[
+  { "description": "Almuerzo", "amount": 25000, "category": "Comida", "date": "2026-10-01" },
+  { "description": "Mercado", "amount": 180000, "category": "comida", "date": "2026-10-03" },
+  { "description": "Taxi", "amount": 18000, "category": "transporte", "date": "2026-10-03" }
+]

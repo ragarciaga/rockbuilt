@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { suggestCategory } from '../src/categorize.js';
+
+test('categorize returns a known category', async () => {
+  assert.equal(await suggestCategory('Taxi al aeropuerto', async () => 'transporte'), 'transporte');
+});
+
+test('categorize falls back to otros when the LLM fails', async () => {
+  assert.equal(await suggestCategory('x', async () => { throw new Error('down'); }), 'otros');
+});

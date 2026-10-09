@@ -1,0 +1,17 @@
+{
+  "name": "rockbuilt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Rockbuilt Claude Code plugin: hooks, rb CLI and tests",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "rb": "bin/rb"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

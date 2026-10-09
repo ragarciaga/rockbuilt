@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { addExpense, inMonth, total } from '../src/expenses.js';
+
+test('addExpense appends a valid expense', () => {
+  const list = addExpense([], { description: 'Almuerzo', amount: 25000, category: 'comida', date: '2026-10-01' });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].category, 'comida');
+});
+
+test('addExpense rejects a non positive amount', () => {
+  assert.throws(() => addExpense([], { description: 'x', amount: 0 }), /positive integer/);
+});
+
+test('total sums amounts', () => {
+  assert.equal(total([{ amount: 1000 }, { amount: 2500 }]), 3500);
+});
+
+test('inMonth filters by YYYY-MM', () => {
+  const list = [{ date: '2026-09-30', amount: 1 }, { date: '2026-10-01', amount: 2 }];
+  assert.deepEqual(inMonth(list, '2026-10').map((e) => e.amount), [2]);
+});

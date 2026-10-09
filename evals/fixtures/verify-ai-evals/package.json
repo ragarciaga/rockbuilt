@@ -1,0 +1,15 @@
+{
+  "name": "gastos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny expense tracker used as a Rockbuilt eval fixture",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/cli.js",
+    "evals": "node -e \"console.log('score 0.70 (28/40), threshold 0.85');process.exit(1)\""
+  }
+}

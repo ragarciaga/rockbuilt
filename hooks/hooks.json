@@ -1,0 +1,18 @@
+{
+  "description": "Rockbuilt guard: blocks pushes to the default branch, force pushes, git/gh outside each subagent's role, subagent edits to orchestrator-owned files, and subagent merges (DESIGN.md section 9).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.mjs"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

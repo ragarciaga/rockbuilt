@@ -1,0 +1,15 @@
+{
+  "name": "rockbuilt",
+  "owner": {
+    "name": "Rafael Andrés García",
+    "url": "https://github.com/ragarciaga"
+  },
+  "description": "Rockbuilt: a Claude Code harness from idea to verified, merged code.",
+  "plugins": [
+    {
+      "name": "rockbuilt",
+      "source": "./",
+      "description": "Spec-driven software delivery for Claude Code with verifiable tasks, separated producer and verifier agents, and human-owned approval and merge gates."
+    }
+  ]
+}
