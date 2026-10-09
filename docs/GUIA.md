@@ -21,7 +21,7 @@ Mientras el repo sea privado, cada persona del equipo necesita acceso de lectura
 
 ## Proyecto nuevo
 
-1. Crea una carpeta vacía, abre Claude Code ahí y escribe `/rockbuilt:kickoff` o simplemente
+1. Crea una carpeta vacía, abre Claude Code ahí y escribe `/rb-kickoff` o simplemente
    "quiero construir ...". Si tienes notas o un documento, pégalo; si no, describe la idea. Puedes
    dictar por voz.
 2. Responde la entrevista. Viene en rondas de preguntas con la opción recomendada primero.
@@ -29,12 +29,12 @@ Mientras el repo sea privado, cada persona del equipo necesita acceso de lectura
 3. Aprueba el brief. Rockbuilt crea el repo privado en GitHub, escribe `CLAUDE.md`, el brief, los
    ADRs y el issue #1 (el esqueleto que deja la app arrancando con sus tests en verde).
 4. Haz el commit y el push inicial tú mismo; Claude tiene bloqueado el push directo a main.
-5. `/rockbuilt:build` sobre el issue #1, revisa el PR y pide el merge.
-6. `/rockbuilt:spec` para la primera funcionalidad, luego `/rockbuilt:tasks` y `/rockbuilt:build`.
+5. `/rb-build` sobre el issue #1, revisa el PR y pide el merge.
+6. `/rb-spec` para la primera funcionalidad, luego `/rb-tasks` y `/rb-build`.
 
 ## Proyecto en curso
 
-1. Abre Claude Code en el repo y corre `/rockbuilt:adopt`.
+1. Abre Claude Code en el repo y corre `/rb-adopt`.
 2. Un agente lee el código y deja el mapa en `docs/current-state.md`. Con eso escribe o corrige
    `CLAUDE.md`.
 3. Corre los tests actuales. Si algo está en rojo o no hay tests, propone primero un issue para
@@ -45,13 +45,13 @@ Mientras el repo sea privado, cada persona del equipo necesita acceso de lectura
 
 | Quieres | Comando |
 |---|---|
-| Funcionalidad nueva o cambio grande | `/rockbuilt:spec`, luego `tasks` y `build` |
-| Arreglar un bug | `/rockbuilt:fix` |
-| Cambio pequeño y acotado | Crea el issue y corre `/rockbuilt:build` sobre él |
-| Probar una funcionalidad completa (E2E, evals, seguridad) | `/rockbuilt:verify` |
-| Hacer merge de un PR | "haz merge del PR 12" o `/rockbuilt:merge 12` |
-| Retomar al día siguiente | `/rockbuilt:status` |
-| Cerrar una funcionalidad o reportar algo del harness | `/rockbuilt:retro` |
+| Funcionalidad nueva o cambio grande | `/rb-spec`, luego `tasks` y `build` |
+| Arreglar un bug | `/rb-fix` |
+| Cambio pequeño y acotado | Crea el issue y corre `/rb-build` sobre él |
+| Probar una funcionalidad completa (E2E, evals, seguridad) | `/rb-verify` |
+| Hacer merge de un PR | "haz merge del PR 12" o `/rb-merge 12` |
+| Retomar al día siguiente | `/rb-status` |
+| Cerrar una funcionalidad o reportar algo del harness | `/rb-retro` |
 
 Si no sabes cuál aplica, describe lo que quieres. Rockbuilt propone el camino y tú confirmas.
 
@@ -67,7 +67,7 @@ Después de que el issue #1 instale las dependencias:
 3. Escribe `/mcp` y confirma que aparece conectado.
 
 Desde ahí, cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR, y
-`/rockbuilt:verify` escribe las pruebas nuevas de cada funcionalidad (un camino feliz y dos de
+`/rb-verify` escribe las pruebas nuevas de cada funcionalidad (un camino feliz y dos de
 fallo por flujo). En un proyecto existente sin Playwright, `adopt` propone un issue para
 agregarlo antes de construir.
 

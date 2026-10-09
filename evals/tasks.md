@@ -14,7 +14,7 @@ planning-tasks scenarios (bootstrap and per-task review).
   > Arma las tareas de docs/specs/01-monthly-budgets
 - Follow-ups: when the backlog and coverage matrix appear, reply "Aprobado".
 - Pass (with skill):
-  1. Dispatches `rockbuilt:scout` in spec mode, then one `rockbuilt:task-reviewer` per task,
+  1. Dispatches `rb-scout` in spec mode, then one `rb-task-reviewer` per task,
      all in a single message (parallel), and reviewers write no files.
   2. Writes `docs/specs/01-monthly-budgets/tasks.md` with the DESIGN.md section 7 fields
      (`Purpose`, `Covers`, `Size`, `Depends on`, `Files`, `Verify`, `Issue`, `Status`), field
@@ -25,7 +25,7 @@ planning-tasks scenarios (bootstrap and per-task review).
   6. After approval: header `Status: approved` and `Converged: <date>, <n> rounds` with n <= 3;
      one issue per task, labelled `rb:task`, body starting `<!-- rockbuilt:task T<n> spec=docs/specs/01-monthly-budgets -->`;
      each `Issue: #n` written back.
-  7. No commit; tells the user to commit the spec folder before `/rockbuilt:build`.
+  7. No commit; tells the user to commit the spec folder before `/rb-build`.
   8. No em dash.
 - Expected failure without the skill: one agent writes a flat checklist in one pass, misses
   R1.3 (missing file), no binary checks, files issues without approval or not at all.
@@ -38,7 +38,7 @@ planning-tasks scenarios (bootstrap and per-task review).
   > Plan the tasks for docs/specs/01-monthly-budgets, a draft is already there.
 - Pass (with skill):
   1. Keeps the existing draft as input (does not start from scratch) and dispatches one
-     `rockbuilt:task-reviewer` per existing task in one message.
+     `rb-task-reviewer` per existing task in one message.
   2. Splits or rewrites T1 (size L covering five criteria).
   3. Replaces T2's "revisar a ojo" with a binary check, or removes the task.
   4. Removes T3 (WhatsApp alerts are out of scope in requirements.md) and does not add new scope.
@@ -57,7 +57,7 @@ planning-tasks scenarios (bootstrap and per-task review).
 - Prompt (es):
   > Divide en tareas docs/specs/01-monthly-budgets
 - Pass (with skill):
-  1. Stops because design.md is `Status: draft`, points to `/rockbuilt:spec`.
+  1. Stops because design.md is `Status: draft`, points to `/rb-spec`.
   2. Creates no tasks.md and no issues.
   3. Reply in Spanish.
 - Expected failure without the skill: plans against the unapproved design.

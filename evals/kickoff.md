@@ -48,7 +48,7 @@ Setup convention: `RB` is the plugin checkout; build one workspace per arm with
   6. Runs `rb init` and `rb labels`; creates exactly one issue, labelled `rb:skeleton` and
      `rb:task`, whose body starts with `<!-- rockbuilt:task i`.
   7. `git log` shows no commits made by Claude; the handoff tells the user to commit and names
-     `/rockbuilt:build #1` as the next command.
+     `/rb-build #1` as the next command.
   8. `node "$RB/evals/tools/no-em-dash.mjs" .` passes.
 - Expected failure without the skill: writes code or a full app skeleton immediately, no ADRs,
   no skeleton issue, commits on its own, no go/no-go.
@@ -60,7 +60,7 @@ Setup convention: `RB` is the plugin checkout; build one workspace per arm with
   > Arranquemos un proyecto nuevo aquí: quiero construir la versión 2 de esta app de gastos.
 - Pass (with skill):
   1. Detects the existing source (`src/expenses.js`) in its first reply.
-  2. Redirects to `/rockbuilt:adopt` and does not start the kickoff interview.
+  2. Redirects to `/rb-adopt` and does not start the kickoff interview.
   3. Writes no files (`git status --porcelain` empty).
   4. Reply in Spanish, no em dash.
 - Expected failure without the skill: starts a greenfield plan or rewrites the app from scratch
@@ -72,7 +72,7 @@ Setup convention: `RB` is the plugin checkout; build one workspace per arm with
 - Prompt (es):
   > Explícame qué es un walking skeleton y por qué se hace primero.
 - Pass (with skill installed):
-  1. The kickoff skill is not loaded (no `rockbuilt:kickoff` in the transcript).
+  1. The kickoff skill is not loaded (no `rb-kickoff` in the transcript).
   2. No questions about the user's product idea; it just explains.
   3. No files created, no `gh` or `rb` commands.
 - Expected failure: the skill loads on "walking skeleton" and starts an intake interview.

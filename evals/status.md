@@ -23,7 +23,7 @@ Setup convention: see README; `RB` is the plugin checkout.
      `gh issue list` and `gh pr list` (independent reads in parallel).
   2. Runs `rb tasks docs/specs/01-monthly-budgets --json` and reports T1 done, T2 with PR #4
      open (tasks.md still says todo; the fixture skips that bookkeeping), T3 waiting on T2.
-  3. Notices that progress.md Next steps ("/rockbuilt:spec ...") is stale versus observed state
+  3. Notices that progress.md Next steps ("/rb-spec ...") is stale versus observed state
      and says it trusts observed state.
   4. Names exactly one next step: the human reviews and merges PR #4 (for example "merge PR #4").
   5. Report under 25 lines, Spanish headings (Hecho, En curso, Esperando por ti, Siguiente).
@@ -39,7 +39,7 @@ Setup convention: see README; `RB` is the plugin checkout.
   > Where did we leave off? What's next?
 - Pass (with skill):
   1. Detects that CLAUDE.md is missing and stops gathering.
-  2. Routes to `/rockbuilt:adopt` (the repo has code), not kickoff.
+  2. Routes to `/rb-adopt` (the repo has code), not kickoff.
   3. Reply in English, one next command.
   4. Writes nothing.
 - Expected failure without the skill: invents a status from the code and suggests random work.
@@ -54,7 +54,7 @@ Setup convention: see README; `RB` is the plugin checkout.
   > Retomemos.
 - Pass (with skill):
   1. `rb baseline --check` re-runs (main moved) and is reported red with the failing test.
-  2. The single next command is fixing the baseline (`/rockbuilt:fix`), not `/rockbuilt:build`.
+  2. The single next command is fixing the baseline (`/rb-fix`), not `/rb-build`.
   3. Does not run the fix itself and edits no file.
   4. Spanish, no em dash.
 - Expected failure without the skill: suggests continuing with T2.

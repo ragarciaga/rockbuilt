@@ -9,12 +9,12 @@ const GITIGNORE_ADDITIONS = 'gitignore-additions.txt';
 const REQUIRED_IGNORES = ['.rockbuilt/'];
 
 export function templatesDir() {
-  return process.env.RB_TEMPLATES_DIR || path.join(PLUGIN_ROOT, 'templates', 'project');
+  return process.env.RB_TEMPLATES_DIR || path.join(PLUGIN_ROOT, 'harness', 'project');
 }
 
 // Overlay applied when the project type includes web (Playwright E2E + Playwright MCP).
 export function webTemplatesDir() {
-  return process.env.RB_WEB_TEMPLATES_DIR || path.join(PLUGIN_ROOT, 'templates', 'web');
+  return process.env.RB_WEB_TEMPLATES_DIR || path.join(PLUGIN_ROOT, 'harness', 'web');
 }
 
 export const PLAYWRIGHT_DEV_DEPS = ['@playwright/test', '@playwright/mcp'];

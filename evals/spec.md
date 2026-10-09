@@ -24,7 +24,7 @@ Setup convention: see README; `RB` is the plugin checkout.
      and an `## Existing behavior to preserve` section (the repo has code).
   5. `design.md` is written only after requirements show `Status: approved`, and every design
      section cites an `R` ID.
-  6. Dispatches `rockbuilt:scout` in spec mode (the repo has code).
+  6. Dispatches `rb-scout` in spec mode (the repo has code).
   7. No file under `src/` or `tests/` changes; no commit.
   8. No em dash in the spec files or chat.
 - Expected failure without the skill: writes `src/budgets.js` right away, or produces one loose
@@ -54,7 +54,7 @@ Setup convention: see README; `RB` is the plugin checkout.
 - Prompt (es):
   > Hagamos el spec: el total por categoría separa "Comida" y "comida" en dos filas.
 - Pass (with skill):
-  1. Classifies this as a bug and redirects to `/rockbuilt:fix` in one sentence, asking to confirm.
+  1. Classifies this as a bug and redirects to `/rb-fix` in one sentence, asking to confirm.
   2. Creates no `docs/specs/` folder.
   3. Edits no code.
   4. Reply in Spanish.

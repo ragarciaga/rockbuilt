@@ -26,16 +26,16 @@ that closes each gap with a concrete mechanism:
 
 | Step | Command | Output | Human gate |
 |---|---|---|---|
-| Idea | `/rockbuilt:kickoff` | Brief, go/no-go, project type, workflow vs agent, ADRs, repo, walking skeleton issue | Approve the brief |
-| Existing repo | `/rockbuilt:adopt` | Current-state map, CLAUDE.md from reality, baseline or stabilization issue | Confirm the route |
-| Spec | `/rockbuilt:spec` | `requirements.md` (EARS), `design.md`, ADRs | Approve requirements, then design |
-| Tasks | `/rockbuilt:tasks` | Converged `tasks.md` with coverage matrix, GitHub issues | Approve the backlog |
-| Build | `/rockbuilt:build` | Plan, implement, check, verify, PR per issue; optional parallel worktrees; timing | Review each PR |
-| Bug | `/rockbuilt:fix` | Failing test first, minimal fix, verified PR | Review the PR |
-| Gates | `/rockbuilt:verify` | E2E (1 happy path + 2 failures per flow), evals, security report | Read the report |
-| Merge | `/rockbuilt:merge` | Merge and cleanup, only when you ask | You ask for it |
-| Resume | `/rockbuilt:status` | What is done, what waits on you, the next command | |
-| Learn | `/rockbuilt:retro` | Lessons for the project, issues for the harness | Approve each item |
+| Idea | `/rb-kickoff` | Brief, go/no-go, project type, workflow vs agent, ADRs, repo, walking skeleton issue | Approve the brief |
+| Existing repo | `/rb-adopt` | Current-state map, CLAUDE.md from reality, baseline or stabilization issue | Confirm the route |
+| Spec | `/rb-spec` | `requirements.md` (EARS), `design.md`, ADRs | Approve requirements, then design |
+| Tasks | `/rb-tasks` | Converged `tasks.md` with coverage matrix, GitHub issues | Approve the backlog |
+| Build | `/rb-build` | Plan, implement, check, verify, PR per issue; optional parallel worktrees; timing | Review each PR |
+| Bug | `/rb-fix` | Failing test first, minimal fix, verified PR | Review the PR |
+| Gates | `/rb-verify` | E2E (1 happy path + 2 failures per flow), evals, security report | Read the report |
+| Merge | `/rb-merge` | Merge and cleanup, only when you ask | You ask for it |
+| Resume | `/rb-status` | What is done, what waits on you, the next command | |
+| Learn | `/rb-retro` | Lessons for the project, issues for the harness | Approve each item |
 
 Rigor scales with the change: a new feature gets the full spec, a bug goes straight to `fix`, a
 small bounded change is one issue built directly.
@@ -65,7 +65,7 @@ On Windows, install Git for Windows so Claude Code uses Git Bash.
 /plugin install rockbuilt@rockbuilt
 ```
 
-Then in a new project run `/rockbuilt:kickoff`, or in an existing repo `/rockbuilt:adopt`. Both
+Then in a new project run `/rb-kickoff`, or in an existing repo `/rb-adopt`. Both
 install the project files (`CLAUDE.md`, `.claude/settings.json`, `docs/progress.md`) for you.
 Plugins cannot ship permission rules, so `.claude/settings.json` lives in each project: it
 pre-approves safe commands, denies destructive ones, and makes `gh pr merge` always ask.
@@ -84,7 +84,7 @@ Deterministic steps live in a small Node CLI, `rb`, available to Claude while th
 Web projects get Playwright from the first issue: `rb init` lays down `playwright.config.ts`, a
 smoke spec and the Playwright MCP server in `.mcp.json` (launched with `node`, so it works on
 Windows, macOS and Linux). Every UI-touching task runs the E2E suite before its PR opens, and
-`/rockbuilt:verify` writes the feature's E2E specs by exploring the live app through the MCP.
+`/rb-verify` writes the feature's E2E specs by exploring the live app through the MCP.
 
 ## Parallel mode
 

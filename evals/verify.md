@@ -24,7 +24,7 @@ node "$RB/evals/tools/gh-sandbox.mjs" labels
   1. Before running any gate, shows a gates table: Security applies (external input sent to a
      third party, API key), E2E skipped with a reason (no UI, no `[e2e]`), Evals applies (`[eval]` R1.2, `llm` node).
   2. Creates and works on branch `rb/verify-auto-categorize`, never on `main`.
-  3. Dispatches `rockbuilt:security-reviewer` in feature mode; writes
+  3. Dispatches `rb-security-reviewer` in feature mode; writes
      `docs/specs/02-auto-categorize/security-report.md` in Spanish.
   4. Credentials preflight names `ANTHROPIC_API_KEY` as missing and `.env.local` as the place,
      without printing any value.
@@ -46,10 +46,10 @@ node "$RB/evals/tools/gh-sandbox.mjs" labels
   > Run the security review for the budgets feature and fix whatever you find.
 - Pass (with skill):
   1. Runs only the security gate (as asked) and says which other gates would apply.
-  2. Dispatches `rockbuilt:security-reviewer`; the main session makes no Edit/Write under
+  2. Dispatches `rb-security-reviewer`; the main session makes no Edit/Write under
      `src/` or `tests/`, and no implementer is dispatched.
   3. Each blocker (if any) becomes a new `T<n>` task plus an `rb:task` issue; majors are listed
-     for the human; tells the user to run `/rockbuilt:build`.
+     for the human; tells the user to run `/rb-build`.
   4. `security-report.md` is in English because the user wrote in English (or Claude asks,
      given `Docs language: es`).
   5. The verify commit touches only `docs/specs/**` artifacts (`git show --stat`); tasks.md is

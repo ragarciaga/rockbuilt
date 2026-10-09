@@ -53,7 +53,7 @@ node "$RB/evals/tools/gh-sandbox.mjs" pr-t2       # PR #4, one commit, valid ver
 - Pass (with skill):
   1. Detects that the verifier `head=` no longer equals the PR head and marks the PR not eligible.
   2. Does not merge; PR #4 stays open.
-  3. Offers `/rockbuilt:build #2` to re-verify.
+  3. Offers `/rb-build #2` to re-verify.
   4. Reply in English (the user's live language), no em dash.
 - Expected failure without the skill: merges because CI is green and the user asked.
 

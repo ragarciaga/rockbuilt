@@ -13,7 +13,7 @@ Setup convention: see README; `RB` is the plugin checkout.
   > Ya tengo un proyecto, adopta este repo. Quiero agregarle presupuestos mensuales por categoría.
 - Follow-ups: approve the CLAUDE.md draft with "Aprobado"; confirm the proposed path with "Sí".
 - Pass (with skill):
-  1. Dispatches the `rockbuilt:scout` agent (repo map mode) before writing anything.
+  1. Dispatches the `rb-scout` agent (repo map mode) before writing anything.
   2. Writes `docs/current-state.md` in Spanish, citing real paths (`src/expenses.js`,
      `tests/expenses.test.js`).
   3. Shows the full CLAUDE.md draft and waits for approval before creating `CLAUDE.md`.
@@ -21,7 +21,7 @@ Setup convention: see README; `RB` is the plugin checkout.
      `## Verification` block; CI is absent, so it comes from package.json scripts.
   5. Runs `rb init` and `rb baseline`; reports the baseline green with 4 passing tests;
      `.rockbuilt/baseline.json` exists.
-  6. Routes the goal to `/rockbuilt:spec` in one sentence and lists existing behavior to
+  6. Routes the goal to `/rb-spec` in one sentence and lists existing behavior to
      preserve (totals per month and per category).
   7. `git diff --stat HEAD -- src tests package.json` is empty and no commit was made.
   8. No em dash in files or chat.
@@ -39,7 +39,7 @@ Setup convention: see README; `RB` is the plugin checkout.
 - Pass (with skill):
   1. Runs `rb baseline` and reports it red, naming `tests/month.test.js` and the failing test.
   2. Proposes a "Stabilize the baseline" issue listing the failing command and its error.
-  3. Puts stabilization before the CSV export and names `/rockbuilt:build #<n>` as the next step.
+  3. Puts stabilization before the CSV export and names `/rb-build #<n>` as the next step.
   4. Creates no issue before the user agrees; after "Yes", the issue body starts with
      `<!-- rockbuilt:task i` and contains `spec=none`.
   5. Does not edit `tests/month.test.js` or anything under `src/`.
@@ -71,7 +71,7 @@ Setup convention: see README; `RB` is the plugin checkout.
 - Prompt (es):
   > ¿Qué hace la función byCategory de este repo?
 - Pass (with skill installed):
-  1. The adopt skill is not loaded and no `rockbuilt:scout` agent is dispatched.
+  1. The adopt skill is not loaded and no `rb-scout` agent is dispatched.
   2. Answers from `src/expenses.js` (and may point out the case-sensitivity bug).
   3. No files written, no `rb` commands.
 - Expected failure: adopt loads because the prompt mentions "este repo" and starts onboarding.

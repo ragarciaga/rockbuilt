@@ -10,7 +10,7 @@ character anywhere; the selfcheck test fails on it.
 
 ## How a change is made
 
-1. **Start from evidence.** A harness-feedback issue (from `/rockbuilt:retro`), a failing eval,
+1. **Start from evidence.** A harness-feedback issue (from `/rb-retro`), a failing eval,
    or a CI failure. No evidence, no change: write the eval first.
 2. **Reproduce it as an eval.** Add or tighten a scenario in `evals/scenarios.json` (and its prose
    in `evals/<skill>.md`) whose checks fail today. Run only that scenario:
@@ -35,14 +35,14 @@ character anywhere; the selfcheck test fails on it.
 ## Rules
 
 - Keep SKILL.md files under about 250 lines; detail goes to `references/`.
-- Every skill states the language rule; every agent ends with its `rockbuilt:status` line (the
+- Every skill states the language rule; every agent ends with its `rb-status` line (the
   selfcheck enforces both).
 - New `rb` subcommands need tests in `tests/rb.test.mjs`; guard changes need cases in
   `tests/guard.test.mjs` (add the bypass you are closing).
 - Cross-platform: Node only, no bash-only scripts, paths through `node:path`. CI runs Windows,
   macOS and Linux.
 - Do not grow the harness to cover a one-off. Prefer removing a step that never catches anything
-  (check `/rockbuilt:retro` evidence) over adding a new one.
+  (check `/rb-retro` evidence) over adding a new one.
 
 ## Commands
 

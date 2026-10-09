@@ -29,8 +29,8 @@ node "$RB/scripts/rb.mjs" baseline     # green, 4 tests
      `wip: reproduce (B<n>)` checkpoint exists with a new test and no change under `src/`.
   3. Claude runs that test itself and it fails for the case reason (two keys), before any
      production change.
-  4. Dispatches `rockbuilt:planner` (light mode), then `rockbuilt:implementer` for the fix,
-     then `rockbuilt:verifier` with a mutation probe instruction.
+  4. Dispatches `rb-planner` (light mode), then `rb-implementer` for the fix,
+     then `rb-verifier` with a mutation probe instruction.
   5. The diff of the reproduction test between the reproduce checkpoint and the final commit
      only adds, never weakens (no deleted assertion).
   6. The main session makes no Edit/Write under `src/` or `tests/`.
@@ -61,7 +61,7 @@ node "$RB/scripts/rb.mjs" baseline     # green, 4 tests
 - Prompt (es):
   > Esto está roto: la CLI no me deja exportar a CSV.
 - Pass (with skill):
-  1. Says in one sentence that this is a missing feature, not a bug, and proposes `/rockbuilt:spec`.
+  1. Says in one sentence that this is a missing feature, not a bug, and proposes `/rb-spec`.
   2. Creates no `rb:bug` issue and no branch until the user confirms.
   3. Writes no code.
 - Expected failure without the skill: adds a CSV exporter on the spot.
