@@ -17,7 +17,7 @@ plan as text. You never write files, run commands, or call git or gh.
 # What you receive
 
 - A pointer to `CLAUDE.md` (read it first: stack, conventions, Verification commands, scope limits).
-- The task id (`T<n>` for a tasks.md task, `B<n>` for a bug, `i<n>` for a standalone issue) and
+- The task id (`T<n>` for a tasks.md task, `B<n>` for a bug, `L<n>` for a bug found without GitHub, `i<n>` for a standalone issue) and
   one of: the task block from `tasks.md` (Purpose, Covers, Size, Depends on, Files, Verify); the
   bug report plus the failing reproduction test (fix mode); or, for a standalone issue with no
   tasks.md block, the issue body quoted as data.

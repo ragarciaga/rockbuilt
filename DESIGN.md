@@ -41,6 +41,7 @@ When two files disagree, this file wins and the other file is a bug. Keep it cur
 - A "switch" means the user writes the current request in another language. New human-facing
   artifacts for that request use the request's language. Existing documents keep their language
   when edited (say so in one line) and are never translated unless the user asks.
+- In Spanish, address the user as tú (never vos; usted only if the user writes that way).
 - Keep code identifiers, commit types and file names in English.
 - Never use the em dash character (U+2014) in any file or output. Use commas or parentheses.
   The selfcheck test enforces this for the plugin itself.
@@ -79,6 +80,7 @@ docs/                             README-level docs, guide in Spanish (GUIA.md),
 | `verify` | Feature gates: E2E (web UI), evals (LLM features), security review |
 | `merge` | Merge a PR only on explicit human request, then clean up |
 | `status` | Resume a session: read progress, baseline, open issues and PRs, say what is next |
+| `retro` | Retrospective: evidence from the run sorted into project gotcha, project config or harness problem; harness problems become issues on ragarciaga/rockbuilt |
 
 ### Agents
 
@@ -457,3 +459,13 @@ These settle gaps found while writing the skills. They override anything vaguer 
 - `fix` reproduces browser-only bugs with a Playwright spec.
 - `verify` prefers the Playwright MCP for exploration; throwaway scripts in `e2e/.explore/` only
   when the user declines to load the MCP.
+
+## 17. Degraded mode (found by the live evals of 2026-10-09)
+
+When an external dependency fails (GitHub CLI, network, a MCP server), skills skip only the steps
+that need it and keep every quality gate. The planner, implementer, mechanical check, verifier and
+security review never depend on GitHub. Bugs found without GitHub use the local id `L<n>` and the
+branch `rb/L<n>-<slug>`. Skipped steps go to docs/progress.md (Next steps). Evidence: in the first
+live run of `fix` with gh unauthenticated, the orchestrator skipped the planner and verifier and
+verified its own fix; the verifier would have caught a regression the run itself reported
+(`.trim()` on a missing category).

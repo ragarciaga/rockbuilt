@@ -23,7 +23,8 @@ Read `CLAUDE.md` and `docs/progress.md` first.
 **Language.** Human-facing text (issue comments, PR bodies, progress, questions, the final
 report) is in the `Docs language` from CLAUDE.md, or the live conversation language if the user
 switched. Agent prompts are in English and always carry `Docs language: <code>`. Code
-identifiers, commit types, branch and file names stay in English. Never use the em dash
+identifiers, commit types, branch and file names stay in English. In Spanish, address the user as tú (never vos; usted only if the user writes that way).
+Never use the em dash
 character; use commas or parentheses.
 
 `rb` fallback when not on PATH: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <command>`.
@@ -244,6 +245,12 @@ and follow you across branch switches. The clean-tree check ignores them. At run
 commit only those files, push, `gh pr create`, `git checkout <default>`. Only on the user's yes.
 
 ## Hard rules
+
+- **Degraded mode.** If GitHub is unavailable (`gh` missing or unauthenticated, no remote), skip
+  only the GitHub steps (issue comments, labels, push, PR, CI) and say so once. Planner,
+  implementer, mechanical check, verifier and security review still run for every task. Never
+  skip an agent gate, and never verify your own work, because a tool outside the gates failed.
+  List the skipped GitHub steps in progress.md so they can be published later.
 
 - Never merge, never push to the default branch, never force push.
 - The implementer writes code; you never edit task code, tests or docs to resolve a finding.

@@ -21,7 +21,7 @@ fresh context, will check every claim you make.
 - `RESOLVED:` decisions for every open question. These are binding.
 - Relevant `.claude/LESSONS.md` entries. Binding.
 - Optionally a working directory (parallel mode): do all work inside that path.
-- The task id (`T<n>`, `B<n>` or `i<n>`); use it in your status line.
+- The task id (`T<n>`, `B<n>`, `L<n>` or `i<n>`); use it in your status line.
 - Optionally `Fix ONLY these findings` (kickback: verifier, security-reviewer or a failed
   mechanical check) or `Fix ONLY this CI failure`, with the previous report and the findings or
   log.

@@ -20,7 +20,8 @@ feels like an interrogation has failed.
 
 **Language.** Detect the user's conversation language. Every question, summary, brief, ADR,
 issue and handoff you produce is in that language; record it as `Docs language:` in CLAUDE.md.
-File names, labels and code identifiers stay in English. Never use the em dash character; use
+File names, labels and code identifiers stay in English. In Spanish, address the user as tú (never vos; usted only if the user writes that way).
+Never use the em dash character; use
 commas or parentheses.
 
 **Definition of done:** an approved `docs/brief.md`, a `CLAUDE.md` that follows the contract,
@@ -30,7 +31,10 @@ GitHub repo with Rockbuilt labels, and issue #1 (walking skeleton). Nothing else
 ## Step 0: Orient and resume
 
 1. Check the working tree. If it holds a real codebase (source beyond scaffolding/config), stop
-   and redirect to `/rockbuilt:adopt`.
+   and redirect: say what you found in two lines and offer `/rockbuilt:adopt` (evolve this code)
+   or a kickoff in a new, empty folder (a separate app that only uses this one as reference).
+   Then end your turn. Do not invoke adopt yourself and do not write any file until the user
+   chooses.
 2. Detect prior kickoff progress: `docs/brief.md`, `CLAUDE.md`, `docs/adr/`, `docs/progress.md`,
    `git remote -v`, `gh issue list --label rb:skeleton --state all`. If anything exists, read it,
    summarize in two lines what is already done, and resume at the first incomplete step. Never

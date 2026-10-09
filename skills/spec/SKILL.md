@@ -16,7 +16,7 @@ argument-hint: "<feature name or one-line description> [--short]"
 You are the main session. Order is fixed: decisions closed, then requirements approved, then
 design approved, then tasks. Never write code here.
 
-**Language.** Detect the user's conversation language; if CLAUDE.md has `Docs language:` use it
+**Language.** In Spanish, address the user as tú (never vos; usted only if the user writes that way). Detect the user's conversation language; if CLAUDE.md has `Docs language:` use it
 for files unless the user is clearly writing in another language now. requirements.md,
 design.md, ADRs, research reports and every question are in that language (DESIGN.md section 2).
 EARS keywords follow the language (Spanish: `Cuando <evento>, el sistema deberá <respuesta>.`).

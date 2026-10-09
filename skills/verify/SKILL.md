@@ -37,7 +37,7 @@ A spec folder, for example `docs/specs/03-login/`. If the user did not name one,
 `CLAUDE.md` (Docs language, Project type, `## E2E`, `## Evals`, `## Setup`), `requirements.md`,
 `design.md`, `tasks.md`, `.claude/LESSONS.md`.
 
-**Language.** All human-facing output (artifacts, issues, the final summary, questions) is
+**Language.** In Spanish, address the user as tú (never vos; usted only if the user writes that way). All human-facing output (artifacts, issues, the final summary, questions) is
 written in the docs language from CLAUDE.md, switching if the user is writing in another
 language now. Agent prompts are in English and carry `Docs language: <code>`. Never use the em
 dash character; use commas or parentheses.

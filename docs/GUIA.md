@@ -51,6 +51,7 @@ Mientras el repo sea privado, cada persona del equipo necesita acceso de lectura
 | Probar una funcionalidad completa (E2E, evals, seguridad) | `/rockbuilt:verify` |
 | Hacer merge de un PR | "haz merge del PR 12" o `/rockbuilt:merge 12` |
 | Retomar al día siguiente | `/rockbuilt:status` |
+| Cerrar una funcionalidad o reportar algo del harness | `/rockbuilt:retro` |
 
 Si no sabes cuál aplica, describe lo que quieres. Rockbuilt propone el camino y tú confirmas.
 
@@ -127,3 +128,7 @@ con datos reales.
   aparece en otro lado: `git config --global core.longpaths true`.
 - **Un E2E falla de repente.** Revisa primero si venció una credencial en `.env.local`.
 - **El diagnóstico general.** Pídele a Claude que corra `rb doctor`.
+
+## Mejorar el harness
+
+Cómo se detecta qué sirve y qué no, y cómo se hacen los cambios: [MEJORAR.md](MEJORAR.md).

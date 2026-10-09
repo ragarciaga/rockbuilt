@@ -17,6 +17,8 @@ function walk(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (SKIP_DIRS.has(e.name)) continue;
     const full = path.join(dir, e.name);
+    // evals/results/<run>/ holds raw model transcripts (gitignored), not plugin files.
+    if (e.isDirectory() && path.relative(ROOT, full).split(path.sep).join('/').match(/^evals\/results\/./)) continue;
     if (e.isDirectory()) out.push(...walk(full));
     else if (e.isFile()) out.push(full);
   }

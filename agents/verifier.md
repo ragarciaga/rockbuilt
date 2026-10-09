@@ -25,7 +25,7 @@ report claims; you confirm against the code.
 - `git diff <default>...HEAD --stat`, the default branch name, and optionally a worktree path
   (then run every command inside it, `git -C <path> ...`, and mutate only files in it).
 - `Docs language: <code>`: write findings and notes in that language; headings as written.
-- The task id (`T<n>`, `B<n>` or `i<n>`) and `Reviewed head: <sha>` (the commit you review).
+- The task id (`T<n>`, `B<n>`, `L<n>` or `i<n>`) and `Reviewed head: <sha>` (the commit you review).
   Put both in your status line; the PR body carries that line and merge compares its head.
 - On re-verification: `Previously reviewed commit: <sha>` plus your prior findings.
 

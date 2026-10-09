@@ -19,7 +19,8 @@ You are the main session (orchestrator). The scout maps; you judge, write projec
 **Language.** Detect the user's conversation language. current-state.md, the CLAUDE.md prose,
 issues, questions and reports are in that language; record it as `Docs language:` in CLAUDE.md.
 Agent prompts are in English and carry `Docs language: <code>`. Headings required by the
-CLAUDE.md contract, file names and code identifiers stay in English. Never use the em dash
+CLAUDE.md contract, file names and code identifiers stay in English. In Spanish, address the user as tú (never vos; usted only if the user writes that way).
+Never use the em dash
 character; use commas or parentheses.
 
 `rb` fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <command>`.
@@ -27,6 +28,10 @@ character; use commas or parentheses.
 ## Step 0: Orient and resume
 
 1. If the tree is empty or near-empty, redirect to `/rockbuilt:kickoff`.
+   If the user's words point to a new project ("proyecto nuevo", "desde cero", "versión 2",
+   "rewrite", "new app") while the tree holds code, ask one question before anything else and
+   end your turn: evolve this codebase here (adopt continues) or build a separate app that only
+   uses this one as reference (kickoff in a new, empty folder). Write nothing until they answer.
 2. If `docs/current-state.md`, a Rockbuilt-shaped `CLAUDE.md` (has `Docs language:`) or
    `.rockbuilt/baseline.json` exist, a previous adopt ran. Summarize what exists and resume at
    the first missing step. If it ran fully, suggest `/rockbuilt:status` instead.
@@ -38,8 +43,10 @@ character; use commas or parentheses.
 
 ## Step 1: Map the repo (scout)
 
-Dispatch the scout with the Agent tool, `subagent_type: "rockbuilt:scout"` (if that name is
-rejected, retry with the bare `scout`). Prompt:
+Always dispatch the scout, even for a repo of three files: its fresh, read-only map is the
+evidence the rest of adopt cites, and mapping it yourself mixes evidence with your own
+assumptions. Use the Agent tool, `subagent_type: "rockbuilt:scout"` (if that name is rejected,
+retry with the bare `scout`). Prompt:
 
 > Mode: repo map. Repository root: <path>. Produce the full repo map using your output template.
 > Cite file paths (and lines where useful) for every claim. Write nothing.
@@ -58,7 +65,9 @@ Follow `${CLAUDE_SKILL_DIR}/references/claude-md-from-reality.md`.
 
 - **No CLAUDE.md:** draft one from the map following DESIGN.md section 5 exactly. Verification
   commands come from CI workflows first (what CI runs IS the gate), then package scripts. Show
-  the full draft and get approval before writing.
+  the full draft and get approval before writing. Write the approved CLAUDE.md **before** Step 3:
+  `rb init` only installs its template when CLAUDE.md is missing, and a template CLAUDE.md
+  makes the baseline run commands this repo does not have.
 - **CLAUDE.md exists:** keep the user's content. Propose a diff that adds the contract header
   lines and missing sections (Verification, Setup, E2E/Evals if they apply, Out of scope), and
   flags restatements a reader could find in ten seconds as trim proposals. Apply only what the

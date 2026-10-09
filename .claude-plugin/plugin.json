@@ -1,11 +1,22 @@
 {
   "name": "rockbuilt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Spec-driven software delivery for Claude Code: kickoff or adopt a repo, write EARS specs, converge tasks, build with planner/implementer/verifier separation, verify with E2E, evals and security review, and keep humans on the approval and merge gates.",
   "author": {
     "name": "Rafael Andrés García"
   },
   "repository": "https://github.com/ragarciaga/rockbuilt",
   "license": "MIT",
-  "keywords": ["spec-driven", "agents", "subagents", "verification", "tdd", "e2e", "evals", "github", "workflow", "harness"]
+  "keywords": [
+    "spec-driven",
+    "agents",
+    "subagents",
+    "verification",
+    "tdd",
+    "e2e",
+    "evals",
+    "github",
+    "workflow",
+    "harness"
+  ]
 }

@@ -17,13 +17,15 @@ agents. You never write the fix yourself, not even the reproduction test. You ne
 
 **Language.** Human-facing text (the issue, comments, the PR body, questions, the final report)
 is in the `Docs language` from CLAUDE.md, or the live conversation language if the user
-switched. Agent prompts are in English and carry `Docs language: <code>`. Never use the em dash
+switched. Agent prompts are in English and carry `Docs language: <code>`. In Spanish, address the user as tú (never vos; usted only if the user writes that way).
+Never use the em dash
 character; use commas or parentheses.
 
 `rb` fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <command>`. Agents: Agent tool with
 `subagent_type: "rockbuilt:<name>"`; if that name is rejected, retry with the bare `<name>`.
 
-The id of this bug is `B<n>` (n = its issue number) and its branch is `rb/B<n>-<slug>`. The
+The id of this bug is `B<n>` (n = its issue number) and its branch is `rb/B<n>-<slug>`
+(`L<n>` in degraded mode, see below). The
 build skill's rules apply where this file says "as in build": bookkeeping files stay out of
 commits, kickbacks follow `${CLAUDE_PLUGIN_ROOT}/skills/build/references/kickback.md`, the PR
 body follows `${CLAUDE_PLUGIN_ROOT}/skills/build/references/pr-template.md`.
@@ -32,6 +34,17 @@ Use this path only for a bug: behavior that contradicts a spec, a test, document
 intent. A missing feature or a behavior change goes to `/rockbuilt:spec` (say so in one sentence
 and let the user confirm). Anything touching data, auth or money that needs a design decision
 also goes to spec.
+
+## Degraded mode (GitHub unavailable)
+
+If `gh` is missing, unauthenticated, or the repo has no GitHub remote, skip **only** the GitHub
+steps: issue creation and edits, labels, push, PR, CI. Use the local id `L<n>` (n = 1 + the
+highest existing `rb/L*` branch number) and the branch `rb/L<n>-<slug>`. Every quality gate still
+runs exactly as written: reproduction first, planner, implementer, your own mechanical check,
+collapse to one commit, verifier (and security-reviewer when it applies). Losing GitHub is never
+a reason to skip an agent or to verify your own work. At the end, list the skipped GitHub steps
+in the report and in docs/progress.md (Next steps) so the user can publish later with
+`/rockbuilt:build` once `gh auth login` works.
 
 ## 1. Intake
 

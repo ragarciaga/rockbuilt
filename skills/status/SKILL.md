@@ -14,7 +14,7 @@ The first command of every session. Read-only: you change no files except an opt
 `docs/progress.md` refresh the user approves. Use `rb` (fallback
 `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <command>`).
 
-**Language.** Report in the user's conversation language; if they have not written yet, use
+**Language.** In Spanish, address the user as tú (never vos; usted only if the user writes that way). Report in the user's conversation language; if they have not written yet, use
 `Docs language:` from CLAUDE.md. Commands, labels and file names stay in English. Never use the
 em dash character; use commas or parentheses. This skill dispatches no agents.
 

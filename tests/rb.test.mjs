@@ -559,6 +559,15 @@ test('rb baseline: red run exits 1; --check reuses green and re-runs after HEAD 
   assert.equal(c2.json.moved, true);
 });
 
+test('rb baseline: refuses a CLAUDE.md that is still the rb init template', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  writeFileSync(path.join(root, 'CLAUDE.md'), '# <Project name>\n\nProject type: <web, ai, automation>\n\n## Verification\n```bash\nnpm run typecheck\n```\n');
+  const r = await rbJson(root, 'baseline');
+  assert.equal(r.code, 1);
+  assert.match(JSON.stringify(r.json), /still the rb init template/);
+  assert.ok(!existsSync(path.join(root, '.rockbuilt', 'baseline.json')));
+});
+
 test('rb baseline: fails without Verification commands or outside a repo', async () => {
   const root = makeRepo({ claudeMd: '# X\n\n## Goal\nx\n' });
   assert.equal((await rb(root, 'baseline')).code, 1);

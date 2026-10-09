@@ -35,6 +35,7 @@ that closes each gap with a concrete mechanism:
 | Gates | `/rockbuilt:verify` | E2E (1 happy path + 2 failures per flow), evals, security report | Read the report |
 | Merge | `/rockbuilt:merge` | Merge and cleanup, only when you ask | You ask for it |
 | Resume | `/rockbuilt:status` | What is done, what waits on you, the next command | |
+| Learn | `/rockbuilt:retro` | Lessons for the project, issues for the harness | Approve each item |
 
 Rigor scales with the change: a new feature gets the full spec, a bug goes straight to `fix`, a
 small bounded change is one issue built directly.
@@ -96,6 +97,8 @@ same time (default max 3). It announces the batch in one line. Set `Parallel: of
 
 - [DESIGN.md](DESIGN.md): the contract every skill, agent and script follows.
 - [docs/GUIA.md](docs/GUIA.md): user guide in Spanish.
+- [docs/MEJORAR.md](docs/MEJORAR.md): how the harness is improved (evidence, evals, retro), in Spanish.
+- [.claude/CLAUDE.md](.claude/CLAUDE.md): maintainer rules for changing the harness.
 - [docs/roadmap.md](docs/roadmap.md): what is deliberately out of v0.1 and when to add it.
 - [evals/](evals/): A/B evals for every skill.
 
@@ -103,6 +106,8 @@ same time (default max 3). It announces the batch in one line. Set `Parallel: of
 
 ```
 npm test
+claude plugin validate . --strict
+node evals/run.mjs --arms with      # headless evals against real Claude Code sessions
 ```
 
 Runs the guard hook tests, the `rb` CLI tests and a selfcheck of the plugin itself (frontmatter,

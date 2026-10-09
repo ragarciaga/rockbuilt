@@ -20,7 +20,7 @@ favoring its own earlier work (self-preference), and losing the spec's goal (dri
 
 Read `CLAUDE.md` first.
 
-**Language.** Human-facing text (tasks.md content, issue bodies, the summary you show, questions)
+**Language.** In Spanish, address the user as tú (never vos; usted only if the user writes that way). Human-facing text (tasks.md content, issue bodies, the summary you show, questions)
 is in the `Docs language` from CLAUDE.md, or the live conversation language if the user
 switched. Agent prompts are in English and carry `Docs language: <code>`. Field names in
 tasks.md (`Purpose`, `Covers`, `Size`, `Depends on`, `Files`, `Verify`, `Issue`, `Status`),

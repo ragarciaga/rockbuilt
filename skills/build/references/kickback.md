@@ -1,7 +1,7 @@
 # Kickback loop, resume and crash recovery
 
 Loaded by the build skill (and the fix skill) when a check fails, an agent returns `incomplete`,
-or a run starts on a dirty `rb/*` branch. `<id>` is the task id (`T<n>`, `i<n>` or `B<n>`).
+or a run starts on a dirty `rb/*` branch. `<id>` is the task id (`T<n>`, `i<n>`, `B<n>` or `L<n>`).
 
 ## Kickback (mechanical check, verifier or security-reviewer fail)
 

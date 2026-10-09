@@ -39,7 +39,13 @@ export function runCommand(cmd, cwd, onStart = () => {}) {
 }
 
 export function runBaseline(root, { log = () => {} } = {}) {
-  const commands = sectionCommands(readClaudeMd(root), 'Verification');
+  const text = readClaudeMd(root);
+  // A CLAUDE.md still holding the rb init template would run placeholder commands and record a
+  // misleading red baseline. Refuse until the real commands are written.
+  if (text !== null && (/^#\s*<Project name>/m.test(text) || /^Project type:\s*</m.test(text))) {
+    throw new CliError('CLAUDE.md is still the rb init template; write the real project values and Verification commands first');
+  }
+  const commands = sectionCommands(text, 'Verification');
   if (!commands || commands.length === 0) {
     throw new CliError('no commands found under "## Verification" in CLAUDE.md');
   }
