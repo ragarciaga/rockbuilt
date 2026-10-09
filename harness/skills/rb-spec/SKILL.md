@@ -32,7 +32,7 @@ keywords follow the language (Spanish: `Cuando <evento>, el sistema deberá <res
 (`R1.2`), tags (`[unit]`), file names and code identifiers stay in English. Never use the em dash
 character; use commas or parentheses.
 
-Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`.
+Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list).
 
 ## Step 0: Orient
 

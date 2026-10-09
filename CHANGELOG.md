@@ -6,6 +6,27 @@ Autonomy release: the harness plans, builds, audits and merges on its own, and p
 only for design decisions, anything that costs money, and sensitive or irreversible changes.
 Evidence for each decision is in DESIGN.md section 20.
 
+Second review and live test (DESIGN 20.9 and 20.10):
+
+- `rb baseline --check` on a task branch or worktree now runs that code (it used to reuse the
+  cached default-branch result) and ratchets against the default branch's known failures.
+- Tier C no longer loops: an approving answer and bookkeeping commits never make a plan stale.
+- `rb risk` ignores uncommitted bookkeeping (task claims, lessons), so tasks keep their real tier.
+- The orchestrator starts the app (new optional `## Run` section) for the blind auditor, which
+  never passes an unobserved UI criterion; a `needs-local` audit merges with `--human-approved`.
+- `rb sync --run` clears claims left by a run that died; `rb doctor` warns about deploy config
+  and `npm ci` without a lockfile, and checks GitHub through the API when `gh auth status` fails.
+- Cost guard covers package scripts, `pnpm exec`, `yarn <bin>`, `.bin` paths, prisma and drizzle
+  pushes, stripe; hosts in config files count; SVG namespaces and `striped.css` no longer do.
+- `/rb-cycle` runs feature verification (rb-verify) when a spec is done; the final report's first
+  line says what waits for the owner, and docs/CLOUD.md turns on the routine's notifications.
+- CI: no re-runs on label changes, npm cache only with a lockfile, harness files warn instead of
+  failing (the gate already makes them tier C). Stop switch reads the control issue directly.
+- Skills require literal commands (no shell variables for `rb`), and the allow list covers the
+  read-only commands unattended runs use.
+- Live test on a sandbox repo: two unattended nights built, audited and merged a tier B spec task
+  and a tier A issue, merged bookkeeping and ran feature verification.
+
 Hardening from the independent review (DESIGN 20.8), all with tests:
 
 - Cost floor: paid SDKs, hosts and secret-like env vars are scanned in every code file (tests and

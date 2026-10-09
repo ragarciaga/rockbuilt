@@ -28,7 +28,7 @@ Agent prompts are in English with `Docs language: <code>`. Labels, commit types,
 names stay in English. Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
-fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. GitHub only
+fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). GitHub only
 through `rb gh <op>`, never `gh issue`, `gh pr` or `gh label`. Agents: `subagent_type: "rb-<name>"`.
 No command substitution: run a command, paste its literal output into the next.
 

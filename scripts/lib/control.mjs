@@ -101,9 +101,16 @@ export function lockStatus(c) {
 }
 
 // Stop switch: any open issue labelled rb:stop (the control issue included).
+// The label-filtered list lags a few seconds behind label changes (seen live: 3 to 6 s), so the
+// control issue is also read directly, which is immediate. Either source saying stop means stop.
 export function stopStatus(c) {
-  const issues = ops.issueList(c, { labels: ['rb:stop'], state: 'open' });
-  return { stop: issues.length > 0, issues: issues.map((i) => ({ number: i.number, title: i.title })) };
+  const issues = ops.issueList(c, { labels: ['rb:stop'], state: 'open' }).map((i) => ({ number: i.number, title: i.title }));
+  const control = ensureControl(c, { create: false });
+  if (control && !issues.some((i) => i.number === control.number)) {
+    const view = ops.issueView(c, control.number);
+    if (view.state === 'open' && view.labels.includes('rb:stop')) issues.unshift({ number: control.number, title: view.title });
+  }
+  return { stop: issues.length > 0, issues };
 }
 
 export function holdsLock(c, run) {

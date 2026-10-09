@@ -28,7 +28,7 @@ character; use commas or parentheses.
 `node tools/rockbuilt/rb.mjs <cmd>`. Before that, use the plugin copy
 `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`, or, in a cloud session where the rockbuilt
 repo is attached next to the project, `node ../rockbuilt/scripts/rb.mjs <cmd>`. Never rely on
-PATH. All GitHub operations go through `rb gh <op>` (REST); never `gh issue`, `gh pr` or
+PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All GitHub operations go through `rb gh <op>` (REST); never `gh issue`, `gh pr` or
 `gh label`.
 
 ## Step 0: Orient and resume

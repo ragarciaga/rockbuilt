@@ -21,7 +21,7 @@ an optional `docs/progress.md` refresh the user approves. This skill dispatches 
 the user as tú (never vos; usted only if the user writes that way). Commands, labels and file
 names stay in English. Never use the em dash character; use commas or parentheses.
 
-Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. All
+Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub reads go through `rb gh <op>` (REST, JSON); never `gh issue`, `gh pr` or `gh label`.
 
 ## Step 1: Gather (run independent reads in parallel)

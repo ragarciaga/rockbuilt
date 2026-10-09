@@ -25,7 +25,7 @@ usted only if the user writes that way). Issues filed on the Rockbuilt repo are 
 English (the harness is maintained in English). Never use the em dash character; use commas or
 parentheses.
 
-Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. All
+Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub operations go through `rb gh <op>` (REST, JSON); never `gh issue`, `gh pr` or `gh label`.
 
 ## 1. Scope

@@ -229,6 +229,14 @@ es público), `rb protect` configura el check obligatorio.
 
 ## Problemas comunes
 
+- **Corriste `claude -p "Run /rb-cycle."` en tu computador y no hace nada, o todo le es negado.**
+  Claude Code ignora los permisos del proyecto hasta que confíes en esa carpeta. Abre Claude Code
+  una vez de forma interactiva en el repo y acepta el aviso de confianza. En la nube no pasa.
+- **El resumen cuenta permisos negados.** El harness solo corre comandos que coinciden con la
+  lista de `.claude/settings.json`. Si una corrida se queda corta por un comando legítimo que no
+  está en la lista, repórtalo con `/rb-retro` para agregarlo al harness, no lo agregues a mano en
+  cada proyecto.
+
 - **La rutina dice que no conoce `/rb-cycle`.** El harness no está en la rama principal. Revisa
   que el PR del paso 2 esté fusionado.
 - **El resumen dice que el candado está tomado.** Otra corrida está activa, o una anterior se

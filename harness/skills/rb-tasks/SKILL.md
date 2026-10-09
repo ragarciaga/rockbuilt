@@ -40,7 +40,7 @@ pendiente, en progreso, en revisión, bloqueado), but you always write the canon
 `todo`, `in-progress`, `in-review`, `done`, `blocked`. Task IDs, labels and file names stay in
 English.
 
-Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. All
+Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub operations go through `rb gh <op>`; never `gh issue`, `gh pr` or `gh label`. Agent
 dispatch: Agent tool with `subagent_type: "rb-<name>"`.
 

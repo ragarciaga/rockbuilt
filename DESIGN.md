@@ -518,6 +518,21 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    `yarn <bin>`, `.bin` paths, prisma/drizzle push and stripe escaped the cost guard (confirmed);
    CI used the npm cache without a lockfile; the cycle never ran feature verification; escalations
    produced no notification because GitHub does not notify the owner of his own token's actions.
+10. 2026-10-09, live test on a private sandbox repo (ragarciaga/rockbuilt-sandbox), real GitHub
+   and real Actions: tier A and B PRs merged through `rb merge-gate` only after green
+   `rockbuilt-ci`; a push after review was refused (`stale-head`); a B label hiding a dependency
+   and a ratchet change was refused as C; a bookkeeping PR merged and one injecting a task was
+   refused; `rb revert` opened a human-only PR. Two unattended `/rb-cycle` runs with
+   `--permission-mode dontAsk` (closest local stand-in for a routine): night 1 built a spec task
+   (B, one verifier kickback for surviving mutants, blind audit) and an `rb:task` issue (A),
+   merged both, opened bookkeeping and posted the digest (9 min, about USD 2.83 at API prices);
+   night 2 merged that bookkeeping at start and ran feature verification (security found a real
+   `__proto__` category bug), about USD 1.07. Found and fixed: the label-filtered issue list lags
+   3 to 6 s (stop switch now also reads the control issue directly); `gh auth status` fails with
+   the cloud's proxied token while REST works (doctor falls back to the API); the orchestrator
+   wrote `R="node tools/rockbuilt/rb.mjs"; $R ...`, which matches no permission rule (skills now
+   require literal commands); `echo`, `npm audit` and other read-only commands were missing from
+   the allow list; a local headless run ignores project permissions until the folder is trusted.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -545,6 +560,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `escalate <issue> --kind human|local --title <t> --body-file <f>` | Label + comment, never waits |
 | `digest post --file <md>` | Append the run digest to the control issue |
 | `protect` | Configure required checks when the plan allows it; otherwise explain and exit 3 |
+| `labels` | Create the `rb:*` labels that are missing (same as `rb gh labels-ensure`) |
 
 `rb gh` ops (all print JSON): `issue-create --title --body-file [--label a,b]`,
 `issue-edit <n> [--body-file] [--title] [--state open|closed]`, `issue-comment <n> --body-file`,

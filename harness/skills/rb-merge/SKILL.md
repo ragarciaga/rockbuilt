@@ -26,7 +26,7 @@ user writes in another language. In Spanish, address the user as tú (never vos;
 user writes that way). Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
-fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. GitHub only
+fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). GitHub only
 through `rb gh <op>`; never `gh pr merge`, `gh pr`, `gh issue` or `gh label`. This skill dispatches
 no agents and never merges outside `rb merge-gate`.
 

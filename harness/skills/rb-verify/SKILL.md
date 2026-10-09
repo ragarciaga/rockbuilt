@@ -31,7 +31,7 @@ writes in another language now. In Spanish, address the user as tú (never vos; 
 user writes that way). Agent prompts are in English and carry `Docs language: <code>`. Never use
 the em dash character; use commas or parentheses.
 
-Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. All
+Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub operations go through `rb gh <op>` (REST); never `gh issue`, `gh pr` or `gh label`. Agent
 dispatch: Agent tool with `subagent_type: "rb-<name>"`.
 
@@ -43,7 +43,8 @@ PR. Never on the default branch, never on a task branch.
 browser) becomes an escalation (`rb escalate --kind human|local`, templates in
 `.claude/skills/rb-cycle/references/escalation-templates.md`) and that gate is skipped, not
 failed. Evals that call a paid model run only within an approved `Paid services` entry and cap;
-otherwise escalate the estimate. The `rb/verify-*` PR is human-only: open it, never merge it.
+otherwise escalate the estimate. The `rb/verify-*` PR is human-only: open it with the label `rb:needs-human` (so the run's first
+report line counts it), never merge it.
 
 ## Input
 

@@ -27,7 +27,7 @@ prompts are in English and carry `Docs language: <code>`. Code identifiers, comm
 branch and file names stay in English. Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
-fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`). Never rely on PATH. All GitHub work
+fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`). Never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All GitHub work
 goes through `rb gh <op>`; never call `gh issue`, `gh pr` or `gh label` (GraphQL is blocked in
 cloud sessions). Agents: Agent tool with `subagent_type: "rb-<name>"`. Never wrap one command's
 output inside another (no `$(...)`, no backticks): run it, then paste the literal value.

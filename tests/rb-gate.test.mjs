@@ -524,3 +524,18 @@ test('merge-gate: an auditor needs-local verdict merges only with --human-approv
   assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
   assert.equal(gh.state.merges.length, 1);
 });
+
+test('stop status reads the control issue directly (the label-filtered list lags)', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const io = { ghRunner: gh.runner };
+  const ctl = (await rbJson(root, ['control', 'ensure'], io)).json.number;
+  gh.state.issues[ctl].labels.push('rb:stop');
+  // Simulate the lag: the label-filtered list does not see the new label yet.
+  const runner = (args, opts) => {
+    const r = gh.runner(args, opts);
+    if (args.some((a) => /issues\?.*labels=rb%3Astop|issues\?.*labels=rb:stop/.test(a))) return { ...r, stdout: '[]' };
+    return r;
+  };
+  assert.equal((await rb(root, ['stop', 'status'], { ghRunner: runner })).code, 3);
+});

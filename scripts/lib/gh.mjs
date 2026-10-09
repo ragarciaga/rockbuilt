@@ -319,6 +319,9 @@ export function ghStatus(cwd) {
   if (v.missing || (!v.ok && v.status === null)) return { installed: false, authenticated: false, detail: 'gh not found on PATH' };
   const a = run('gh', ['auth', 'status'], { cwd, timeout: 20000 });
   if (!a.ok) {
+    // Cloud sessions use a proxied token: `gh auth status` fails while the REST API works.
+    const u = run('gh', ['api', 'user', '--jq', '.login'], { cwd, timeout: 20000 });
+    if (u.ok && u.stdout.trim()) return { installed: true, authenticated: true, detail: `API reachable as ${u.stdout.trim()} (gh auth status fails with a proxied token; REST works)` };
     const lines = (a.stderr || a.stdout).split(/\r?\n/).map((l) => l.trim().replace(/^[Xx!]\s+/, '')).filter(Boolean);
     const line = lines.find((l) => /fail|not logged|error|invalid|expired/i.test(l)) || 'not authenticated; run `gh auth login`';
     return { installed: true, authenticated: false, detail: line };
