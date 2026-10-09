@@ -597,3 +597,12 @@ test('cost CLIs: runners, .bin paths, data-pushing tools and package scripts', (
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('git -c, --config-env and config writes are denied for everyone (alias and hook bypasses)', () => {
+  const sh = (command, agent) => decide({ tool_name: 'Bash', tool_input: { command }, agent_type: agent, cwd: '/repo' }).deny;
+  for (const c of ["git -C . -c alias.x='!vercel deploy --prod' x", 'git -c core.sshCommand=evil push origin rb/x', "git -C . config alias.p 'push origin HEAD:main'",
+    'git config core.hooksPath /tmp/h', 'git --config-env=core.pager=X log', 'git config --global user.email x@y']) {
+    assert.equal(sh(c), true, `main session: ${c}`);
+  }
+  for (const c of ['git config --get remote.origin.url', 'git config --list', 'git -C ../wt status', 'git commit -m "x"']) assert.equal(sh(c), false, `allowed: ${c}`);
+});

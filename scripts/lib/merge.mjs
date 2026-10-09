@@ -68,9 +68,19 @@ export function bookkeepingOnly(files) {
     if (f.previous_path || f.previousPath) return false;
     if (f.patch == null) return false;
     const { added, removed } = patchLines(f.patch);
+    // Every run reads these files and injects LESSONS into agent prompts: no hidden HTML comments
+    // (invisible on GitHub, could carry instructions or forged markers).
+    if (added.some((l) => /<!--|-->/.test(l))) return false;
     if (name === '.claude/LESSONS.md') {
       if (f.status !== 'modified' && f.status !== 'added') return false;
       if (removed.length) return false;
+      // Append only: one hunk, at the end of the file, at most 40 new lines per run.
+      const hunks = String(f.patch).split('\n').filter((l) => l.startsWith('@@'));
+      if (hunks.length > 1 || added.length > 40) return false;
+      const after = String(f.patch).split(/^@@[^\n]*@@[^\n]*\n?/m)[1] || '';
+      const lines = after.split('\n').filter((l) => l !== '' && l !== '\\ No newline at end of file');
+      const firstAdded = lines.findIndex((l) => l.startsWith('+'));
+      if (firstAdded !== -1 && lines.slice(firstAdded).some((l) => !l.startsWith('+'))) return false;
     } else if (name === 'docs/progress.md') {
       if (f.status !== 'modified' && f.status !== 'added') return false;
     } else {
@@ -105,6 +115,16 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   if (view.draft) no('draft', 'PR is a draft');
   if (!view.base || view.base.ref !== branch) no('base', `base is ${view.base ? view.base.ref : '?'}, not ${branch}`);
   if (view.mergeable !== true) no('mergeable', view.mergeable === false ? `not mergeable (${view.mergeable_state || 'conflict'})` : 'mergeability not computed yet; retry');
+  // The PR must contain the current tip of the base: CI and reviews ran on that code. Without branch
+  // protection GitHub reports "clean" or "unstable" for a PR that is behind (seen live), so compare.
+  if (view.base && head) {
+    try {
+      const cmp = ops.compare(c, view.base.ref, head);
+      if (cmp.behindBy > 0) no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref}: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
+    } catch (e) {
+      no('behind', `could not compare with ${view.base.ref}: ${e.message}`);
+    }
+  }
 
   const kind = prKind(view.head && view.head.ref);
   if (kind !== 'task') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head });

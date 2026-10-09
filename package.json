@@ -1,6 +1,6 @@
 {
   "name": "rockbuilt",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Rockbuilt harness: canonical skills and agents, rb CLI, guard hook and tests",
