@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // rb: the Rockbuilt CLI (DESIGN.md section 21). Zero dependencies, Node >= 20.
 // Exit codes: 0 ok, 1 error, 2 usage, 3 not eligible / not allowed.
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acceptBaseline, checkBaseline, runBaseline } from './lib/baseline.mjs';
@@ -359,7 +360,11 @@ export async function main(argv, ioOverrides = {}) {
   }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// Compare real paths: on macOS /var is /private/var, on Windows case and short names differ.
+// A false negative here would make the script exit without doing anything.
+const realOrSelf = (p) => { try { return realpathSync.native(p); } catch { return path.resolve(p); } };
+const sameFile = (a, b) => { const x = realOrSelf(a); const y = realOrSelf(b); return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y; };
+const isMain = Boolean(process.argv[1]) && sameFile(process.argv[1], fileURLToPath(import.meta.url));
 if (isMain) {
   main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
 }

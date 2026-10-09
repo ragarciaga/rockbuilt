@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { agentToToml, mergeJson, parseFrontmatter } from '../scripts/lib/vendor.mjs';
@@ -183,4 +183,15 @@ test('mergeJson and frontmatter helpers', () => {
   assert.equal(fm.data.name, 'rb-verifier');
   assert.equal(fm.data.description, 'Checks one implementation against its plan.');
   assert.match(agentToToml('no frontmatter', 'rb-x'), /^name = "rb-x"$/m);
+});
+
+test('rb and guard still run when invoked through a symlinked path (macOS /var, Windows case)', (t) => {
+  const dir = tmp('rb-link-');
+  const link = path.join(dir, 'plugin');
+  try { symlinkSync(ROOT, link, 'junction'); } catch { t.skip('symlinks not available'); return; }
+  const help = spawnSync(process.execPath, [path.join(link, 'scripts', 'rb.mjs'), 'help'], { encoding: 'utf8' });
+  assert.match(help.stdout, /merge-gate/, 'rb printed nothing: entrypoint check failed');
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push --force origin main' }, cwd: dir });
+  const g = spawnSync(process.execPath, [path.join(link, 'hooks', 'guard.mjs')], { input: payload, encoding: 'utf8' });
+  assert.notEqual(`${g.stdout}${g.stderr}`.trim(), '', 'guard decided nothing: entrypoint check failed');
 });

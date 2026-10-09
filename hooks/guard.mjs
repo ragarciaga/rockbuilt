@@ -1012,5 +1012,9 @@ function main() {
   process.exitCode = out.code;
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// Compare real paths: on macOS /var is /private/var, on Windows case and short names differ.
+// A false negative here would make the script exit without doing anything.
+const realOrSelf = (p) => { try { return realpathSync.native(p); } catch { return path.resolve(p); } };
+const sameFile = (a, b) => { const x = realOrSelf(a); const y = realOrSelf(b); return process.platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y; };
+const isMain = Boolean(process.argv[1]) && sameFile(process.argv[1], fileURLToPath(import.meta.url));
 if (isMain) main();

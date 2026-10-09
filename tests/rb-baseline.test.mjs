@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { evaluateRatchet, parseRunnerOutput } from '../scripts/lib/baseline.mjs';
@@ -102,6 +102,7 @@ test('rb baseline in a worktree: ratchet and record come from the main checkout'
   assert.equal(again.json.green, true);
   const check = await rbJson(wt.json.path, ['baseline', '--check']);
   assert.equal(check.code, 0);
-  assert.equal(path.resolve(check.json.root), path.resolve(root));
+  const real = (p) => realpathSync.native(p).toLowerCase();
+  assert.equal(real(check.json.root), real(root));
   assert.ok(existsSync(path.join(root, '.rockbuilt', 'baseline.json')), '--check records in the main checkout');
 });
