@@ -2,7 +2,7 @@
 // Never GraphQL, never `gh issue|pr|label`. The runner is injectable for tests (RB_GH_BIN or a function).
 import path from 'node:path';
 import { originSlug } from './repo.mjs';
-import { CliError, readText, run } from './util.mjs';
+import { CliError, readText, run, sleepMs } from './util.mjs';
 
 export const LABELS = [
   { name: 'rb:task', color: '1d76db', description: 'Rockbuilt task from a spec' },
@@ -76,7 +76,16 @@ export function makeGh({ cwd = process.cwd(), repo = null, runner = null } = {})
       const args = ['api', p, '--method', method];
       let input;
       if (body !== undefined) { args.push('--input', '-'); input = JSON.stringify(body); }
-      const r = exec(args, input);
+      let r = exec(args, input);
+      // One bounded retry for reads on a transient failure (5xx, 429, no status): a 502 must not
+      // end a nightly run. Writes are never retried (they may have landed).
+      if (!r.ok && method === 'GET' && !r.missing) {
+        const st = Number((`${r.stderr} ${r.stdout}`.match(/HTTP (\d{3})/) || [])[1]) || null;
+        if (st === null || st >= 500 || st === 429) {
+          sleepMs(Number(process.env.RB_GH_RETRY_MS ?? 10000));
+          r = exec(args, input);
+        }
+      }
       if (!r.ok) {
         const out = parseJson(r.stdout);
         const status = Number((`${r.stderr} ${r.stdout}`.match(/HTTP (\d{3})/) || [])[1]) || (out && Number(out.status)) || null;
@@ -232,6 +241,12 @@ export const ops = {
     const p = shapePr(c.api('POST', '{repo}/pulls', { body: { head, base, title, body, draft: Boolean(draft) } }));
     if (labels.length) p.labels = ops.labelAdd(c, p.number, labels).labels;
     return p;
+  },
+  // How far a head is behind and ahead of a base (GitHub compare). Branch protection is what makes
+  // GitHub report mergeable_state "behind"; without it the state says "clean" or "unstable".
+  compare(c, base, head) {
+    const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
+    return { behindBy: Number(d && d.behind_by) || 0, aheadBy: Number(d && d.ahead_by) || 0, status: d && d.status };
   },
   prView(c, n) {
     return shapePr(c.api('GET', `{repo}/pulls/${num(n)}`));

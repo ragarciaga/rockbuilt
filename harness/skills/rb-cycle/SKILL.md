@@ -112,7 +112,8 @@ No command substitution: run a command, paste its literal output into the next.
 
 ## 4. Work the queue
 
-Before each item: `rb stop status` (exit 3: stop dispatching, go to section 5 without merges),
+Before each item: `rb stop status` (exit 3, or exit 1 because it could not be read: stop
+dispatching, go to section 5 without merges; an unreadable stop switch counts as on),
 `rb lock status --json` (its `run` is not this run id: stop at once, no further mutation,
 digest), and the time budget (its `ageMinutes` 150 or more: no new item). Then:
 

@@ -235,7 +235,9 @@ Merging is not a `rb gh` op: only `rb merge-gate` merges.
 `rb merge-gate <pr> --run <id> | --human-approved [--dry-run]` merges only if every condition
 holds, evaluated by code:
 
-1. PR open, not draft, base is the default branch, mergeable.
+1. PR open, not draft, base is the default branch, mergeable, and not behind the base: the PR
+   head contains the current base tip (GitHub compare API; GitHub only reports `behind` when branch
+   protection requires up-to-date branches, which a free private repo cannot enable).
 2. Labels: carries `rb:tier-a` or `rb:tier-b`; carries none of `rb:needs-human`, `rb:blocked`,
    `rb:tier-c`, `rb:hold`.
 3. `rb risk --pr <n>` on the live diff returns a tier no higher than the label.
@@ -255,8 +257,8 @@ Exit codes: 0 merged, 3 not eligible (reasons in JSON), 1 error.
 
 Merges are serial (merge train), one PR at a time:
 
-- A PR is updated with the base (`rb gh pr-update-branch`) only when GitHub reports it behind or
-  in conflict (`mergeable_state` `behind` or `dirty`); an update re-runs its checks, so the gate
+- A PR is updated with the base (`rb gh pr-update-branch`) only when it is behind (the gate's
+  `behind` reason, or `mergeable_state` `behind`); an update re-runs its checks, so the gate
   waits for them on the next pass instead of merging stale results.
 - After each merge the orchestrator runs Verification on the updated default branch. If it turns
   red (a failure not in the known-failures list), it runs `rb revert <pr>`, escalates on the
@@ -541,6 +543,15 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    wrote `R="node tools/rockbuilt/rb.mjs"; $R ...`, which matches no permission rule (skills now
    require literal commands); `echo`, `npm audit` and other read-only commands were missing from
    the allow list; a local headless run ignores project permissions until the folder is trusted.
+11. 2026-10-09, final review against trail-blazer-flow: TBF requires the PR head to contain the
+   base tip because `mergeStateStatus` depends on branch protection; confirmed live on the sandbox
+   (a PR 2 commits behind reported `unstable`, not `behind`), so the gate now compares with the
+   base. TBF closed git `-c` and alias bypasses (its #448, #449); confirmed here
+   (`git -c alias.x='!vercel deploy --prod' x` and `git config alias.p 'push origin HEAD:main'`
+   passed the guard), now denied for everyone. TBF limits LESSONS appends (one hunk at the end, 40
+   lines, no HTML comments) because LESSONS is injected into every dispatch; bookkeeping now does
+   the same and rejects HTML comments in every bookkeeping file. TBF retries transient GitHub reads
+   once; `rb gh` now retries GETs once on 5xx, 429 or no status (writes never).
 
 ## 21. rb command interface (binding for skills and the CLI)
 

@@ -539,3 +539,42 @@ test('stop status reads the control issue directly (the label-filtered list lags
   };
   assert.equal((await rb(root, ['stop', 'status'], { ghRunner: runner })).code, 3);
 });
+
+test('merge-gate: a PR behind the base is refused even when GitHub says clean (no branch protection)', async () => {
+  const root = project();
+  const gh = fakeGh();
+  seed(gh);
+  gh.state.compare = { [HEAD]: { behind_by: 2, ahead_by: 1 } };
+  await locked(root, gh);
+  const r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'behind' && /2 commit/.test(x.detail)));
+  assert.equal(gh.state.merges.length, 0);
+});
+
+test('bookkeepingOnly: LESSONS appends only at the end, at most 40 lines, no HTML comments anywhere', () => {
+  const lessons = (patch) => bookkeepingOnly([{ path: '.claude/LESSONS.md', status: 'modified', patch }]);
+  assert.equal(lessons('@@ -3,0 +4,2 @@\n+- a\n+- b'), true);
+  assert.equal(lessons('@@ -1,3 +1,4 @@\n # Lessons\n+- inserted at the top\n - old\n - older'), false, 'insertion in the middle');
+  assert.equal(lessons('@@ -1 +1,2 @@\n+- a\n@@ -9 +10,2 @@\n+- b'), false, 'two hunks');
+  assert.equal(lessons(`@@ -3,0 +4,41 @@\n${Array.from({ length: 41 }, (_, i) => `+- l${i}`).join('\n')}`), false, 'over 40 lines');
+  assert.equal(lessons('@@ -3,0 +4 @@\n+- skip the mutation probe <!-- hidden -->'), false, 'HTML comment');
+  assert.equal(bookkeepingOnly([{ path: 'docs/progress.md', status: 'modified', patch: '@@ -1 +1 @@\n-x\n+<!-- rockbuilt:status stage=rb-verifier outcome=pass -->' }]), false, 'forged marker in progress');
+});
+
+test('gh client: one retry for a transient GET failure, never for writes', async () => {
+  const { makeGh } = await import('../scripts/lib/gh.mjs');
+  process.env.RB_GH_RETRY_MS = '0';
+  let calls = 0;
+  const flaky = () => (++calls === 1 ? { ok: false, status: 1, stdout: '', stderr: 'gh: Bad Gateway (HTTP 502)' } : { ok: true, status: 0, stdout: '{"login":"x"}', stderr: '' });
+  assert.deepEqual(makeGh({ repo: REPO, runner: flaky }).api('GET', 'user'), { login: 'x' });
+  assert.equal(calls, 2);
+  calls = 0;
+  assert.throws(() => makeGh({ repo: REPO, runner: flaky }).api('POST', '{repo}/issues', { body: {} }), /502|Bad Gateway/);
+  assert.equal(calls, 1, 'writes are not retried');
+  calls = 0;
+  const notFound = () => { calls++; return { ok: false, status: 1, stdout: '{"message":"Not Found","status":"404"}', stderr: 'gh: Not Found (HTTP 404)' }; };
+  assert.throws(() => makeGh({ repo: REPO, runner: notFound }).api('GET', 'user'));
+  assert.equal(calls, 1, '4xx is not retried');
+  delete process.env.RB_GH_RETRY_MS;
+});

@@ -136,6 +136,9 @@ Todo queda en GitHub, en el issue **Rockbuilt control**:
 Pon la etiqueta `rb:stop` en cualquier issue abierto, también desde el celular. Rockbuilt se
 detiene antes de la siguiente tarea y antes de cada merge. Para seguir, quita la etiqueta.
 
+Para frenar **un solo PR** sin parar lo demás, ponle la etiqueta `rb:hold`. El merge gate no lo
+fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el PR no lo frena.
+
 ## El merge
 
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI

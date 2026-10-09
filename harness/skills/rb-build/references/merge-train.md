@@ -25,7 +25,9 @@ touched.
 2. **Read it.** `rb gh pr-view <pr>`: head SHA, `mergeable_state`.
    - `dirty` (conflict): not eligible. Escalate on the task issue with the `Merge conflict`
      template (recommendation: rebuild from the current default branch) and continue.
-   - `behind`: `rb gh pr-update-branch <pr>` once per PR per run (never a local merge, never a
+   - `behind`, or the gate (step 5) refuses with `behind` (without branch protection GitHub
+     reports `clean` or `unstable` for a PR that is behind; the gate compares with the base
+     itself): `rb gh pr-update-branch <pr>` once per PR per run (never a local merge, never a
      push to that branch from here), then read the new head SHA. Same head: hold, next PR.
 3. **Wait for CI**, bounded. Poll `rb gh checks <head sha>` every 60 s (`sleep 60`), at most 30
    polls. All completed: go on. Still pending: hold ("CI pending on <sha>", the next run re-reads
@@ -35,6 +37,8 @@ touched.
 4. **CI red**: the CI fix in `references/kickback.md` section 6 (one attempt per PR), then the
    next PR. The fixed PR is re-evaluated in a later pass of this train or the next run.
 5. **Gate.** `rb merge-gate <pr> --run <run id> --json` (the run id that holds the lock). Exit 0: merged. Exit 3: read the reasons.
+   - The only reasons are `behind` (and the checks it implies): update the branch as in step 2,
+     then continue with the next PR; this one is re-evaluated after its CI finishes.
    - The only reason is `stale-head` (a review line whose `head=` is older than the PR head) after
      step 2's update-branch (the update added only a base merge): re-review once per PR per run. Dispatch
      the verifier with `Previously reviewed commit: <old head>` and `Reviewed head: <new head>`

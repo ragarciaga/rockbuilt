@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.2 (2026-10-09)
+
+Final review against trail-blazer-flow (DESIGN 20.11):
+
+- **Gate refuses PRs behind the base.** Without branch protection GitHub reports `clean` or
+  `unstable` for a PR that is behind (confirmed live), so the gate compares the head with the base
+  tip; the merge train updates the branch and re-reviews.
+- **Guard: no `git -c`, `--config-env`, `--exec-path` or `git config` writes, for everyone.**
+  Closes alias and hook bypasses that could push to main or deploy.
+- **Bookkeeping content rules:** LESSONS appends only at the end, one hunk, at most 40 lines; no
+  HTML comments in any bookkeeping file.
+- **`rb gh` retries a GET once** on 5xx, 429 or no status; writes are never retried.
+- `/rb-cycle` treats an unreadable stop switch as on; docs/GUIA.md documents `rb:hold` as the
+  per-PR veto.
+
 ## 0.3.1 (2026-10-09)
 
 - **Cloud front doors.** `.claude/skills/rb-kickoff` and `.claude/skills/rb-adopt` in this repo

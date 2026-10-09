@@ -776,6 +776,17 @@ function everyoneSegmentReason(seg, role, ctx) {
   const name = commandName(w[0]);
   if (name === 'git') {
     const g = parseGit(w);
+    // Everyone: no per-command config (-c alias.x='!cmd', core.sshCommand, core.hooksPath) and no
+    // config writes. Either turns git into a way around every other rule (aliases that push to
+    // main or deploy, hooks that run on the next commit).
+    if (g.globals.some((x) => x === '-c' || x === '--config-env' || x.startsWith('--config-env=') || x.startsWith('--exec-path'))) {
+      return 'git -c / --config-env / --exec-path is not allowed: run plain git commands';
+    }
+    if (g.sub === 'config') {
+      const ga = g.args.map((a) => a.toLowerCase());
+      const readOnly = ga.some((a) => /^--(get|get-all|get-regexp|get-urlmatch|list)$/.test(a) || a === '-l');
+      if (!readOnly) return 'git config writes are not allowed (read with --get or --list)';
+    }
     if (g.sub === 'push') {
       const dir = g.cPath ? path.resolve(ctx.cwd, g.cPath) : ctx.cwd;
       return checkPush(g.args, ctx.at(dir));
