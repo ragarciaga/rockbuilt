@@ -1,5 +1,10 @@
 # Rockbuilt (maintainer guide)
 
+This guide applies only when the task is changing this repository (ragarciaga/rockbuilt). If this
+session is working on a project that uses Rockbuilt (this repo is only attached so the project can
+vendor the harness or run `/rb-kickoff` or `/rb-adopt`), ignore this file and follow the
+project's AGENTS.md.
+
 This repo is the Rockbuilt Claude Code plugin itself. You are changing the harness, not a project
 built with it. Read DESIGN.md before any change: it is the contract every skill, agent, hook and
 script follows. When a file and DESIGN.md disagree, DESIGN.md wins and the file is the bug.

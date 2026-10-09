@@ -44,7 +44,7 @@ Mientras el repo de Rockbuilt sea privado, cada persona del equipo necesita acce
    Repository access, agrega el repo, Save. Sin esto la sesión no puede clonarlo ni empujar.
 3. Abre una sesión en claude.ai/code con dos repos: el nuevo y `ragarciaga/rockbuilt` (de ahí
    sale el harness que se instala en el proyecto).
-4. Escribe `/rb-kickoff` o simplemente "quiero construir ...". Si tienes notas, pégalas; si no,
+4. Escribe "arranquemos un proyecto", "quiero construir ..." o `/rb-kickoff`; las tres hacen lo mismo. Si tienes notas, pégalas; si no,
    describe la idea. Puedes dictar por voz.
 5. Responde la entrevista, en rondas de preguntas con la opción recomendada primero. Incluye una
    recomendación honesta de seguir o no, y si el proyecto necesita IA.

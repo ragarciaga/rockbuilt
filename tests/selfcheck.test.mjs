@@ -279,3 +279,11 @@ test('no file contains the em dash character', () => {
   }
   assert.deepEqual(offenders, []);
 });
+
+test('cloud front doors in .claude/skills point to the real skill and copy its frontmatter', () => {
+  for (const name of ['rb-kickoff', 'rb-adopt']) {
+    const front = (p) => readFileSync(path.join(ROOT, p), 'utf8').match(/^---\n([\s\S]*?)\n---\n/)[1];
+    assert.equal(front(`.claude/skills/${name}/SKILL.md`), front(`harness/skills/${name}/SKILL.md`), `${name}: frontmatter drifted from harness/skills`);
+    assert.match(readFileSync(path.join(ROOT, `.claude/skills/${name}/SKILL.md`), 'utf8'), new RegExp(`harness/skills/${name}/SKILL\\.md`));
+  }
+});
