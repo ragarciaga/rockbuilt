@@ -313,7 +313,7 @@
         },
         {
           "type": "bashExcludes",
-          "pattern": "merge-gate(?!.*--dry-run)|gh pr merge|git merge\\b"
+          "pattern": "merge-gate(?!.*--dry-run)|gh pr merge|git merge(?![-\\w])"
         },
         {
           "type": "textMatches",

@@ -243,7 +243,7 @@ test('the project settings template never allows gh issue/pr/label', () => {
 
 // ---------- manifests and versions ----------
 
-test('plugin.json, marketplace.json and hooks.json parse; matcher covers Read', () => {
+test('plugin.json, marketplace.json and hooks.json parse; matcher covers Read, Grep and Glob', () => {
   const read = (p) => JSON.parse(readFileSync(path.join(ROOT, p), 'utf8'));
   const plugin = read('.claude-plugin/plugin.json');
   const market = read('.claude-plugin/marketplace.json');
@@ -253,7 +253,7 @@ test('plugin.json, marketplace.json and hooks.json parse; matcher covers Read', 
   assert.ok(market.plugins.some((p) => p.name === 'rockbuilt'));
   const pre = hooks.hooks.PreToolUse;
   assert.ok(Array.isArray(pre) && pre.length > 0);
-  assert.equal(pre[0].matcher, 'Bash|Edit|Write|MultiEdit|NotebookEdit|Read');
+  assert.equal(pre[0].matcher, 'Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob');
   assert.equal(pre[0].hooks[0].command, 'node');
 });
 

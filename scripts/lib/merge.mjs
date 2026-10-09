@@ -12,6 +12,13 @@ const BLOCKING_LABELS = ['rb:needs-human', 'rb:blocked', 'rb:tier-c', 'rb:hold']
 const OK_CONCLUSIONS = ['success', 'neutral', 'skipped'];
 export const CI_CHECK = 'rockbuilt-ci';
 
+// The CI evidence must be a check run created by GitHub Actions and concluded success. A commit status
+// with the same name proves nothing: any token with repo access can post one.
+export function ciPassed(checks) {
+  return checks.some((x) => (x.name === CI_CHECK || x.name.startsWith(`${CI_CHECK} `) || x.name.startsWith(`${CI_CHECK}/`))
+    && x.source === 'check-run' && x.app === 'github-actions' && x.status === 'completed' && x.conclusion === 'success');
+}
+
 // Machine lines in a PR body: last status line per stage, tier line, security flag.
 export function parseBody(body) {
   const status = {};
@@ -43,15 +50,32 @@ export function prKind(headRef) {
 }
 
 // True when every file is a bookkeeping file and LESSONS.md has no removed lines.
+// Lines a bookkeeping PR may add or remove in an existing tasks.md: task status and decision-log entries.
+const TASKS_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?(?:Status|Estado)(?:\*\*)?\s*:|^\s*-\s*\d{4}-\d{2}-\d{2}\b|^\s*$/i;
+
+function patchLines(patch) {
+  const lines = String(patch).split('\n').filter((l) => !l.startsWith('+++') && !l.startsWith('---') && !l.startsWith('@@'));
+  return { added: lines.filter((l) => l.startsWith('+')).map((l) => l.slice(1)), removed: lines.filter((l) => l.startsWith('-')).map((l) => l.slice(1)) };
+}
+
+// True when every file is an in-place edit of a bookkeeping file: no renames or deletions, a readable
+// patch, tasks.md changes limited to status and decision-log lines, LESSONS.md only growing.
 export function bookkeepingOnly(files) {
   if (!files.length) return false;
   for (const f of files) {
     const name = f.path || f.filename;
     if (!BOOKKEEPING_FILE.test(name)) return false;
+    if (f.previous_path || f.previousPath) return false;
+    if (f.patch == null) return false;
+    const { added, removed } = patchLines(f.patch);
     if (name === '.claude/LESSONS.md') {
       if (f.status !== 'modified' && f.status !== 'added') return false;
-      const removed = String(f.patch || '').split('\n').some((l) => l.startsWith('-') && !l.startsWith('---'));
-      if (removed) return false;
+      if (removed.length) return false;
+    } else if (name === 'docs/progress.md') {
+      if (f.status !== 'modified' && f.status !== 'added') return false;
+    } else {
+      if (f.status !== 'modified') return false;
+      if (![...added, ...removed].every((l) => TASKS_LINE.test(l))) return false;
     }
   }
   return true;
@@ -128,7 +152,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   } catch (e) {
     no('checks', `could not read checks: ${e.message}`);
   }
-  if (!checks.some((x) => x.name === CI_CHECK || x.name.startsWith(`${CI_CHECK} `) || x.name.startsWith(`${CI_CHECK}/`))) no('ci', `no ${CI_CHECK} check on ${String(head).slice(0, 7)}: no CI, no automatic merge`);
+  if (!ciPassed(checks)) no('ci', `no successful ${CI_CHECK} check run from GitHub Actions on ${String(head).slice(0, 7)}: no CI, no automatic merge`);
   for (const x of checks) {
     if (x.status !== 'completed') no('checks', `${x.name} is ${x.status}`);
     else if (!OK_CONCLUSIONS.includes(x.conclusion)) no('checks', `${x.name} concluded ${x.conclusion}`);
@@ -154,6 +178,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
 // lock (or the human) still apply.
 function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head }) {
   for (const l of ['rb:blocked', 'rb:hold']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
+  if (kind === 'bookkeeping' && !humanApproved) for (const l of ['rb:needs-human', 'rb:tier-c']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'human-only' && !humanApproved) no('human-only', `${view.head.ref} PRs merge only when the user asks (--human-approved)`);
   if (kind === 'bookkeeping') {
     let files = [];
@@ -170,7 +195,7 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   } catch (e) {
     no('checks', `could not read checks: ${e.message}`);
   }
-  if (!checks.some((x) => x.name === CI_CHECK || x.name.startsWith(`${CI_CHECK} `) || x.name.startsWith(`${CI_CHECK}/`))) no('ci', `no ${CI_CHECK} check on ${String(head).slice(0, 7)}`);
+  if (!ciPassed(checks)) no('ci', `no successful ${CI_CHECK} check run from GitHub Actions on ${String(head).slice(0, 7)}`);
   for (const x of checks) {
     if (x.status !== 'completed') no('checks', `${x.name} is ${x.status}`);
     else if (!OK_CONCLUSIONS.includes(x.conclusion)) no('checks', `${x.name} concluded ${x.conclusion}`);

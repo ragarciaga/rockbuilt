@@ -12,14 +12,27 @@ const CONTROL_BODY = [
   'Do not close this issue.',
 ].join('\n');
 
-// Finds the open control issue (label rb:control, else by title) or creates it.
+// Comment reads page up to 2000 comments; rotate well before that so the latest lock event stays visible.
+export const CONTROL_ROTATE_AT = 1500;
+
+// Finds the open control issue (label rb:control, else by title) or creates it. A full control
+// issue that is not locked or stopped is closed and replaced by a fresh one.
 export function ensureControl(c, { create = true } = {}) {
   let list = ops.issueList(c, { labels: ['rb:control'], state: 'open' });
   if (!list.length) list = ops.issueList(c, { state: 'open' }).filter((i) => i.title === CONTROL_TITLE);
   if (list.length) {
     const issue = list.sort((a, b) => a.number - b.number)[0];
     if (!issue.labels.includes('rb:control')) ops.labelAdd(c, issue.number, ['rb:control']);
-    return { number: issue.number, created: false, labels: issue.labels };
+    const full = (issue.comment_count || 0) >= CONTROL_ROTATE_AT;
+    if (!(full && create && !issue.labels.includes('rb:running') && !issue.labels.includes('rb:stop'))) {
+      return { number: issue.number, created: false, labels: issue.labels };
+    }
+    ops.labelsEnsure(c);
+    const next = ops.issueCreate(c, { title: CONTROL_TITLE, body: `${CONTROL_BODY}\nPrevious control issue: #${issue.number}.`, labels: ['rb:control'] });
+    ops.issueComment(c, issue.number, `<!-- rockbuilt:rotated to=${next.number} -->\nThis control issue is full; continued in #${next.number}.`);
+    ops.labelRemove(c, issue.number, 'rb:control');
+    ops.issueEdit(c, issue.number, { state: 'closed' });
+    return { number: next.number, created: true, labels: next.labels, rotatedFrom: issue.number };
   }
   if (!create) return null;
   ops.labelsEnsure(c);

@@ -73,7 +73,7 @@ export function normalize(input, envVars = process.env) {
   const role = roleOf(roleSource);
   const roots = Array.isArray(input.workspace_roots) ? input.workspace_roots : [];
   let cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : roots[0] || process.cwd();
-  const n = { tool, kind: 'other', command: null, paths: [], role, cwd, event: input.hook_event_name || null };
+  const n = { tool, kind: 'other', command: null, paths: [], role, cwd, event: input.hook_event_name || null, name: input.tool_name || null };
   const name = input.tool_name;
 
   if (tool === 'cursor') {
@@ -109,6 +109,9 @@ export function normalize(input, envVars = process.env) {
   } else if (name === 'Read') {
     n.kind = 'read';
     n.paths = [filePathOf(ti)];
+  } else if (name === 'Grep' || name === 'Glob') {
+    n.kind = 'read';
+    n.paths = [ti.path, ti.glob, ti.pattern && name === 'Glob' ? ti.pattern : null];
   }
   n.paths = n.paths.filter((p) => typeof p === 'string' && p);
   return n;
@@ -323,13 +326,14 @@ function unwrap(words) {
 
 // ---------- path rules ----------
 
-const PROTECTED_DIRS = new Set(['.claude', '.cursor', '.codex', '.agents', '.github', '.rockbuilt']);
+// .git and .husky hold hooks and config that run with the orchestrator's credentials on its next commit or push.
+const PROTECTED_DIRS = new Set(['.claude', '.cursor', '.codex', '.agents', '.github', '.rockbuilt', '.git', '.husky']);
 const PROTECTED_FILES = new Set(['agents.md', 'claude.md', '.mcp.json']);
 
 export function isEnvName(p) {
   const s = String(p || '').replace(/\\/g, '/');
   const base = s.slice(s.lastIndexOf('/') + 1).toLowerCase();
-  if (!base.startsWith('.env')) return false;
+  if (!base.startsWith('.env') && !base.endsWith('.env')) return false;
   if (/\.(example|sample|template|dist)$/.test(base)) return false;
   return true;
 }
@@ -342,7 +346,7 @@ function segmentsReason(segs) {
   }
   const last = segs[segs.length - 1] || '';
   if (PROTECTED_FILES.has(last)) return last === 'agents.md' ? 'AGENTS.md' : last === 'claude.md' ? 'CLAUDE.md' : last;
-  if (last.startsWith('.env')) return '.env*';
+  if (last.startsWith('.env') || last.endsWith('.env')) return '.env*';
   return null;
 }
 
@@ -688,12 +692,48 @@ function writeRoleSegmentReason(seg, role, ctx) {
   return null;
 }
 
+// Deploy and cloud CLIs spend money or change live systems: a tier C decision for the human (DESIGN 14).
+// Values: subcommands that stay allowed (local or read-only); null means the whole CLI is denied.
+const COST_CLIS = new Map([
+  ['vercel', new Set(['dev', 'whoami', 'help', 'ls', 'list', 'inspect', 'logs', '--version', '-v', '--help', '-h'])],
+  ['netlify', new Set(['dev', 'status', 'help', 'build', 'serve', '--version', '--help'])],
+  ['fly', new Set(['status', 'logs', 'version', 'help', 'auth'])],
+  ['flyctl', new Set(['status', 'logs', 'version', 'help', 'auth'])],
+  ['wrangler', new Set(['dev', 'whoami', 'help', 'tail', '--version', '--help'])],
+  ['supabase', new Set(['start', 'stop', 'status', 'init', 'help', 'migration', 'gen', 'test', '--version', '--help'])],
+  ['railway', new Set(['status', 'logs', 'help', 'whoami', '--version'])],
+  ['heroku', null], ['aws', null], ['gcloud', null], ['az', null], ['doctl', null], ['firebase', new Set(['emulators:start', 'emulators:exec', 'help', '--version'])],
+  ['terraform', new Set(['fmt', 'validate', 'init', 'plan', 'version', 'show', 'output'])],
+  ['pulumi', new Set(['preview', 'version', 'about', 'whoami'])],
+]);
+const RUNNERS = new Set(['npx', 'bunx', 'pnpx']);
+
+function costCliReason(w) {
+  let words = w;
+  let name = commandName(words[0]);
+  // npx vercel, pnpm dlx vercel, yarn dlx vercel, npm exec vercel, bunx vercel
+  if (RUNNERS.has(name)) words = words.slice(1);
+  else if ((name === 'pnpm' || name === 'yarn') && words[1] === 'dlx') words = words.slice(2);
+  else if (name === 'npm' && (words[1] === 'exec' || words[1] === 'x')) words = words.slice(2);
+  words = words.filter((x, i) => i === 0 || !/^-(y|-yes|-package=.*)$/.test(x));
+  while (words.length && /^-/.test(words[0])) words = words.slice(1);
+  if (!words.length) return null;
+  name = commandName(words[0]).replace(/@.*$/, '');
+  if (!COST_CLIS.has(name)) return null;
+  const allowed = COST_CLIS.get(name);
+  const sub = words.slice(1).find((x) => !/^-/.test(x) || x === '--version' || x === '-v' || x === '--help' || x === '-h');
+  if (allowed && sub && allowed.has(sub) && !words.some((x) => /^--prod(uction)?$|^--linked$|^--project-ref/.test(x))) return null;
+  return `${name} ${sub || ''}`.trim() + ' can deploy, spend money or change live systems: escalate it to the human (tier C)';
+}
+
 // Rules for everyone (main session included) on one segment.
 function everyoneSegmentReason(seg, role, ctx) {
   const env = envReadReason(seg);
   if (env) return env;
   const w = seg.words;
   if (!w.length) return null;
+  const cost = costCliReason(w);
+  if (cost) return cost;
   const name = commandName(w[0]);
   if (name === 'git') {
     const g = parseGit(w);
@@ -790,11 +830,14 @@ function auditScratch(p, cwd) {
     const expected = path.join(realpathSync(cwd || '.'), '.rockbuilt', 'audit');
     if (!existsSync(expected)) return true; // not created yet: the lexical check above holds
     const realBase = realpathSync(expected);
-    if (realBase !== expected) return false; // .rockbuilt/audit itself is a symlink elsewhere
+    const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+    if (!same(realBase, expected)) return false; // .rockbuilt/audit itself is a symlink elsewhere
     let probe = path.resolve(cwd || '.', r);
     while (!existsSync(probe)) probe = path.dirname(probe);
     const real = realpathSync(probe);
-    return real === realBase || real.startsWith(realBase + path.sep);
+    const r2 = process.platform === 'win32' ? real.toLowerCase() : real;
+    const b2 = process.platform === 'win32' ? realBase.toLowerCase() : realBase;
+    return r2 === b2 || r2.startsWith(b2 + path.sep);
   } catch {
     return true; // audit dir not created yet: the lexical check above already holds
   }
@@ -807,6 +850,8 @@ function checkWrite(n) {
     return paths.every((p) => auditScratch(p, cwd)) ? null : 'rb-auditor may only write throwaway checks under .rockbuilt/audit/';
   }
   if (READONLY_ROLES.has(role) && !READONLY_EDITORS.has(role)) return `writing files is not allowed for ${role} (read-only role)`;
+  // The verifier only patches existing files for a transient mutation probe; it never creates files.
+  if (role === 'verifier' && n.name && !['Edit', 'MultiEdit', 'StrReplace'].includes(n.name)) return 'rb-verifier may only Edit an existing file for a transient mutation probe';
   for (const p of paths) {
     const prot = protectedPathReason(p, cwd);
     if (prot) return `subagents may not edit ${prot} (orchestrator-owned)`;

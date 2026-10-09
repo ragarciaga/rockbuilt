@@ -108,7 +108,7 @@ const ok = (body, status = 200) => ({ ok: true, status: 0, stdout: body === unde
 const err = (status, message) => ({ ok: false, status: 1, stdout: JSON.stringify({ message, status: String(status) }), stderr: `gh: ${message} (HTTP ${status})` });
 
 function issueOut(s, i) {
-  return { ...i, labels: i.labels.map((name) => ({ name })), user: { login: i.author || s.user }, html_url: `https://github.com/${REPO}/issues/${i.number}` };
+  return { comments: (s.comments[i.number] || []).length, ...i, labels: i.labels.map((name) => ({ name })), user: { login: i.author || s.user }, html_url: `https://github.com/${REPO}/issues/${i.number}` };
 }
 
 function pullOut(s, p) {
@@ -205,7 +205,7 @@ export function handle(s, method, fullPath, body) {
   }
   if ((m = r.match(/^pulls\/(\d+)\/update-branch$/)) && method === 'PUT') return ok({ message: 'Updating pull request branch.' }, 202);
   if ((m = r.match(/^commits\/([^/]+)\/check-runs$/))) {
-    const runs = s.checkRuns[m[1]] || [];
+    const runs = (s.checkRuns[m[1]] || []).map((x) => ({ app: { slug: 'github-actions' }, ...x }));
     return ok({ total_count: runs.length, check_runs: page(runs, q) });
   }
   if ((m = r.match(/^commits\/([^/]+)\/status$/))) return ok({ state: 'success', statuses: s.statuses[m[1]] || [] });

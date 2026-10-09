@@ -14,7 +14,8 @@ translate headings for another language, keep marker lines, labels and commands 
 Rules for every escalation:
 
 - The body file starts with exactly `<!-- rockbuilt:reason <slug> -->` and has no heading (rb adds
-  the title). The cycle detects answers as a trusted comment newer than the escalation marker.
+  the title). The cycle detects answers as a trusted comment without a `<!-- rockbuilt:` marker, newer than
+  the escalation marker. Post every harness comment through `rb gh` (it adds the marker), never raw.
 - Reason slugs (closed list): `tier-c-plan`, `tier-c-diff`, `tier-rose-at-merge`,
   `blocking-question`, `cost`, `blocked-task`, `manual-repro`, `missing-info`, `needs-local-e2e`,
   `needs-local-step`, `ci-red-after-fix`, `ci-red-unrelated`, `secret-scan`, `no-ci`,

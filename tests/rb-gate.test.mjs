@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { after, test } from 'node:test';
-import { parseBody } from '../scripts/lib/merge.mjs';
+import { bookkeepingOnly, ciPassed, parseBody } from '../scripts/lib/merge.mjs';
 import { REPO, cleanup, emptyState, fakeGh, fakeGhScript, rb, rbJson, repoWith, sh, tmp, withEnv, write } from './rb-helpers.mjs';
 
 after(cleanup);
@@ -286,6 +286,7 @@ test('rb gh ops: issue-view with comments and association, checks merge, labels-
   assert.equal(view.json.body, 'body text');
   assert.equal(view.json.author_association, 'OWNER');
   assert.equal(view.json.comments[0].author_association, 'OWNER');
+  assert.match(view.json.comments[0].body, /^<!-- rockbuilt:note -->\nbody text/, 'harness comments always carry a marker');
   assert.equal((await rbJson(root, ['gh', 'issue-list', '--label', 'rb:bug'], io)).json.length, 1);
   await rbJson(root, ['gh', 'label-remove', String(created.json.number), 'rb:bug'], io);
   const again = await rbJson(root, ['gh', 'label-remove', String(created.json.number), 'rb:bug'], io);
@@ -470,4 +471,40 @@ test('merge-gate: review-less kinds still need green CI and respect the stop swi
   const r = await gate(root, gh, ['--human-approved']);
   assert.equal(r.code, 3);
   assert.ok(reasonRules(r).includes('checks'));
+});
+
+test('bookkeepingOnly: in-place status and log edits only; renames, deletions and unreadable patches refused', () => {
+  const tasks = (patch, extra = {}) => ({ path: 'docs/specs/01-x/tasks.md', status: 'modified', patch, ...extra });
+  assert.equal(bookkeepingOnly([tasks('@@ -1 +1 @@\n-- Status: todo\n+- Status: done\n+- 2026-10-09: merged as PR #4 (squash, rb merge-gate).')]), true);
+  assert.equal(bookkeepingOnly([tasks('@@ -1 +1 @@\n+### T9 New task\n+- Status: todo')]), false, 'no injected tasks');
+  assert.equal(bookkeepingOnly([tasks('@@ -1 +1 @@\n-Spec: x | Status: draft\n+Spec: x | Status: approved')]), false, 'no spec approval');
+  assert.equal(bookkeepingOnly([tasks('+x', { status: 'added' })]), false, 'no new tasks.md');
+  assert.equal(bookkeepingOnly([{ path: 'docs/progress.md', status: 'renamed', previous_path: 'src/auth/login.ts', patch: '' }]), false);
+  assert.equal(bookkeepingOnly([{ path: 'docs/progress.md', status: 'removed', patch: '-x' }]), false);
+  assert.equal(bookkeepingOnly([{ path: '.claude/LESSONS.md', status: 'modified' }]), false, 'patch omitted by GitHub');
+  assert.equal(bookkeepingOnly([{ path: '.claude/LESSONS.md', status: 'modified', patch: '@@ -1 +1,2 @@\n+- new lesson' }]), true);
+});
+
+test('ciPassed: only a successful rockbuilt-ci check run from GitHub Actions counts', () => {
+  const run = { name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', source: 'check-run', app: 'github-actions' };
+  assert.equal(ciPassed([run]), true);
+  assert.equal(ciPassed([{ ...run, source: 'status', app: null }]), false, 'a commit status can be posted by any token');
+  assert.equal(ciPassed([{ ...run, app: 'some-app' }]), false);
+  assert.equal(ciPassed([{ ...run, conclusion: 'skipped' }]), false);
+});
+
+test('control ensure rotates a full control issue unless it is locked or stopped', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const io = { ghRunner: gh.runner };
+  const first = (await rbJson(root, ['control', 'ensure', '--repo', REPO], io)).json.number;
+  gh.state.comments[first] = Array.from({ length: 1500 }, (_, i) => ({ id: 1000 + i, body: 'x', user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: '2026-01-01T00:00:00Z' }));
+  gh.state.issues[first].labels.push('rb:stop');
+  assert.equal((await rbJson(root, ['control', 'ensure', '--repo', REPO], io)).json.number, first, 'stopped: kept');
+  gh.state.issues[first].labels = ['rb:control'];
+  const next = (await rbJson(root, ['control', 'ensure', '--repo', REPO], io)).json.number;
+  assert.notEqual(next, first);
+  assert.equal(gh.state.issues[first].state, 'closed');
+  assert.ok(!gh.state.issues[first].labels.includes('rb:control'));
+  assert.equal((await rbJson(root, ['control', 'ensure', '--repo', REPO], io)).json.number, next, 'stable after rotation');
 });

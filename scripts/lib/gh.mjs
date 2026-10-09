@@ -118,6 +118,7 @@ export function shapeIssue(i) {
     updated_at: i.updated_at || null,
     closed_at: i.closed_at || null,
     url: i.html_url || null,
+    comment_count: typeof i.comments === 'number' ? i.comments : null,
   };
 }
 
@@ -174,8 +175,11 @@ export const ops = {
     }
     return shapeIssue(c.api('PATCH', `{repo}/issues/${num(n)}`, { body: patch }));
   },
+  // Every comment the harness writes carries a rockbuilt marker, so a trusted comment without one is
+  // always a human answer (DESIGN 9) and never the harness talking to itself.
   issueComment(c, n, body) {
-    return shapeComment(c.api('POST', `{repo}/issues/${num(n)}/comments`, { body: { body } }));
+    const text = /<!--\s*rockbuilt:/.test(String(body)) ? String(body) : `<!-- rockbuilt:note -->\n${body}`;
+    return shapeComment(c.api('POST', `{repo}/issues/${num(n)}/comments`, { body: { body: text } }));
   },
   issueComments(c, n) {
     return c.paged(`{repo}/issues/${num(n)}/comments`).map(shapeComment);
@@ -260,7 +264,7 @@ export const ops = {
       const prev = latest.get(r.name);
       if (!prev || String(r.started_at || '') > String(prev.started_at || '')) latest.set(r.name, r);
     }
-    const out = [...latest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion || null, source: 'check-run' }));
+    const out = [...latest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion || null, source: 'check-run', app: (r.app && r.app.slug) || null }));
     const combined = c.api('GET', `{repo}/commits/${sha}/status`, { params: { per_page: 100 } }) || {};
     for (const s of combined.statuses || []) {
       const pending = s.state === 'pending';

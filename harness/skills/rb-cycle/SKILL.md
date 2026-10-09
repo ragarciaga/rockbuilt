@@ -88,7 +88,8 @@ No command substitution: run a command, paste its literal output into the next.
 2. **Answered escalations.** Candidates: `rb gh issue-list --label rb:approved --state open`, and
    every issue named under Escalations in the last three digests on `<ctl>` (`rb gh issue-view
    <ctl>`) that no longer carries `rb:needs-human` or `rb:needs-local`. For each,
-   `rb gh issue-view <n>`: answered when it carries `rb:approved`, or a trusted comment is newer
+   `rb gh issue-view <n>`: answered when it carries `rb:approved`, or a trusted comment without a `<!-- rockbuilt:` marker
+   (`rb gh` adds one to every harness comment) is newer
    than its newest `<!-- rockbuilt:escalation` comment. The answer is a binding human decision
    (`RESOLVED (human): ...`) for the planner and implementer. Escalated branches resume per
    `kickback.md` section 4.

@@ -6,6 +6,25 @@ Autonomy release: the harness plans, builds, audits and merges on its own, and p
 only for design decisions, anything that costs money, and sensitive or irreversible changes.
 Evidence for each decision is in DESIGN.md section 20.
 
+Hardening from the independent review (DESIGN 20.8), all with tests:
+
+- Cost floor: paid SDKs, hosts and secret-like env vars are scanned in every code file (tests and
+  evals included); the base lookup ignores the vendored harness and prose; `Paid services` match
+  exact service keys; more SDKs (LangChain providers, Groq, Together, Pinecone, Deepgram, fal);
+  large patches GitHub omits are tier C.
+- Dependency floor: package.json `scripts`, `overrides`, `resolutions` and friends, every
+  lockfile and other manifests are tier C. So are the known-failures ratchet, spec requirements,
+  the brief, `.npmrc`, gitleaks config and `.husky/`.
+- Merge gate: CI evidence must be a `rockbuilt-ci` check run from GitHub Actions; bookkeeping PRs
+  are in-place edits only (task status and decision-log lines in tasks.md, append-only LESSONS);
+  revert PRs are human merges.
+- Guard: `.git/` and `.husky/` are protected; the verifier may only Edit; Grep and Glob cannot
+  reach `.env` files; deploy and cloud CLIs (also via npx and dlx) are blocked for everyone.
+- Every harness comment carries a marker, so only unmarked trusted comments count as answers; the
+  control issue rotates before the comment paging limit.
+- Vendoring never writes the adapter README over the project README nor an existing
+  `.codex/config.toml`; doctor, status and adopt treat a template AGENTS.md as missing.
+
 Distribution and contract:
 
 - **Vendored distribution.** The harness lives in `harness/` (skills `rb-*`, agents `rb-*`,

@@ -14,16 +14,19 @@ export const FLOOR_PATHS = [
   { rule: 'data-schema', globs: ['**/migrations/**', 'prisma/schema.prisma', 'drizzle/**', 'supabase/**', '**/*.sql'] },
   { rule: 'auth-permissions-payments', globs: ['**/auth/**', '**/middleware.*', '**/permissions/**', '**/payments/**', '**/billing/**', '**/*stripe*', '**/*policy*', '**/rls*'] },
   { rule: 'infra-deploy-ci', globs: ['.github/**', 'vercel.json', 'netlify.toml', 'Dockerfile*', 'docker-compose*', 'fly.toml', 'render.yaml', 'wrangler.toml', '**/*.tf', 'supabase/config.toml'] },
-  { rule: 'harness-secrets', globs: ['AGENTS.md', 'CLAUDE.md', '.claude/**', '.cursor/**', '.codex/**', '.agents/**', 'tools/rockbuilt/**', '.env*', '.mcp.json'] },
+  { rule: 'harness-secrets', globs: ['AGENTS.md', 'CLAUDE.md', '.claude/**', '.cursor/**', '.codex/**', '.agents/**', 'tools/rockbuilt/**', 'docs/rockbuilt/**', '.env*', '**/*.env', '.mcp.json', '.npmrc', '.yarnrc*', '.gitleaks*', '.gitattributes', '.husky/**'] },
   { rule: 'architecture', globs: ['docs/adr/**', '**/design.md'] },
+  { rule: 'spec', globs: ['docs/specs/*/requirements.md', 'docs/brief.md'] },
 ];
 
 export const TIER_A_GLOBS = ['**/*.test.*', '**/*.spec.*', 'tests/**', 'e2e/**', 'docs/**', '*.md', '*.css', '*.scss', '**/locales/**', '**/i18n/**', '**/messages/**/*.json'];
 // Never tier A even when a tier A glob matches.
 export const NOT_TIER_A = ['docs/adr/**', 'docs/specs/**', 'docs/brief.md'];
 
-const PY_MANIFESTS = ['requirements*.txt', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'Pipfile', 'setup.py', 'setup.cfg'];
-const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+// Manifests and lockfiles other than package.json: any change is tier C.
+const OTHER_MANIFESTS = ['**/requirements*.txt', '**/pyproject.toml', '**/Cargo.toml', '**/go.mod', '**/go.sum', '**/Pipfile', '**/Pipfile.lock', '**/setup.py', '**/setup.cfg', '**/Gemfile', '**/Gemfile.lock', '**/composer.json', '**/composer.lock', '**/package-lock.json', '**/npm-shrinkwrap.json', '**/yarn.lock', '**/pnpm-lock.yaml', '**/pnpm-workspace.yaml', '**/bun.lockb', '**/bun.lock', '**/poetry.lock', '**/uv.lock', '**/Cargo.lock'];
+// package.json fields compared entry by entry. scripts are included: a changed "test" script can make CI green by construction.
+const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'overrides', 'resolutions', 'scripts', 'bundleDependencies', 'bundledDependencies', 'workspaces', 'pnpm', 'packageManager', 'engines'];
 
 // Paid SDKs: [module pattern, service key]. Trailing "/*" means any subpath of a scope.
 export const PAID_JS = [
@@ -32,17 +35,22 @@ export const PAID_JS = [
   ['@google-cloud/*', 'google-cloud'], ['googleapis', 'google'], ['@google/generative-ai', 'google'], ['@google/genai', 'google'],
   ['firebase-admin', 'firebase'], ['replicate', 'replicate'], ['elevenlabs', 'elevenlabs'], ['@elevenlabs/*', 'elevenlabs'],
   ['@mistralai/*', 'mistral'], ['cohere-ai', 'cohere'], ['openrouter', 'openrouter'], ['@openrouter/*', 'openrouter'],
-  ['@ai-sdk/*', 'ai-provider'],
+  ['@ai-sdk/*', 'ai-provider'], ['@langchain/openai', 'openai'], ['@langchain/anthropic', 'anthropic'],
+  ['@langchain/google-genai', 'google'], ['@langchain/mistralai', 'mistral'], ['@langchain/groq', 'groq'], ['groq-sdk', 'groq'],
+  ['together-ai', 'together'], ['@pinecone-database/*', 'pinecone'], ['@deepgram/*', 'deepgram'], ['assemblyai', 'assemblyai'],
+  ['@fal-ai/*', 'fal'], ['@huggingface/inference', 'huggingface'],
 ];
 export const PAID_PY = [
   ['openai', 'openai'], ['anthropic', 'anthropic'], ['stripe', 'stripe'], ['twilio', 'twilio'], ['sendgrid', 'sendgrid'],
   ['resend', 'resend'], ['boto3', 'aws'], ['botocore', 'aws'], ['google.cloud', 'google-cloud'], ['googleapiclient', 'google'],
   ['google.generativeai', 'google'], ['firebase_admin', 'firebase'], ['replicate', 'replicate'], ['elevenlabs', 'elevenlabs'],
-  ['mistralai', 'mistral'], ['cohere', 'cohere'],
+  ['mistralai', 'mistral'], ['cohere', 'cohere'], ['langchain_openai', 'openai'], ['langchain_anthropic', 'anthropic'],
+  ['groq', 'groq'], ['together', 'together'], ['pinecone', 'pinecone'], ['litellm', 'ai-provider'],
 ];
 
 const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/i;
-const NON_SOURCE = ['**/*.test.*', '**/*.spec.*', 'tests/**', 'test/**', '**/__tests__/**', 'e2e/**', 'docs/**', '*.md', 'evals/**', '**/fixtures/**'];
+// Base lookups ignore the harness and prose: a string in a README or in the vendored rb tables is not prior use.
+const BASE_EXCLUDES = [':(exclude)tools/rockbuilt', ':(exclude).claude', ':(exclude).agents', ':(exclude).codex', ':(exclude).cursor', ':(exclude)docs', ':(exclude)*.md'];
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|example\.(com|org|net)|.*\.example\.(com|org|net)|.*\.local|.*\.test|.*\.localhost)$/i;
 const SECRET_NAME = /(_KEY|_SECRET|_TOKEN)$|_API/;
 const ENV_PATTERNS = [
@@ -56,9 +64,23 @@ const ENV_PATTERNS = [
   /os\.Getenv\(\s*"([A-Z][A-Z0-9_]*)"/g,
   /env::var\(\s*"([A-Z][A-Z0-9_]*)"/g,
 ];
+const ENV_DESTRUCTURE = /\{([^}]*)\}\s*=\s*(?:process\.env|import\.meta\.env|Deno\.env\.toObject\(\))/g;
 
+// Cost scanning covers every code file, tests and evals included: they run in CI with real secrets.
 function isSource(p) {
-  return SOURCE_EXT.test(p) && !matchAny(p, NON_SOURCE);
+  return SOURCE_EXT.test(p);
+}
+
+function envNames(line) {
+  const out = [];
+  for (const re of ENV_PATTERNS) for (const m of line.matchAll(re)) out.push(m[1]);
+  for (const m of line.matchAll(ENV_DESTRUCTURE)) {
+    for (const part of m[1].split(',')) {
+      const name = part.split(':')[0].replace(/=.*$/, '').trim();
+      if (/^[A-Z][A-Z0-9_]*$/.test(name)) out.push(name);
+    }
+  }
+  return out;
 }
 
 function isComment(line) {
@@ -90,13 +112,11 @@ function paidService(moduleId, table, py) {
   return null;
 }
 
+// Exact service keys only: "Google Maps" in Paid services does not approve "google" (Gemini).
 function approved(svc, paidServices) {
   const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const key = norm(svc);
-  return paidServices.some((s) => {
-    const n = norm(s.split(/[(:]/)[0]);
-    return n && (n.includes(key) || key.includes(n));
-  });
+  return paidServices.some((s) => norm(s.split(/[(:]/)[0]) === key);
 }
 
 // Per-file added lines from a unified diff.
@@ -180,8 +200,12 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
         const changes = pj ? packageDepChanges(pj.old, pj.new) : ['could not read package.json versions'];
         if (changes.length) { add('dependency', p, changes.slice(0, 5).join('; ')); floor = true; }
       }
-    } else if (matchAny(p, PY_MANIFESTS)) {
-      add('dependency', p, 'dependency manifest changed'); floor = true;
+    } else if (matchAny(p, OTHER_MANIFESTS)) {
+      add('dependency', p, 'dependency manifest or lockfile changed'); floor = true;
+    }
+    // A code or config file whose added lines are unknown (GitHub omits large patches) cannot be scanned.
+    if (contentKnown && f.added === null && (f.additions || 0) > 0 && (isSource(p) || /\.(ya?ml|toml|json)$/i.test(p))) {
+      add('cost', p, 'diff content not available (patch too large); not scanned'); floor = true;
     }
   }
 
@@ -213,14 +237,11 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
           }
         }
         if (!isComment(line) && (source || /\.(ya?ml|toml|json)$/i.test(p))) {
-          for (const re of ENV_PATTERNS) {
-            for (const m of line.matchAll(re)) {
-              const name = m[1];
-              if (!SECRET_NAME.test(name) || seen.has(`env:${name}`)) continue;
-              seen.add(`env:${name}`);
-              if (baseHas(name) === true) continue;
-              add('cost', p, `new secret-like env var ${name}`); floor = true;
-            }
+          for (const name of envNames(line)) {
+            if (!SECRET_NAME.test(name) || seen.has(`env:${name}`)) continue;
+            seen.add(`env:${name}`);
+            if (baseHas(name) === true) continue;
+            add('cost', p, `new secret-like env var ${name}`); floor = true;
           }
         }
       }
@@ -251,7 +272,7 @@ function baseGrepper(root, ref) {
   const cache = new Map();
   return (s) => {
     if (cache.has(s)) return cache.get(s);
-    const r = git(root, ['grep', '-q', '-F', '-e', s, ref, '--']);
+    const r = git(root, ['grep', '-q', '-F', '-e', s, ref, '--', '.', ...BASE_EXCLUDES]);
     const v = r.status === 0 ? true : r.status === 1 ? false : null;
     cache.set(s, v);
     return v;
@@ -303,7 +324,7 @@ export function computeRisk(root, { files: fileList, pr, base, gh } = {}) {
     if (!gh) throw new CliError('rb risk --pr needs GitHub access');
     const view = ops.prView(gh, pr);
     const prFiles = ops.prFiles(gh, pr);
-    const files = prFiles.map((f) => ({ path: f.path, previousPath: f.previous_path, status: f.status === 'removed' ? 'deleted' : f.status, additions: f.additions, deletions: f.deletions, added: patchAdded(f.patch) }));
+    const files = prFiles.map((f) => ({ path: f.path, previousPath: f.previous_path, status: f.status === 'removed' ? 'deleted' : f.status, additions: f.additions, deletions: f.deletions, added: f.patch == null ? null : patchAdded(f.patch) }));
     const local = view.base && git(root, ['cat-file', '-e', `${view.base.sha}^{commit}`]).ok ? view.base.sha : resolveBaseRef(root, view.base ? view.base.ref : defaultBranch(root));
     const packageJson = (p) => {
       const f = files.find((x) => x.path === p);

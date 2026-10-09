@@ -115,7 +115,8 @@ groundable: escalate it (`rb escalate`, template in `.claude/skills/rb-cycle/ref
 question.
 
 ### 4. Tier C approval
-Approved means: the issue carries `rb:approved`, or a trusted comment newer than the latest
+Approved means: the issue carries `rb:approved`, or a trusted comment without a `<!-- rockbuilt:`
+marker (every harness comment carries one; `rb gh` adds it) newer than the latest
 `<!-- rockbuilt:escalation` comment answers it, and no plan comment is newer than that escalation.
 Not approved: `rb escalate <n> --kind human --title <t> --body-file <f>` with the question, options,
 recommendation and cost estimate, remove `rb:in-progress`, move on (this is not a blocked task).

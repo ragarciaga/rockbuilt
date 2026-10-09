@@ -68,14 +68,19 @@ test('tier A: only tests, docs, styles and project Tier A paths', async () => {
   assert.equal(r.tier, 'A', JSON.stringify(r.reasons));
 });
 
-test('tier B: production code; lockfile-only and non-dependency package.json edits stay B', async () => {
+test('tier B: production code and non-dependency package.json edits; lockfiles and scripts are C', async () => {
   let r = await tierOf(base(), { 'src/feature.js': 'export const f = 1;\n', 'src/app.test.js': 'test\n' });
   assert.equal(r.tier, 'B');
   assert.ok(r.reasons.some((x) => x.rule === 'tier-b' && x.path === 'src/feature.js'));
   r = await tierOf(base(), { 'package-lock.json': '{}\n' });
-  assert.equal(r.tier, 'B');
-  r = await tierOf(base(), { 'package.json': PKG.replace('node --test', 'node --test tests/') });
+  assert.equal(r.tier, 'C', 'a lockfile can swap a resolved package');
+  r = await tierOf(base(), { 'package.json': PKG.replace('node --test', 'exit 0') });
+  assert.equal(r.tier, 'C', 'a changed test script can make CI green by construction');
+  assert.match(r.reasons.find((x) => x.rule === 'dependency').detail, /\(scripts\)/);
+  r = await tierOf(base(), { 'package.json': PKG.replace('"name": "app"', '"name": "app",\n  "description": "x"') });
   assert.equal(r.tier, 'B', JSON.stringify(r.reasons));
+  r = await tierOf(base(), { 'package.json': PKG.replace('"name": "app"', '"name": "app",\n  "overrides": { "a": "9" }') });
+  assert.equal(r.tier, 'C', 'overrides are dependencies');
   r = await tierOf(base(), { 'docs/specs/01-x/tasks.md': 'tasks\n' });
   assert.equal(r.tier, 'B', 'specs are not tier A');
 });
@@ -177,7 +182,32 @@ test('floor: cost from a new secret-like env var and a new external host', async
   r = await tierOf(base(), { 'src/geo.js': "fetch('https://api.known.com/v1/x');\nfetch('http://localhost:3000');\n// see https://docs.vendor.com\n" });
   assert.equal(r.tier, 'B', 'known host, localhost and comments do not count');
   r = await tierOf(base(), { 'src/geo.test.js': "fetch('https://api.other.io');\n" });
-  assert.equal(r.tier, 'A', 'tests are ignored for hosts');
+  assert.equal(r.tier, 'C', 'tests run in CI with real secrets: hosts count there too');
+  r = await tierOf(base(), { 'tests/pay.test.js': "import Stripe from 'stripe';\n" });
+  assert.equal(r.tier, 'C', 'a paid SDK in a test is a cost');
+  r = await tierOf(base(), { 'src/k.js': 'const { STRIPE_SECRET_KEY: k } = process.env;\n' });
+  assert.match(r.reasons.find((x) => x.rule === 'cost').detail, /STRIPE_SECRET_KEY/, 'destructured env names count');
+});
+
+test('floor: the vendored harness and prose in the base never whitelist a paid SDK or host', async () => {
+  const root = base();
+  sh(root, 'git', ['checkout', '-q', 'main']);
+  write(root, 'tools/rockbuilt/lib/risk.mjs', "export const PAID = ['openai', 'stripe'];\n");
+  write(root, 'README.md', 'We may call https://api.paidvendor.io later.\n');
+  sh(root, 'git', ['add', '-A']);
+  sh(root, 'git', ['commit', '-q', '-m', 'vendor']);
+  sh(root, 'git', ['checkout', '-q', '-B', 'rb/T1-x', 'main']);
+  const r = await tierOf(root, { 'src/pay.js': "import Stripe from 'stripe';\nfetch('https://api.paidvendor.io/x');\n" });
+  assert.equal(r.tier, 'C');
+  assert.ok(r.reasons.some((x) => /paid SDK stripe/.test(x.detail)));
+  assert.ok(r.reasons.some((x) => /api\.paidvendor\.io/.test(x.detail)));
+});
+
+test('floor: ratchet list, spec requirements, brief, npmrc and gitleaks config', async () => {
+  for (const f of ['docs/rockbuilt/known-failures.json', 'docs/specs/01-x/requirements.md', 'docs/brief.md', '.npmrc', '.gitleaks.toml', 'config/prod.env', '.husky/pre-commit']) {
+    const r = await tierOf(base(), { [f]: 'x\n' });
+    assert.equal(r.tier, 'C', f);
+  }
 });
 
 test('project Sensitive paths force C; uncommitted and untracked changes count', async () => {

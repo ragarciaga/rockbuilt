@@ -6,6 +6,18 @@ v0.3 delivered what this file used to list: scheduled cloud runs (`/rb-cycle` in
 lock, stop switch and digest), plan auto-approval for tiers A and B, automatic merges through
 `rb merge-gate`, and Codex compatibility as an experimental adapter. See CHANGELOG.md.
 
+## Separate identity for the harness
+
+Today the cloud orchestrator uses the owner's GitHub token, so it can do anything the human can,
+including the signals that mean "the human approved" (DESIGN 13, known limit). A GitHub App or a
+machine user for Rockbuilt would make human approval verifiable: the gate would accept
+`rb:approved` and answers only from the human's login, and could refuse its own.
+
+- Add it when: a run ever acts on an approval the human did not give, or before the harness runs
+  on a repo where other people can trigger it.
+- Needs first: whether Claude Code cloud sessions can use a token other than the connected
+  account's; a machine user on a private repo may need a paid seat (cost: the user decides).
+
 ## Cross-model auditor
 
 Run the blind audit with a non-Anthropic model, so the producer and the judge do not share the

@@ -167,13 +167,14 @@ implementation and again by `rb merge-gate`.
 
 | Trigger | Detected by |
 |---|---|
-| Dependency change | any manifest change in dependencies (package.json deps/devDeps, requirements*.txt, pyproject deps, Cargo.toml, go.mod); lockfile-only changes without manifest change are B |
-| Cost | newly imported paid SDKs or new external API hosts in code; new env var names matching `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_API*`; infra and billing files |
+| Dependency change | package.json `dependencies`, `devDependencies`, `optionalDependencies`, `peerDependencies`, `overrides`, `resolutions`, `scripts` (a changed `test` script can make CI green by construction), `workspaces`, `engines`, `packageManager`; any other manifest or lockfile (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements*.txt`, `pyproject.toml`, `Cargo.*`, `go.mod`, `Gemfile*`, `composer.*`, and the like) |
+| Cost | in every code file, tests and evals included (they run in CI with real secrets): newly imported paid SDKs, new external API hosts, new env var names matching `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_API*` (destructured reads included). "New" means absent from the base outside the harness and prose (`tools/rockbuilt`, `.claude`, `.agents`, `.codex`, `.cursor`, `docs/`, `*.md`). A paid service listed under `Paid services` approves only the exact service key. A code file whose patch GitHub omits (too large) is C |
 | Data and schema | migrations and schema files (`**/migrations/**`, `prisma/schema.prisma`, `drizzle/**`, `supabase/**`, `**/*.sql`) |
 | Auth, permissions, payments, personal data | paths matching `**/auth/**`, `**/middleware.*`, `**/permissions/**`, `**/payments/**`, `**/billing/**`, `**/*stripe*`, `**/*policy*`, `**/rls*` |
 | Infra, deploy, CI | `.github/**`, `vercel.json`, `netlify.toml`, `Dockerfile*`, `docker-compose*`, `fly.toml`, `render.yaml`, `wrangler.toml`, `**/*.tf`, `supabase/config.toml` |
-| Harness and secrets | `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `.cursor/**`, `.codex/**`, `.agents/**`, `tools/rockbuilt/**`, `.env*`, `.mcp.json` |
+| Harness and secrets | `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `.cursor/**`, `.codex/**`, `.agents/**`, `tools/rockbuilt/**`, `docs/rockbuilt/**` (the known-failures ratchet), `.env*`, `**/*.env`, `.mcp.json`, `.npmrc`, `.yarnrc*`, `.gitleaks*`, `.gitattributes`, `.husky/**` |
 | Architecture | ADR added or changed (`docs/adr/**`), design.md changed |
+| Spec | `docs/specs/*/requirements.md`, `docs/brief.md` (the spec gate is human, section 6.4) |
 | Deletions | more than 10 files deleted, or any deletion under `src/` larger than 300 lines |
 | Size | diff larger than 800 changed lines |
 | Declared | the planner, verifier, auditor or security reviewer flags a decision the spec did not settle |
@@ -231,8 +232,10 @@ holds, evaluated by code:
 4. The PR body contains the verifier line `outcome=pass head=<sha>` (and for tier B the auditor
    line, and the security line when the body declares `security: required`), with `<sha>` equal
    to the PR head.
-5. Every check run and commit status on the head SHA completed with success, and the
-   `rockbuilt-ci` workflow is among them. No CI, no automatic merge.
+5. Every check run and commit status on the head SHA completed with success, and among them a
+   `rockbuilt-ci` **check run created by GitHub Actions** concluded `success`. A commit status
+   named `rockbuilt-ci` does not count (any token with repo access can post one). No CI, no
+   automatic merge.
 6. The stop switch is off (section 9).
 7. The merge train lock is held by this run.
 
@@ -253,7 +256,7 @@ Merges are serial (merge train), one PR at a time:
 
 | Branch | Kind | Gate |
 |---|---|---|
-| `rb/bookkeeping-*` | bookkeeping | Automatic when it touches only `docs/specs/*/tasks.md`, `docs/progress.md` and appends to `.claude/LESSONS.md` (no removed lines); green `rockbuilt-ci`, stop switch off, lock held |
+| `rb/bookkeeping-*` | bookkeeping | Automatic when every file is an in-place edit (no rename, no deletion, readable patch) of: an existing `docs/specs/*/tasks.md` changing only task `Status:` lines and dated decision-log lines, `docs/progress.md`, or `.claude/LESSONS.md` with no removed lines. Green `rockbuilt-ci`, no `rb:needs-human`/`rb:tier-c`/`rb:blocked`/`rb:hold`, stop switch off, lock held |
 | `rb/revert-*`, `rb/spec-*`, `rb/verify-*`, `rb/kickoff*`, `rb/adopt*`, `rb/retro-*`, `chore/rockbuilt-*` | human-only | Merge only with `--human-approved`, still with green `rockbuilt-ci` |
 | any other | task | Conditions 1 to 7 above |
 
@@ -278,6 +281,12 @@ All four live in GitHub so they survive a fresh cloud clone.
 - **Escalation.** Tier C or blocked work: label `rb:needs-human` (or `rb:needs-local` for steps
   that need the user's machine), one comment with the question, options, recommendation, and for
   costs the estimate. Never waits; the run moves on.
+- **Answers.** Every comment the harness writes carries a `<!-- rockbuilt:` marker (`rb gh`
+  adds `<!-- rockbuilt:note -->` when missing), so an approval or answer is a comment from a
+  trusted author (OWNER, MEMBER, COLLABORATOR) **without** a marker, newer than the escalation.
+- **Rotation.** Comment reads page up to 2000 comments. `rb control ensure` replaces a control
+  issue with 1500 or more comments (when it is neither locked nor stopped) with a fresh one and
+  closes the old one with a pointer.
 - **Digest.** `rb digest post` appends one comment to the control issue per run: merged PRs (with
   revert commands), PRs waiting for the human, escalations, failures, time per task, and what the
   next run will pick up. Written in the docs language.
@@ -368,11 +377,25 @@ Layers, from strongest to weakest:
      in AGENTS.md. Everything else is denied, including interpreters with `-e`/`-c`. rb-auditor
      may also Write, only under `.rockbuilt/audit/` (symlinks resolved, a symlinked audit dir is
      refused).
-   - Every subagent: no Edit/Write on protected paths (symlinks resolved with realpath), no
-     `rb merge-gate`, `rb gh`, `rb lock`, `rb control`, `rb digest`.
+   - Every subagent: no Edit/Write on protected paths (symlinks resolved with realpath; `.git/`
+     and `.husky/` included, since their hooks and config run with the orchestrator's
+     credentials), no `rb merge-gate`, `rb gh`, `rb lock`, `rb control`, `rb digest`. rb-verifier
+     may Edit existing files only (no Write).
+   - Everyone, the main session included: no `.env*` or `*.env` through Read, Grep or Glob, and no
+     deploy or cloud CLI that can spend money or change live systems (`vercel` outside `dev`,
+     `netlify deploy`, `fly deploy`, `wrangler deploy`, `supabase db push` or anything `--linked`,
+     `aws`, `gcloud`, `az`, `heroku`, `terraform apply`, `pulumi up`, also through `npx`, `pnpm
+     dlx`, `npm exec`). Those are tier C escalations.
 4. **Agent instructions.**
 
 The guard is a tripwire, not a sandbox. It must never be the only thing preventing harm.
+
+**Known limit: one identity.** In cloud routines the orchestrator acts with the owner's GitHub
+token, so anything the human can do on GitHub (add `rb:approved`, comment an answer, pass
+`--human-approved`), a misbehaving orchestrator could also do. The harness reduces it (markers on
+every harness comment, `--human-approved` only when the human asked in the current conversation,
+the digest records every human-approved merge, `rb:approved` is never added by a skill) but cannot
+remove it without a separate bot identity for the harness (roadmap).
 
 ## 14. Costs
 
@@ -469,6 +492,13 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    reading `.env`; dependencies only counted done after `/rockbuilt:merge`; worktree baselines
    compared against themselves; tasks.md parser silently ignored Spanish keys.
 7. v0.2 live eval: adopt installed a template CLAUDE.md and recorded a false red baseline.
+8. 2026-10-09, devil's advocate review of v0.3 (confirmed by running code): the paid-SDK check
+   whitelisted every SDK named in the vendored `tools/rockbuilt/lib/risk.mjs`; tests and evals
+   could import paid SDKs at tier A; `docs/rockbuilt/known-failures.json` and spec requirements
+   were tier A/B; `scripts`/`overrides` in package.json escaped the dependency floor; bookkeeping
+   accepted renames into bookkeeping paths and omitted patches; `.git/hooks` was writable by the
+   implementer; a commit status could stand in for CI; harness comments without markers could be
+   read as human answers; deploy CLIs were not blocked.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
