@@ -53,9 +53,15 @@ Para probar un cambio antes de publicarlo, abre Claude Code en cualquier proyect
 `claude --plugin-dir <ruta a tu copia de rockbuilt>`. Esa sesión usa tu versión local en vez de
 la instalada.
 
-## Costos de referencia
+## Consumo de referencia
 
-En la primera corrida (9 de octubre de 2026), un escenario simple costó entre USD 0.08 y 0.30. Un
-`fix` completo, con planner, implementer, verifier y una corrección, costó USD 1.23 y tardó 5
-minutos. La suite completa cuesta del orden de USD 5. Correrla antes de cada versión, no en cada
-cambio pequeño.
+Los montos en USD que reportan los evals no son un cobro. Son el estimado que calcula Claude Code
+de lo que costarían esos tokens a precios de la API (`total_cost_usd`). Con la sesión de tu
+cuenta (plan Pro o Max), las corridas se descuentan de los límites de uso del plan y no generan
+cargos aparte. Solo hay cobro en dinero si se corren con una `ANTHROPIC_API_KEY`, o si el plan
+tiene activado el uso adicional pagado y se pasa el límite.
+
+En la primera corrida (9 de octubre de 2026), un escenario simple consumió el equivalente a USD
+0.08 a 0.30. Un `fix` completo, con planner, implementer, verifier y una corrección, el
+equivalente a USD 1.23 en 5 minutos. La suite completa, del orden de USD 5, parecido a una sesión
+mediana de trabajo. Córrela antes de cada versión, no en cada cambio pequeño.

@@ -12,7 +12,9 @@
 // temp folder and are kept so you can inspect them.
 //
 // Runs use --permission-mode bypassPermissions inside throwaway workspaces. The guard hook still
-// applies. Each run costs real usage (roughly USD 0.10 to 1.50 per run).
+// applies. Each run consumes usage: with an account login (Pro/Max) it counts against the plan's
+// limits; with ANTHROPIC_API_KEY it is billed. The USD figures are Claude Code's API-price
+// estimate (total_cost_usd), roughly 0.10 to 1.50 per run.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -227,13 +229,13 @@ async function main() {
     return { id: s.id, source: s.source, arm, ws, d, checks, passed, exit: run.code };
   });
 
-  const lines = [`# Eval run ${stamp}`, '', '| Scenario | Arm | Passed | Cost | Time | Failed checks |', '|---|---|---|---|---|---|'];
+  const lines = [`# Eval run ${stamp}`, '', '| Scenario | Arm | Passed | Est. cost (API prices) | Time | Failed checks |', '|---|---|---|---|---|---|'];
   for (const r of results) {
     const failed = r.checks.filter((c) => !c.ok).map((c) => `${c.type} (${c.detail})`).join('; ') || '';
     lines.push(`| ${r.id} | ${r.arm} | ${r.passed}/${r.checks.length} | $${r.d.costUsd.toFixed(2)} | ${r.d.durationS}s | ${failed.replace(/\|/g, '/')} |`);
   }
   const total = results.reduce((a, r) => a + r.d.costUsd, 0);
-  lines.push('', `Total cost: $${total.toFixed(2)}.`, '', '## Final messages', '');
+  lines.push('', `Estimated cost at API prices: $${total.toFixed(2)} (with an account login this is plan usage, not a charge).`, '', '## Final messages', '');
   for (const r of results) {
     lines.push(`### ${r.id} [${r.arm}]`, '', `Workspace: \`${r.ws}\`. Skills: ${r.d.skills.join(', ') || 'none'}. Agents: ${r.d.agents.join(', ') || 'none'}.`, '', '```text', r.d.final.slice(0, 3000), '```', '');
   }
