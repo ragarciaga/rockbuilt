@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 (2026-10-09)
+
+- **Cloud front doors.** `.claude/skills/rb-kickoff` and `.claude/skills/rb-adopt` in this repo
+  point to the real skills in `harness/skills/`. In a cloud session with an empty project repo
+  and `ragarciaga/rockbuilt` attached, "arranquemos un proyecto" or "adopta este repo" now starts
+  the right skill; before, nothing loaded because cloud sessions do not install plugins (tested
+  with a headless session and `--add-dir`). The selfcheck keeps their frontmatter identical to
+  the source.
+- The maintainer guide (`.claude/CLAUDE.md`) now says it applies only to changes to this repo, so
+  a project session with Rockbuilt attached follows the project's AGENTS.md.
+- `/rb-kickoff` and docs/GUIA.md: in the cloud, create the repo with a README and give the Claude
+  GitHub app access to it before the session.
+
 ## 0.3.0 (2026-10-09)
 
 Autonomy release: the harness plans, builds, audits and merges on its own, and pulls the human in

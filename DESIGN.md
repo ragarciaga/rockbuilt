@@ -88,6 +88,14 @@ updates. It never overwrites project-owned files (AGENTS.md, CLAUDE.md, LESSONS.
 overwrites harness-owned files (tools/rockbuilt, rb-* skills and agents, adapter manifests), and
 merges settings and MCP JSON. `tools/rockbuilt/VERSION` records the version.
 
+### 3.2.1 Cloud front doors
+
+A cloud session for a new or adopted project starts with a repo that has no harness, and plugins
+do not load in the cloud. This repo therefore carries `.claude/skills/rb-kickoff` and
+`.claude/skills/rb-adopt`: thin skills with the same frontmatter as `harness/skills/`, which read
+and follow the real skill from the attached checkout. Only those two are front doors; every other
+skill exists in the project once `rb vendor` runs.
+
 ### 3.3 Invoking rb
 
 Skills call `node tools/rockbuilt/rb.mjs <command>` (shown below as `rb <command>`). Plugin-only
