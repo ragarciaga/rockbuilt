@@ -1,4 +1,4 @@
-<!-- Eval fixture: PR body with a verifier line. setup replaces HEAD_SHA and TASK. -->
+<!-- Eval fixture: PR body with the verifier and auditor lines (tier B). setup replaces HEAD_SHA and TASK. -->
 ## Problema
 Comparar el mes contra los topes por categoría.
 
@@ -15,4 +15,6 @@ Comparar el mes contra los topes por categoría.
 
 Closes #2
 
-<!-- rockbuilt:status stage=verifier task=TASK outcome=pass head=HEAD_SHA -->
+<!-- rockbuilt:tier B -->
+<!-- rockbuilt:status stage=rb-verifier task=TASK outcome=pass head=HEAD_SHA -->
+<!-- rockbuilt:status stage=rb-auditor task=TASK outcome=pass head=HEAD_SHA -->

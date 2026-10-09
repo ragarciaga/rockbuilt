@@ -110,19 +110,21 @@ Agents: `rb-scout`, `rb-planner`, `rb-task-reviewer`, `rb-implementer`, `rb-veri
 | rb-task-reviewer | sonnet | Read, Grep, Glob | Judges one task: size, alignment, completeness, necessity |
 | rb-implementer | sonnet | Read, Write, Edit, Grep, Glob, Bash | Executes an approved plan. No git, no gh, no secrets |
 | rb-verifier | opus | Read, Grep, Glob, Bash (allowlist), Edit (transient mutation probes only) | Plan conformance, test quality, mutation probe |
-| rb-auditor | opus | Read, Grep, Glob, Bash (allowlist) + Playwright MCP | Blind audit: spec criteria vs observable behavior |
+| rb-auditor | opus | Read, Grep, Glob, Bash (allowlist), Write (only under `.rockbuilt/audit/`) + Playwright MCP | Blind audit: spec criteria vs observable behavior |
 | rb-security-reviewer | opus | Read, Grep, Glob, Bash (allowlist) | OWASP-oriented review of a diff or feature |
 | rb-e2e-writer | sonnet | inherits (Playwright MCP); guard limits writes to e2e/ | Writes Playwright specs from the test plan |
 | rb-healer | sonnet | Read, Grep, Glob, Bash (allowlist) | Runs E2E and classifies failures |
 
-Read-only roles carry `readonly: true` in frontmatter for Cursor. Every agent ends its output with
+Read-only roles carry `readonly: true` in frontmatter for Cursor, except rb-verifier (transient
+Edit probes) and rb-auditor (scratch checks), which the guard limits instead. Every agent ends its output with
 `<!-- rockbuilt:status stage=<agent> task=<id> outcome=<...> [head=<sha>] -->`.
 
 The **blind auditor** receives only: the task id, the acceptance criteria text (by ID, from
 requirements.md or the issue), how to run the app or the code (AGENTS.md commands), the reviewed
 head SHA. It never receives the plan, the implementer report, the verifier verdict or the diff
 narrative. It may read code only to learn how to exercise behavior, and must judge each criterion
-by observed behavior (command output, test it writes in a scratch dir, Playwright session). Its
+by observed behavior (command output, a throwaway check it writes under `.rockbuilt/audit/`,
+Playwright session). Its
 verdict lists each criterion as pass, fail or not-observable with evidence. Any fail is a kickback.
 
 ## 5. Project contract (AGENTS.md)
@@ -219,7 +221,8 @@ Merging is not a `rb gh` op: only `rb merge-gate` merges.
 
 ## 8. The merge gate
 
-`rb merge-gate <pr> [--dry-run]` merges only if every condition holds, evaluated by code:
+`rb merge-gate <pr> --run <id> | --human-approved [--dry-run]` merges only if every condition
+holds, evaluated by code:
 
 1. PR open, not draft, base is the default branch, mergeable.
 2. Labels: carries `rb:tier-a` or `rb:tier-b`; carries none of `rb:needs-human`, `rb:blocked`,
@@ -237,8 +240,25 @@ Then: squash merge via REST, comment with the one-line revert command
 (`rb revert <pr>` opens a revert PR), label the issue done, and record the merge for the digest.
 Exit codes: 0 merged, 3 not eligible (reasons in JSON), 1 error.
 
-Merges are serial (merge train): after each merge, the next PR is updated with the base
-(`rb gh pr-update-branch`), its checks re-run, and its gate re-evaluated.
+Merges are serial (merge train), one PR at a time:
+
+- A PR is updated with the base (`rb gh pr-update-branch`) only when GitHub reports it behind or
+  in conflict (`mergeable_state` `behind` or `dirty`); an update re-runs its checks, so the gate
+  waits for them on the next pass instead of merging stale results.
+- After each merge the orchestrator runs Verification on the updated default branch. If it turns
+  red (a failure not in the known-failures list), it runs `rb revert <pr>`, escalates on the
+  control issue, and stops the train for this run.
+
+**Review-less PR kinds**, decided by branch name:
+
+| Branch | Kind | Gate |
+|---|---|---|
+| `rb/bookkeeping-*` | bookkeeping | Automatic when it touches only `docs/specs/*/tasks.md`, `docs/progress.md` and appends to `.claude/LESSONS.md` (no removed lines); green `rockbuilt-ci`, stop switch off, lock held |
+| `rb/revert-*`, `rb/spec-*`, `rb/verify-*`, `rb/kickoff*`, `rb/adopt*`, `rb/retro-*`, `chore/rockbuilt-*` | human-only | Merge only with `--human-approved`, still with green `rockbuilt-ci` |
+| any other | task | Conditions 1 to 7 above |
+
+`rb revert` opens its PR labelled `rb:tier-c` and `rb:needs-human`: undoing a merge is the
+user's call, and a red default branch already stops the next cycle at the baseline step.
 
 If the repo can enforce branch protection (public repo or GitHub Pro), `rb protect` configures
 required status checks on the default branch so GitHub itself rejects a merge without green CI.
@@ -344,7 +364,10 @@ Layers, from strongest to weakest:
      `log`, `show`, `rev-parse`, `ls-files`, `merge-base`, `blame`; `grep` without
      `-O`/`--open-files-in-pager`), test runners (`npm test`, `npm run test*`, `npx playwright
      test`, `node --test`, `pytest`, `npm audit`), and for the verifier only `git restore
-     <single tracked file>`. Everything else is denied, including interpreters with `-e`/`-c`.
+     <single tracked file>`, plus the exact commands declared under `## Verification` and `## E2E`
+     in AGENTS.md. Everything else is denied, including interpreters with `-e`/`-c`. rb-auditor
+     may also Write, only under `.rockbuilt/audit/` (symlinks resolved, a symlinked audit dir is
+     refused).
    - Every subagent: no Edit/Write on protected paths (symlinks resolved with realpath), no
      `rb merge-gate`, `rb gh`, `rb lock`, `rb control`, `rb digest`.
 4. **Agent instructions.**
@@ -413,6 +436,10 @@ to it is tier C. In worktrees, `rb` reads the baseline of the main checkout
 
 Where a tool cannot enforce a rule, `rockbuilt-ci` and `rb merge-gate` are the enforcement.
 
+Known limit: the guard learns the role from the hook payload (`agent_type`) in Claude Code. Cursor
+and Codex do not send it, so role rules there apply only when the session sets `ROCKBUILT_ROLE`;
+otherwise the guard applies the rules that hold for everyone.
+
 ## 19. Verify gates, memory, retro
 
 As in v0.2: rb-verify runs security, E2E (1 happy path and 2 failure cases per flow, Playwright,
@@ -461,8 +488,8 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
-| `merge-gate <pr> [--dry-run] [--human-approved]` | Section 8. `--human-approved` allows tier C only when the human asked in the current conversation |
-| `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-b` |
+| `merge-gate <pr> --run <id> \| --human-approved [--dry-run]` | Section 8. `--run` must match the lock holder. `--human-approved` allows tier C and human-only kinds only when the human asked in the current conversation |
+| `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-c`, `rb:needs-human` |
 | `control ensure` | Find or create the control issue, print its number |
 | `lock acquire --run <id> | release --run <id> | status` | Lock on the control issue (3 h staleness) |
 | `stop status` | Exit 3 when the stop switch is on, 0 otherwise |

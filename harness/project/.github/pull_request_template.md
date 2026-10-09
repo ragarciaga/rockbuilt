@@ -11,17 +11,26 @@ Closes #
 - [ ] R<n>.<m>: <criterion>
 
 ## Verification
-<!-- Paste the Verification commands from CLAUDE.md and their results (counts where reported). -->
+<!-- The Verification commands from AGENTS.md and their results (counts where reported). -->
 ```
 <command>: <result>
 ```
 
-## Verifier notes
-<!-- Independent verifier verdict and anything it flagged. Rockbuilt PRs end this section with the
-verifier status line, including head=<sha>; /rb-merge requires it to match the PR head. -->
+## Review
+<!-- Verifier verdict, blind auditor verdict (tier B and C) and security review when it applies,
+with anything they flagged. -->
 
 ## How to test locally
 1. <step>
 
 ## Risks
-<!-- Auth, permissions, secrets, data access, migrations, new dependencies. "None" if none. -->
+<!-- Auth, permissions, secrets, data access, migrations, new dependencies, costs. "None" if none. -->
+
+<!-- Machine lines read by `rb merge-gate` (DESIGN.md section 21). Keep each on its own line; the
+harness fills them in. <sha> must equal the PR head. Remove the auditor line for tier A and the
+security lines when no security review applies. -->
+<!-- rockbuilt:tier <A|B|C> -->
+<!-- rockbuilt:security required -->
+<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
+<!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->
+<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=pass head=<sha> -->

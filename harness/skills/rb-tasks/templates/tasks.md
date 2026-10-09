@@ -2,9 +2,12 @@
 Spec: docs/specs/NN-slug/  |  Status: draft  |  Converged: <YYYY-MM-DD>, <rounds> rounds
 
 <!--
-Field names stay in English (parsed by `rb tasks`). Content is in the docs language.
-One verifiable outcome per task. Verify must be binary and executable.
-Greenfield: T1 is the walking skeleton.
+Field names and statuses stay in canonical English (parsed strictly by `rb tasks`; unknown keys
+or statuses are errors). Statuses: todo, in-progress, in-review, done, blocked.
+Content is in the docs language. One verifiable outcome per task. Verify must be binary and
+executable. Depends on lists T ids only. Greenfield: T1 is the walking skeleton unless a
+skeleton issue already exists. Header Status: approved once `rb tasks` exits 0 (the approved
+spec covers it).
 -->
 
 ## T1: <imperative title>

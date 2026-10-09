@@ -26,6 +26,15 @@ must therefore be a committed script, not a transcript of a browsing session.
   rendering.
 - Include a coverage line: every `[e2e]` criterion maps to at least one case.
 
+## Cloud runs
+
+Cloud sessions and routines start from a fresh clone, often without a usable browser, Docker or
+`.env*`. `npx playwright install chromium` may work (network level Trusted); try it once. If the
+browser cannot be launched, or the suite needs Docker (local Supabase) or local-only credentials,
+the gate is not run in the cloud: it is escalated as `rb:needs-local` with exact commands
+(preconditions.md). The e2e-writer can still write specs from the test plan without exploring,
+marked "unexplored, selectors to confirm locally" in its report; the local run confirms them.
+
 ## Exploration before selectors (e2e-writer)
 
 1. Start from the running app (URL from the orchestrator). With Playwright MCP: navigate,
@@ -68,9 +77,10 @@ never fixed sleeps (`waitForTimeout`).
 - Supabase projects: run against local Supabase (`supabase start`, Docker required; prefix with
   `npx` when the CLI is a dev dependency). Seed with `supabase db reset` (applies migrations and
   `supabase/seed.sql`). Never point E2E at the hosted or production project.
-- Other databases: a seed script referenced from CLAUDE.md `## Setup` or `globalSetup`.
-- Third-party calls that cost money or are flaky may be stubbed with `page.route` only when the
-  criterion is not about that integration; say so in the plan.
+- Other databases: a seed script referenced from AGENTS.md `## Setup` or `globalSetup`.
+- Third-party calls that cost money or are flaky are stubbed with `page.route` when the criterion
+  is not about that integration; say so in the plan. Hitting a paid endpoint for real is tier C
+  and needs an approved budget in AGENTS.md `Paid services`.
 
 ## Never weaken an assertion
 

@@ -43,6 +43,21 @@ money, personal data or external users needs the security round in full.
 
 Every "yes" here means the security gate runs for features touching it. Record it in the brief.
 
+## Round E: Operation (tools, autonomy, costs)
+
+- Tools besides Claude Code: Cursor, Codex (experimental), or none. Recommended: none unless the
+  user already works in another tool. Becomes `rb vendor --tools claude[,cursor][,codex]`.
+- Autonomy: `auto` (recommended) or `supervised`. Explain the tiers in two lines in the user's
+  language: tiers A (tests, docs, styles) and B (normal code from an approved spec) are planned,
+  built, audited and merged by the harness when CI is green; tier C (architecture and design,
+  data and schema, auth, dependencies, infra, anything that costs money) waits for the user in an
+  `rb:needs-human` issue. Then one line: anything that can cost money always asks first, in both
+  modes. `supervised` means every PR waits for the user.
+- Paid services already approved, each with a monthly cap (for example "OpenAI, USD 20/month for
+  evals"), or none. Only what the user names explicitly goes into AGENTS.md `Paid services`.
+- Nightly cloud run: mention it is optional and that they create the routine themselves later
+  (docs/CLOUD.md in the Rockbuilt repo). Do not ask for a decision now.
+
 ## Classifying open points
 
 | Tag | Meaning | Where it ends |

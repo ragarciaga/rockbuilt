@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/rockbuilt/guard.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Rockbuilt guard"
+          }
+        ]
+      }
+    ]
+  }
+}

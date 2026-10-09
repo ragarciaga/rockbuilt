@@ -64,6 +64,16 @@ option: <list>. (ADR: docs/adr/NNNN-slug.md) (R..)
 | evals | <dataset size, grader, threshold> | R2.2 |
 | manual | <item and reason> | R2.3 |
 
+## Risk and cost
+Parts that will be tier C at build time (DESIGN.md section 6.1). Approving this design approves
+the decisions; each plan is still escalated so the user can check it matches.
+
+| Item | Why tier C | Cost estimate (monthly) | Serves |
+|---|---|---|---|
+| <new dependency / migration / auth change / infra / paid service> | <floor rule> | <USD n, or none> | R.. |
+
+Paid services this feature needs: <none | service, cap; goes into AGENTS.md Paid services on approval>
+
 ## Alternatives considered
 | Option | Why rejected |
 |---|---|

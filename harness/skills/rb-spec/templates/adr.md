@@ -3,6 +3,7 @@
 Status: <proposed | accepted | superseded by NNNN>
 Date: <YYYY-MM-DD>
 Related: <docs/specs/NN-slug/design.md, docs/research/<topic>/REPORT.md, or none>
+Approved by: <the user, with design.md on YYYY-MM-DD | kickoff synthesis> (ADRs are tier C decisions)
 
 ## Context
 <The forces at play: the requirement or constraint that forces a decision, facts and numbers.>

@@ -11,10 +11,10 @@ Agregar presupuestos mensuales por categoría.
 - Pending: spec de presupuestos mensuales.
 
 ## Key decisions
-- 2026-09-20: sin dependencias externas, ver CLAUDE.md (Stack).
+- 2026-09-20: sin dependencias externas, ver AGENTS.md (Stack).
 
 ## Next steps
-1. /rockbuilt:spec presupuestos mensuales por categoría
+1. /rb-spec presupuestos mensuales por categoría
 
 ## Timing
 <!-- rb:timing:start -->

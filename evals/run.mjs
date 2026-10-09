@@ -5,9 +5,12 @@
 //   node evals/run.mjs fix-s1-es kickoff-s4-no-trigger
 //   node evals/run.mjs --arms with --parallel 2
 //
-// Each run builds a fresh workspace from evals/fixtures, launches
-// `claude -p <prompt> --output-format stream-json` (the "with" arm adds --plugin-dir <this repo>),
-// then applies deterministic checks to the transcript and the workspace. Results go to
+// Each run builds a fresh workspace from evals/fixtures. The "with" arm then vendors the harness
+// into it exactly as a project gets it (`node scripts/rb.mjs vendor --from <this repo>` with the
+// scenario's `vendor` field: type, lang, tools) and commits that on main, so the default branch
+// starts clean; the "without" arm stays bare. Both launch
+// `claude -p <prompt> --output-format stream-json` with no plugin loaded, then deterministic
+// checks run against the transcript and the workspace. Results go to
 // evals/results/<date>-<time>/ (summary.md plus one transcript per run). Workspaces live in the OS
 // temp folder and are kept so you can inspect them.
 //
@@ -17,7 +20,7 @@
 // estimate (total_cost_usd), roughly 0.10 to 1.50 per run.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,10 +44,32 @@ function parseArgs(argv) {
 
 function git(cwd, args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
-  return { ok: r.status === 0, out: (r.stdout || '').trim() };
+  return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 
-function setupWorkspace(scenario, arm, stamp) {
+// rb vendor arguments for a scenario: { "type": "web,ai", "lang": "es", "tools": "claude,cursor" }.
+export function vendorArgs(vendor = {}) {
+  const args = ['vendor', '--from', ROOT];
+  if (vendor.type) args.push('--type', vendor.type);
+  if (vendor.lang) args.push('--lang', vendor.lang);
+  if (vendor.tools) args.push('--tools', vendor.tools);
+  return args;
+}
+
+// Installs the harness the way a project gets it and commits it on main (the "with" arm).
+function vendorInto(ws, scenario) {
+  if (!existsSync(path.join(ws, '.git'))) {
+    for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.name', 'Rockbuilt Eval'], ['config', 'user.email', 'eval@example.com']]) git(ws, a);
+  }
+  git(ws, ['config', 'commit.gpgsign', 'false']);
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'rb.mjs'), ...vendorArgs(scenario.vendor)], { cwd: ws, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`rb vendor failed for ${scenario.id}: ${r.stderr || r.stdout}`);
+  git(ws, ['add', '-A']);
+  const c = git(ws, ['commit', '-q', '-m', 'chore: vendor Rockbuilt (eval)']);
+  if (!c.ok) throw new Error(`committing the vendored harness failed for ${scenario.id}: ${c.err}`);
+}
+
+export function setupWorkspace(scenario, arm, stamp) {
   const base = mkdtempSync(path.join(os.tmpdir(), `rb-eval-${scenario.id}-${arm}-`));
   const ws = path.join(base, 'ws');
   if (scenario.setup.length) {
@@ -54,13 +79,13 @@ function setupWorkspace(scenario, arm, stamp) {
   } else {
     mkdirSync(ws, { recursive: true });
   }
+  if (arm === 'with') vendorInto(ws, scenario);
   const startHead = git(ws, ['rev-parse', 'HEAD']);
   return { ws, startHead: startHead.ok ? startHead.out : null, stamp };
 }
 
-function runClaude(prompt, ws, withPlugin, timeoutMin) {
+function runClaude(prompt, ws, timeoutMin) {
   const args = ['-p', prompt, '--permission-mode', 'bypassPermissions', '--output-format', 'stream-json', '--verbose'];
-  if (withPlugin) args.push('--plugin-dir', ROOT);
   return new Promise((resolve) => {
     const child = spawn('claude', args, { cwd: ws, shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -75,7 +100,8 @@ function runClaude(prompt, ws, withPlugin, timeoutMin) {
 
 // Extracts what the main session did (subagent internals are ignored on purpose).
 export function digest(jsonl) {
-  const d = { skills: [], agents: [], writes: [], bash: [], final: '', costUsd: 0, turns: 0, durationS: 0 };
+  // events keeps the order of agent dispatches and Bash commands (for ordering checks).
+  const d = { skills: [], agents: [], writes: [], bash: [], events: [], final: '', costUsd: 0, turns: 0, durationS: 0 };
   for (const line of jsonl.split('\n')) {
     let m;
     try { m = JSON.parse(line); } catch { continue; }
@@ -83,9 +109,15 @@ export function digest(jsonl) {
       for (const c of m.message?.content || []) {
         if (c.type !== 'tool_use') continue;
         if (c.name === 'Skill') d.skills.push(c.input.skill);
-        else if (c.name === 'Agent' || c.name === 'Task') d.agents.push(c.input.subagent_type);
+        else if (c.name === 'Agent' || c.name === 'Task') {
+          d.agents.push(c.input.subagent_type);
+          d.events.push({ kind: 'agent', value: c.input.subagent_type });
+        }
         else if (['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(c.name)) d.writes.push(c.input.file_path || c.input.notebook_path || '');
-        else if (c.name === 'Bash') d.bash.push(c.input.command);
+        else if (c.name === 'Bash') {
+          d.bash.push(c.input.command);
+          d.events.push({ kind: 'bash', value: c.input.command });
+        }
       }
     }
     if (m.type === 'result') {
@@ -102,6 +134,44 @@ function rel(ws, p) {
   return path.relative(ws, path.resolve(ws, p)).split(path.sep).join('/');
 }
 
+function toRegExp(pattern) {
+  if (pattern.startsWith('(?i)')) return new RegExp(pattern.slice(4), 'i');
+  return new RegExp(pattern);
+}
+
+function filesUnder(full) {
+  try {
+    if (!statSync(full).isDirectory()) return [full];
+  } catch {
+    return [];
+  }
+  return readdirSync(full).flatMap((n) => filesUnder(path.join(full, n)));
+}
+
+// Text the run left behind: changed, untracked and ignored files in the working tree (digests go
+// to the gitignored .rockbuilt/), plus files committed on any branch since the start.
+export function producedTexts(ws, startHead) {
+  const texts = [];
+  const status = git(ws, ['status', '--porcelain', '--ignored', '--untracked-files=all']).out.split('\n').filter(Boolean);
+  for (const line of status) {
+    const p = line.slice(3).replace(/^"|"$/g, '');
+    if (/(^|\/)node_modules(\/|$)/.test(p)) continue;
+    for (const f of filesUnder(path.join(ws, p))) {
+      try { texts.push({ file: rel(ws, f), text: readFileSync(f, 'utf8') }); } catch { /* binary or gone */ }
+    }
+  }
+  if (startHead) {
+    const branches = git(ws, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']).out.split('\n').filter(Boolean);
+    for (const b of branches) {
+      for (const f of git(ws, ['diff', '--name-only', startHead, b]).out.split('\n').filter(Boolean)) {
+        const show = git(ws, ['show', `${b}:${f}`]);
+        if (show.ok) texts.push({ file: `${b}:${f}`, text: show.out });
+      }
+    }
+  }
+  return texts;
+}
+
 // Each check returns { ok, detail }.
 export function runCheck(check, ctx) {
   const { d, ws, startHead } = ctx;
@@ -109,7 +179,7 @@ export function runCheck(check, ctx) {
     case 'skill':
       return { ok: d.skills.includes(check.name), detail: `skills: ${d.skills.join(', ') || 'none'}` };
     case 'noRockbuiltSkill': {
-      const hit = d.skills.filter((s) => s.startsWith('rockbuilt:'));
+      const hit = d.skills.filter((s) => s.startsWith('rockbuilt:') || s.startsWith('rb-'));
       return { ok: hit.length === 0, detail: hit.length ? `loaded ${hit.join(', ')}` : 'no rockbuilt skill' };
     }
     case 'agentsInclude': {
@@ -157,11 +227,35 @@ export function runCheck(check, ctx) {
     case 'fileExists':
       return { ok: existsSync(path.join(ws, check.path)), detail: check.path };
     case 'finalMatches': {
-      let pattern = check.pattern;
-      let flags = '';
-      if (pattern.startsWith('(?i)')) { pattern = pattern.slice(4); flags = 'i'; }
-      const ok = new RegExp(pattern, flags).test(d.final);
+      const ok = toRegExp(check.pattern).test(d.final);
       return { ok, detail: ok ? 'matched' : `no match for /${check.pattern}/` };
+    }
+    case 'textMatches': {
+      // The final message or any file the run produced (see producedTexts) matches.
+      const re = toRegExp(check.pattern);
+      if (re.test(d.final)) return { ok: true, detail: 'final message' };
+      const hit = producedTexts(ws, startHead).find((t) => re.test(t.text));
+      return { ok: Boolean(hit), detail: hit ? hit.file : `no match for /${check.pattern}/` };
+    }
+    case 'bashExcludes': {
+      const re = toRegExp(check.pattern);
+      const hit = d.bash.filter((c) => re.test(c));
+      return { ok: hit.length === 0, detail: hit.length ? hit.slice(0, 3).join(' | ') : 'none' };
+    }
+    case 'noAgentBeforeBash': {
+      // Passes when the agent was never dispatched, or a Bash command matching the pattern
+      // (an escalation, for example) ran before its first dispatch.
+      const re = toRegExp(check.pattern);
+      const agentAt = d.events.findIndex((e) => e.kind === 'agent' && e.value === check.agent);
+      if (agentAt === -1) return { ok: true, detail: `${check.agent} not dispatched` };
+      const bashAt = d.events.findIndex((e) => e.kind === 'bash' && re.test(e.value));
+      const ok = bashAt !== -1 && bashAt < agentAt;
+      return { ok, detail: ok ? `matching command before ${check.agent}` : `${check.agent} dispatched first` };
+    }
+    case 'anyOf': {
+      const results = check.checks.map((c) => runCheck(c, ctx));
+      const ok = results.some((r) => r.ok);
+      return { ok, detail: results.map((r, i) => `${check.checks[i].type}: ${r.detail}`).join(' / ') };
     }
     case 'finalLanguage': {
       const es = (d.final.match(/\b(que|para|los|las|una|del|con|por|está|qué)\b/gi) || []).length;
@@ -220,7 +314,7 @@ async function main() {
 
   const results = await pool(jobs, opts.parallel, async ({ s, arm }) => {
     const { ws, startHead } = setupWorkspace(s, arm, stamp);
-    const run = await runClaude(s.prompt, ws, arm === 'with', opts.timeoutMin);
+    const run = await runClaude(s.prompt, ws, opts.timeoutMin);
     writeFileSync(path.join(outDir, `${s.id}-${arm}.jsonl`), run.out);
     const d = digest(run.out);
     const checks = s.checks.map((c) => ({ ...c, ...runCheck(c, { d, ws, startHead }) }));

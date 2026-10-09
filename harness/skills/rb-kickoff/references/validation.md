@@ -3,6 +3,14 @@
 Write every user-facing line in the user's conversation language. The goal of this step is a
 decision, not a document: should this be built, which approach, and what shape.
 
+## 0. When the decision to build is already made
+
+If the user brings a signed SOW or an approved brief, skip sections 2 and 3 (validation questions
+and go / no-go): say so in one line and why. Still write the problem statement (section 1, taken
+from the document), still compare two approaches when the document leaves the approach open, and
+still run sections 5 to 8. Record "Go (signed SOW, <date or reference>)" in the brief's
+Recommendation.
+
 ## 1. Problem on top
 
 Write one sentence, in business terms, before any solution:
@@ -95,7 +103,7 @@ For non-AI projects, still draw the main user journey and data flow; mark all no
 
 ## 8. Project type
 
-Pick any combination; write it into CLAUDE.md `Project type:`.
+Pick any combination; write it into AGENTS.md `Project type:` and pass it to `rb vendor --type`.
 
 | Type | When | Gate it enables later |
 |---|---|---|

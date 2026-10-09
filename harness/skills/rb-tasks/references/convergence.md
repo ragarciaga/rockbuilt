@@ -39,10 +39,20 @@ round, plus tasks that depend on them. Unchanged tasks keep their previous verdi
 ## Stop rules
 
 - Converged: a round with only keep verdicts.
-- Cap: 3 rounds. If changes are still pending, stop, write the header with `not converged`, and
-  list the open disagreements (task, verdicts, reasons) in the approval message. The user decides.
+- Cap: 3 rounds. If changes are still pending, stop, write the header with `not converged`,
+  resolve each open disagreement yourself (concrete evidence wins, then the smaller change), and
+  list them (task, verdicts, reasons, your resolution) in the summary. Ask the user only when a
+  disagreement is really about scope the approved spec does not settle.
 - Oscillation (a task split in round 1 and merged back in round 2): stop applying changes to
   those tasks, keep the round-1 version, report it.
+
+## Tier hints
+
+- A task whose Files are all tests, docs or styles is likely tier A; keep it separate from code
+  so it can merge on its own.
+- A task touching migrations, schema, auth, payments, dependency manifests, infra, CI or harness
+  files is tier C by the floor (DESIGN.md section 6.1). Isolate it in its own task so the rest of
+  the backlog does not wait for the human.
 
 ## Sizing hints
 

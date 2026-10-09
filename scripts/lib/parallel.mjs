@@ -1,4 +1,4 @@
-// Parallel batching of ready tasks (DESIGN.md section 10, rb parallel).
+// Parallel batching of ready tasks (DESIGN.md section 21, rb parallel).
 import { toPosix } from './util.mjs';
 
 // Paths that many tasks tend to touch; a task that lists one of them runs alone.

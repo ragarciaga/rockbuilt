@@ -6,10 +6,23 @@ gives a score and a reason, and a threshold on the score becomes a regression ga
 
 ## When evals apply
 
-- CLAUDE.md `Project type` includes `ai`, or a criterion is tagged `[eval]`, or design.md marks a
+- AGENTS.md `Project type` includes `ai`, or a criterion is tagged `[eval]`, or design.md marks a
   node as `llm`.
 - Not for deterministic code paths (use unit tests) and not for non-generative `ai-model` nodes
   with exact outputs (use unit or integration tests with fixtures).
+
+## Cost (tier C)
+
+Evals that call a paid model (the target, an LLM judge, or both) cost money on every run. Per
+DESIGN.md section 14 they run only after the user approved a budget, recorded in AGENTS.md
+`## Autonomy` as `Paid services: <provider> (monthly cap USD n)`.
+
+- Estimate before running: cases x trials x (input + output tokens) x price, plus judge calls.
+  Record the cost per run in evals.md.
+- CI and the unattended Verification never call paid models: they use mocks, recorded fixtures
+  or code graders. `npm run evals` against a paid model is a separate command under `## Evals`.
+- No budget, or the estimate would exceed the cap: do not run; escalate with the estimate.
+- Keep k and the dataset size proportional to the budget; say what you cut.
 
 ## Anatomy and vocabulary
 
@@ -169,7 +182,8 @@ Calibration (required before judge scores count toward the gate):
   history table; the flattening is the signal the feature is ready.
 - Regression evals (after release): threshold = baseline minus a tolerance the user approves
   (start with 0.05), never above what the system has demonstrated. `npm run evals` exits non-zero
-  below it and runs in CI when the project has CI.
+  below it. It runs in CI only when it uses no paid calls, or when the approved budget covers CI
+  runs explicitly.
 - pass@k (at least one of k trials succeeds) measures capability. pass^k (all k succeed)
   measures consistency. Anything that runs unattended (agents, scheduled jobs, autonomous triage)
   is gated on pass^k with k >= 3.

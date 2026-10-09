@@ -4,12 +4,12 @@
     "name": "Rafael Andrés García",
     "url": "https://github.com/ragarciaga"
   },
-  "description": "Rockbuilt: a Claude Code harness from idea to verified, merged code.",
+  "description": "Rockbuilt: an autonomous delivery harness from idea to verified, merged code.",
   "plugins": [
     {
       "name": "rockbuilt",
       "source": "./",
-      "description": "Spec-driven software delivery for Claude Code with verifiable tasks, separated producer and verifier agents, and human-owned approval and merge gates."
+      "description": "Spec-driven delivery for Claude Code, Cursor and Codex: risk tiers, independent verifier and blind auditor, a deterministic merge gate, and nightly cloud runs that escalate only what needs a human."
     }
   ]
 }

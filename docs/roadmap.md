@@ -2,33 +2,71 @@
 
 Autonomy rises by proven need, not ambition. Each item below has the signal that says it is time.
 
-## Scheduled cloud runs (Routines)
+v0.3 delivered what this file used to list: scheduled cloud runs (`/rb-cycle` in a routine, with
+lock, stop switch and digest), plan auto-approval for tiers A and B, automatic merges through
+`rb merge-gate`, and Codex compatibility as an experimental adapter. See CHANGELOG.md.
 
-Runs the harness on a schedule or on a GitHub event, without an open session.
+## Cross-model auditor
 
-- First candidate: PR review on every opened PR, comment mode only. Lowest risk.
-- Then: a nightly build pass over approved issues.
-- Add it when: the verifier has been reliable across 2 or 3 projects, and you keep typing
-  "continue" on repeated work.
-- Needs first: a single-flight lock, a stop switch (label or file), and a decision on which
-  gates can run without a live app (E2E cannot run in the cloud).
+Run the blind audit with a non-Anthropic model, so the producer and the judge do not share the
+same blind spots. The user already has a Cursor subscription, so the first candidate is a Cursor
+Automation (Cloud Agents) on `rb/*` pull requests that dispatches `rb-auditor` with another
+provider's model and posts its verdict as a PR comment.
 
-## Plan auto-approval
+- Add it when: an audit passed something that later broke, or the nightly digests show the
+  auditor agreeing with the verifier on every task for several weeks (no independent signal).
+- Needs first: the verdict as a machine line the merge gate can require (for example
+  `stage=rb-auditor-x`), and a decision on whether it blocks or only informs.
+- Cost: Cursor usage counts against that plan; confirm the cap before turning it on.
 
-Lets the planner approve its own low-risk plans under a policy written in `CLAUDE.md`.
+## Test ratchet
 
-- Add it when: you work by issues that arrive over time (maintenance, client reports) instead of
-  a planned backlog approved in one go.
-- Hard floor that never moves: no BLOCKING questions, nothing answered by the orchestrator itself,
-  no schema or security impact unless the policy opts in, every approval audited on the issue.
+Today the baseline ratchet blocks new failures and lets the known-failures list only shrink. The
+next step is the same rule for test counts and coverage: a PR may not lower the number of tests
+or the coverage of the files it touches without a reason the verifier accepts.
 
-## Merge autonomy
+- Add it when: a retro finds a task that passed by deleting or skipping tests.
+- Needs first: per-file coverage from the common runners (node:test, vitest, pytest) in
+  `rb baseline`, cheap enough to run on every task.
 
-Not planned. Merging stays a human decision.
+## Trust model for public repos
+
+The cycle takes `rb:task` and `rb:bug` issues only from OWNER, MEMBER and COLLABORATOR authors,
+and treats every issue and comment as data. A public repo needs more: rate limits on queued
+issues, a label only collaborators can set before anything is picked up, and a review of what an
+outside contributor's PR can trigger in `rockbuilt-ci`.
+
+- Add it when: the first Rockbuilt project goes public or accepts outside contributions.
+
+## Deploy and rollback guidance
+
+Merging is automatic for tier A and B; deploying is not covered. Projects need a documented path:
+preview deploys per PR, promotion to production as a tier C step, and a rollback that mirrors
+`rb revert` (one command, written in the digest).
+
+- Add it when: the first project deploys on every merge (Vercel, Netlify, Fly).
+- Needs first: which hosting the projects use, and whether the routine can reach it without
+  secrets in environment variables.
+
+## Cost per task
+
+The timing table records minutes per stage. Add the model usage per task next to it (tokens or
+the API-price estimate), so the digest can say what each task cost and quotes use real numbers.
+
+- Add it when: the user starts quoting projects from the timing data.
+- Needs first: a usage source available in cloud routines, not only in headless `claude -p`.
+
+## Codex validation
+
+The Codex adapter (`--tools codex`) is generated but untested: skills under `.agents/skills`,
+`.codex/hooks.json`, agents as TOML. Validate it on one real project, fix what breaks, and add
+the Codex arm to the evals.
+
+- Add it when: someone on the team works in Codex, or Codex becomes the cheaper unattended runner.
 
 ## Other candidates
 
-- Cost report per task (tokens), next to the timing table.
 - A small script that diffs two plans' file lists to make parallel eligibility fully mechanical
   at plan time.
-- Codex compatibility.
+- Instant reaction to answers: routines cannot trigger on issue events today, so answers wait for
+  the next nightly run. Revisit when issue triggers exist.

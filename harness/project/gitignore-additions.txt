@@ -1,18 +1,25 @@
-# Rockbuilt machine-local state
+# Rockbuilt machine-local state (docs/rockbuilt/ is committed)
 .rockbuilt/
 
 # Local Claude Code settings (machine-specific grants)
 .claude/settings.local.json
 
-# Secrets
+# Secrets (examples stay committed)
 .env
 .env.*
 !.env.example
+!.env.sample
+.envrc
 
 # Test and E2E artifacts
 coverage/
 playwright-report/
 test-results/
+blob-report/
+
+# Playwright login state holds session cookies
+playwright/.auth/
+e2e/.auth/
 
 # E2E exploration scratch
 e2e/.explore/

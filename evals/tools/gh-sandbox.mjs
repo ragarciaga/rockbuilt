@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// GitHub sandbox helpers for the build, fix and merge evals. Run inside an eval workspace that
-// already has a throwaway private GitHub repo as `origin` (see evals/README.md).
+// GitHub sandbox helpers for the build, fix, merge and cycle evals. Run inside an eval workspace
+// that already has a throwaway private GitHub repo as `origin` (see evals/README.md). These run
+// on the maintainer's machine, where the gh CLI works; the harness itself only uses `rb gh` (REST).
 //
 //   node <plugin>/evals/tools/gh-sandbox.mjs labels
 //   node <plugin>/evals/tools/gh-sandbox.mjs issues docs/specs/01-monthly-budgets
@@ -54,7 +55,7 @@ function issues(specDir) {
   }
 }
 
-// Opens the T2 PR with one commit and a verifier line whose head equals the PR head.
+// Opens the T2 PR (tier B) with one commit and verifier and auditor lines whose head equals the PR head.
 function prT2() {
   run('git', ['checkout', '-b', T2_BRANCH]);
   cpSync(path.join(FIXTURES, 'pr', 't2', 'src'), 'src', { recursive: true });
@@ -65,7 +66,7 @@ function prT2() {
   run('git', ['push', '-u', 'origin', T2_BRANCH]);
   const template = readFileSync(path.join(FIXTURES, 'pr', 'verifier-pass.md'), 'utf8');
   const body = tmpFile(template.replaceAll('HEAD_SHA', sha).replaceAll('TASK', 'T2'));
-  const url = run('gh', ['pr', 'create', '--title', 'feat: comparar el mes contra los topes (T2)', '--body-file', body, '--head', T2_BRANCH]);
+  const url = run('gh', ['pr', 'create', '--title', 'feat: comparar el mes contra los topes (T2)', '--body-file', body, '--head', T2_BRANCH, '--label', 'rb:tier-b,rb:pr-open']);
   run('gh', ['issue', 'edit', '2', '--add-label', 'rb:pr-open']);
   run('git', ['checkout', 'main']);
   console.log(`PR: ${url}\nreviewed head: ${sha}`);

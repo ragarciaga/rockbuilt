@@ -24,6 +24,7 @@ LLM judge calibration: <n>/10 agreement with human labels on <date> (required >=
 ## Gate
 - Threshold: <0.80> on <aggregate score | pass^k>  |  Trials per case (k): <3>
 - Metric for unattended behavior: pass^k  |  Approved by the user on <date>, reason: <...>
+- Cost per run: <USD estimate, or 0 (mocked / code graders only)>  |  Budget: <AGENTS.md Paid services entry, or none>
 
 ## Baseline
 - <YYYY-MM-DD>, commit <sha>, model <id>: score <0.xx>, pass^k <0.xx>

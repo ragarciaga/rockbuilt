@@ -67,6 +67,12 @@ flowchart LR
 
 Hosting: <target>
 
+## Operation
+- Tools: <Claude Code [, Cursor] [, Codex]>
+- Autonomy: <auto | supervised>
+- Paid services approved: <none | service (monthly cap)>
+- Nightly cloud routine: <planned | not now> (docs/CLOUD.md in the Rockbuilt repo)
+
 ## Key decisions
 - <Decision>, because <reason> (docs/adr/<NNNN-slug>.md)
 

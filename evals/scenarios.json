@@ -1,10 +1,13 @@
 {
-  "about": "Headless-runnable eval scenarios. Each one maps to a scenario in evals/<skill>.md. Run with: node evals/run.mjs [ids...] [--arms with,without] [--parallel 3]",
+  "about": "Headless-runnable eval scenarios. Each one maps to a scenario in evals/<skill>.md. The \"with\" arm vendors the harness into the workspace using the scenario's `vendor` field (rb vendor --type --lang --tools) and commits it; the \"without\" arm stays bare. Run with: node evals/run.mjs [ids...] [--arms with,without] [--parallel 3]",
   "scenarios": [
     {
       "id": "kickoff-s1-vague-es",
       "source": "kickoff.md#S1",
       "setup": [],
+      "vendor": {
+        "lang": "es"
+      },
       "prompt": "Quiero crear una app para mis finanzas personales.",
       "arms": [
         "with",
@@ -13,7 +16,7 @@
       "checks": [
         {
           "type": "skill",
-          "name": "rockbuilt:kickoff"
+          "name": "rb-kickoff"
         },
         {
           "type": "noFilesCreated"
@@ -29,10 +32,13 @@
     },
     {
       "id": "kickoff-s3-existing-code",
-      "source": "kickoff.md#S3 (either kickoff or adopt may load; both must ask before writing)",
+      "source": "kickoff.md#S3 (either rb-kickoff or rb-adopt may load; both must ask before writing)",
       "setup": [
         "node-app"
       ],
+      "vendor": {
+        "lang": "es"
+      },
       "prompt": "Arranquemos un proyecto nuevo aquí: quiero construir la versión 2 de esta app de gastos.",
       "checks": [
         {
@@ -54,6 +60,9 @@
       "id": "kickoff-s4-no-trigger",
       "source": "kickoff.md#S4",
       "setup": [],
+      "vendor": {
+        "lang": "es"
+      },
       "prompt": "Explícame qué es un walking skeleton y por qué se hace primero.",
       "checks": [
         {
@@ -70,16 +79,20 @@
       "setup": [
         "node-app"
       ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
       "prompt": "Ya tengo un proyecto, adopta este repo. Quiero agregarle presupuestos mensuales por categoría.",
       "checks": [
         {
           "type": "skill",
-          "name": "rockbuilt:adopt"
+          "name": "rb-adopt"
         },
         {
           "type": "agentsInclude",
           "agents": [
-            "rockbuilt:scout"
+            "rb-scout"
           ]
         },
         {
@@ -109,6 +122,10 @@
         "node-app",
         "harness-es"
       ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
       "prompt": "Hay un bug: en el reporte de octubre \"Comida\" y \"comida\" salen como dos categorías distintas. Arréglalo. Para reproducir: node src/cli.js sample-expenses.json 2026-10, esperaba una sola fila comida con 205000.",
       "arms": [
         "with",
@@ -117,13 +134,14 @@
       "checks": [
         {
           "type": "skill",
-          "name": "rockbuilt:fix"
+          "name": "rb-fix"
         },
         {
           "type": "agentsInclude",
           "agents": [
-            "rockbuilt:implementer",
-            "rockbuilt:verifier"
+            "rb-implementer",
+            "rb-verifier",
+            "rb-auditor"
           ]
         },
         {
@@ -151,6 +169,10 @@
         "node-app",
         "harness-es"
       ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
       "prompt": "Esto está roto: la CLI no me deja exportar a CSV.",
       "arms": [
         "with",
@@ -159,7 +181,7 @@
       "checks": [
         {
           "type": "finalMatches",
-          "pattern": "rockbuilt:spec|/spec"
+          "pattern": "rb-spec|/spec"
         },
         {
           "type": "worktreeClean"
@@ -176,6 +198,10 @@
         "node-app",
         "harness-es"
       ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
       "prompt": "¿Cómo leo el output de node --test cuando falla una prueba?",
       "checks": [
         {
@@ -196,16 +222,20 @@
         "spec-approved",
         "tasks-approved"
       ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
       "prompt": "Construye todas las tareas de docs/specs/01-monthly-budgets.",
       "checks": [
         {
           "type": "skill",
-          "name": "rockbuilt:build"
+          "name": "rb-build"
         },
         {
           "type": "agentsExclude",
           "agents": [
-            "rockbuilt:implementer"
+            "rb-implementer"
           ]
         },
         {
@@ -214,6 +244,89 @@
         {
           "type": "finalMatches",
           "pattern": "(?i)rojo|red|baseline|línea base"
+        }
+      ]
+    },
+    {
+      "id": "build-tier-c-escalates",
+      "source": "build.md#S6",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "spec-approved",
+        "tasks-approved",
+        "tasks-tier-c"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Construye la tarea T2 de docs/specs/01-monthly-budgets.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-build"
+        },
+        {
+          "type": "anyOf",
+          "checks": [
+            {
+              "type": "noAgentBeforeBash",
+              "agent": "rb-implementer",
+              "pattern": "(?i)\\bescalate\\b|rb:needs-human"
+            },
+            {
+              "type": "finalMatches",
+              "pattern": "(?i)aprobaci|aprueb|approv|tier c|nivel c|needs-human|dependencia"
+            }
+          ]
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "cycle-no-github",
+      "source": "cycle.md#S1",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "spec-approved",
+        "tasks-approved"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Run /rb-cycle.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-cycle"
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "merge-gate(?!.*--dry-run)|gh pr merge|git merge\\b"
+        },
+        {
+          "type": "textMatches",
+          "pattern": "(?i)github.{0,60}(no disponible|no est[aá] disponible|unavailable|not available|no responde|sin acceso|sin autenticar|unauthenticated)|modo degradado|degraded mode|sin github|without github"
+        },
+        {
+          "type": "noMainSessionWrites",
+          "paths": [
+            "src/"
+          ]
+        },
+        {
+          "type": "noEmDash"
         }
       ]
     }

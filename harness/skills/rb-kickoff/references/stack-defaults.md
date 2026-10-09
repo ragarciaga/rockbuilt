@@ -6,7 +6,7 @@ novelty (production use for years), deployment target (least decisive). Typed la
 agents cheap, immediate feedback, so prefer TypeScript over plain JavaScript.
 
 **Pin versions.** Before proposing, look up the current stable version of each item (registry or
-official docs) and write the exact version into CLAUDE.md and package manifests. Never write
+official docs) and write the exact version into AGENTS.md and package manifests. Never write
 `latest` or a caret range for frameworks that ship breaking changes often (AI frameworks
 publish every few days). Link each item to its docs.
 
@@ -28,8 +28,8 @@ publish every few days). Link each item to its docs.
 | Evals | Vitest-based eval suite or the framework's eval tooling, run by `npm run evals` | |
 | Lint / format | ESLint + Prettier, or Biome | |
 | Automation | Node scripts + a scheduler on the host, or n8n when non-developers maintain flows | |
-| Hosting | Vercel (Next.js), Railway or Fly.io (long-running workers) | The user's existing cloud account |
-| CI | GitHub Actions running the Verification commands | |
+| Hosting | Vercel (Next.js), Railway or Fly.io (long-running workers) | The user's existing cloud account. Any paid tier is a cost decision for the user |
+| CI | `rockbuilt-ci` (installed by `rb vendor`) running the Verification commands | |
 
 ## Verification commands to promise (Node/TypeScript)
 
@@ -41,7 +41,8 @@ npm run build
 ```
 
 Add `npm run test:e2e` for web, `npm run evals` for ai. The walking skeleton makes each exist
-and pass.
+and pass. Evals and tests use mocks for paid services; live calls to a paid model are tier C and
+run only with a budget recorded in AGENTS.md `Paid services`.
 
 ## Library you have never used
 

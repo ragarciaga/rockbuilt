@@ -37,6 +37,7 @@ Package manager: <npm | pnpm | yarn | other> (<lockfile>)
 | E2E | `<cmd>` | | |
 
 CI: <workflow files and what they run, or "none">
+Baseline: <green | red, n failures accepted in docs/rockbuilt/known-failures.json on <date> | not run>
 
 ## Test coverage reality
 - Test files: <count> under <paths>
@@ -54,9 +55,9 @@ CI: <workflow files and what they run, or "none">
 - Authorization: <where checks happen; note data paths with no check>
 
 ## Integrations
-| Service | Purpose | Where | Credentials via |
-|---|---|---|---|
-| <name> | <purpose> | <file> | <env var name> |
+| Service | Purpose | Where | Credentials via | Paid |
+|---|---|---|---|---|
+| <name> | <purpose> | <file> | <env var name> | <yes/no/unknown> |
 
 ## Observed conventions
 - <Convention seen consistently, with an example file>

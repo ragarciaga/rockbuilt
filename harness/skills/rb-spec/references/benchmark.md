@@ -14,6 +14,9 @@ record that reason in the ADR.
   candidate.
 - Safety: throwaway accounts and test credentials only; rate-limit to avoid bans; never commit
   cookies, tokens or personal data.
+- Cost: if any candidate is a paid service or calls a paid API, estimate the cost of the run and
+  get the user's explicit yes before running (tier C, DESIGN.md section 14). Prefer free tiers or
+  trial quotas and say which one you use.
 
 ## 2. Run
 

@@ -1,67 +1,46 @@
-# Goal mode
+# Goal mode (optional, interactive only)
 
-Loaded by the build skill when the user wants the backlog run without typing "continue" between
-tasks ("hasta terminar", "sin parar", "until done", "run it all").
+Loaded by rb-build only when the user explicitly wants a long interactive session to keep going
+without typing "continue" ("hasta terminar", "sin parar", "until done"). For unattended or
+scheduled work, recommend `/rb-cycle` instead: it is one bounded pass, holds the lock, checks the
+stop switch, merges through the train and posts a digest. Goal mode adds nothing to those
+guarantees; it only keeps an interactive session turning.
 
 ## What it is
 
 `/goal <condition>` is a Claude Code built-in. After every turn a small model reads the
-conversation and judges whether the condition holds. Not met: Claude starts another turn with
-the evaluator's reason as guidance. Met or impossible: the goal clears. It is session-scoped,
-one goal at a time, up to 4,000 characters. The evaluator does not run commands or read files:
-it only sees what you print. So the condition must name evidence you will surface.
-
-It follows the loop anatomy: trigger (the user), stop condition (the goal), verifier (the
-rb-verifier per task plus the mechanical check), hard limits (below).
-
-## Preconditions
-
-- Run start checks of the build skill passed (clean tree, green baseline, gh auth).
-- The user knows that `/goal` does not change the permission mode. For an unattended run, the
-  project `.claude/settings.json` allow rules must cover the commands used (rb, git, gh, the
-  package manager), or the session must be in auto mode. `gh pr merge` stays an ask rule; build
-  never calls it anyway.
+conversation and judges whether the condition holds. Not met: Claude starts another turn with the
+evaluator's reason as guidance. Met or impossible: the goal clears. It is session-scoped, one goal
+at a time, up to 4,000 characters. The evaluator does not run commands or read files: it only sees
+what you print, so the condition must name evidence you will surface.
 
 ## Compose the condition
 
-You cannot run a slash command yourself. Compose the condition and give it to the user to paste
-as one line, in the conversation language for the explanation, with the condition itself in
-English (it is an instruction to the evaluator). Template (fill the placeholders):
+You cannot run a slash command yourself. Give the user one line to paste; the explanation is in
+the conversation language, the condition itself in English. Template:
 
 ```
-/goal Every task in <spec-dir>/tasks.md has Status done, in-review, or blocked with a reason written in its Decision log, as shown by the latest `rb tasks <spec-dir>` output printed in this conversation. Work through ready tasks one at a time (or in the announced parallel batches) using the rockbuilt build loop: planner, implementer, mechanical check against `rb baseline`, verifier, PR, decision log. Constraints: never merge a PR, never push to <default-branch>, at most 2 kickbacks per task. Stop early and report if `rb baseline --check` is red, if 3 consecutive tasks end blocked, or after <N> turns.
+/goal Every task in <spec-dir>/tasks.md has Status done, in-review, or blocked with a reason in its Decision log, or waits for an approval posted with rb escalate, as shown by the latest `node tools/rockbuilt/rb.mjs tasks <spec-dir>` output printed in this conversation. Work through ready tasks with the rb-build loop (stale check, planner, tier, implementer, mechanical check, verifier, auditor for tier B and C, PR, merge train through rb merge-gate unless merges are off). Constraints: never merge except through rb merge-gate, never push to <default-branch>, at most 2 kickbacks per task. Stop early and report if the baseline check is red, if the stop switch is on, if 3 consecutive tasks end blocked, or after <N> turns.
 ```
 
-The turn limit is required: the evaluator only sees the transcript, so a run that stops printing
-evidence must still end. Pick `<N>` as about 4 turns per remaining ready task, minimum 10. For a single issue, replace
-the first sentence with "Issue #<n> has an open PR with a passing verifier verdict, or is
-labelled rb:blocked with the reason commented".
+`<N>`: about 4 turns per remaining ready task, minimum 10. For a single issue, the first sentence
+becomes "Issue #<n> has a merged PR, an open PR waiting for the human, or is labelled rb:blocked or
+rb:needs-human with the reason commented".
 
-Tell the user, in the docs language:
+Tell the user: paste the line to start; `/goal` alone shows status; `/goal clear` stops it at any
+moment; tier C work still ends with an approval request for them.
 
-1. Paste the line to start. It begins a turn immediately; no extra prompt needed.
-2. `/goal` with no argument shows status (turns, time, last evaluator reason).
-3. **`/goal clear` stops it** at any moment (aliases: stop, off, cancel). Running `/clear` also
-   removes it. Ctrl+C interrupts a non-interactive run.
-4. Merging still needs them: the run ends with PRs to review.
+## While the goal is active
 
-## Your behavior while the goal is active
-
-- After each task, print the line from `rb tasks <spec-dir>` that shows task statuses, so the
-  evaluator has evidence. Print the stop-condition checks you ran (baseline result, consecutive
-  blocked count).
-- Do not wait for subagents in the background across turns without need: a running background
-  agent defers evaluation. Dispatch agents in the foreground unless running a parallel batch.
-- Update the task Decision log and docs/progress.md after every task, as in the normal loop, so
-  a session that dies mid-goal resumes cleanly (`/rb-status`).
-- Hard limits are yours to enforce, not the evaluator's: kickback budget 2 (mechanical, verifier
-  and security combined), resume cap 2, stop on
-  red baseline, stop after 3 consecutive blocked tasks. When one trips, print why, write it to
-  progress.md, and state plainly that the goal cannot be met; the evaluator will then clear it.
-- Never use goal mode to skip a human gate: approvals of BLOCKING answers you could not ground
-  still go to rb:blocked, never guessed.
+- After each task, print the `rb tasks` status line and the stop checks you ran (baseline,
+  `rb stop status`, consecutive blocked count).
+- Dispatch agents in the foreground unless running a parallel batch.
+- Update the task Decision log and progress.md after every task.
+- Hard limits are yours, not the evaluator's. When one trips, print why, write it to progress.md,
+  and state that the goal cannot be met.
+- Never use goal mode to skip a human gate: tier C and ungroundable BLOCKING questions still go to
+  `rb escalate`.
 
 ## After the goal clears
 
-Run the build skill's Run end section: `rb timing report --write`, progress.md, the summary
-table, the list of PRs to review.
+Run rb-build's Run end section.

@@ -24,16 +24,22 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Unit tests (guard hook, rb CLI, selfcheck)
         run: npm test
-      - name: rb works through bin/ on this OS
+      - name: rb help works through bin/ on this OS
         shell: bash
         run: |
           export PATH="$PWD/bin:$PATH"
           rb help
+      - name: Vendor the harness into a fresh repo and run the vendored rb
+        shell: bash
+        run: |
+          HARNESS="${{ github.workspace }}"
           mkdir -p "$RUNNER_TEMP/smoke" && cd "$RUNNER_TEMP/smoke"
           git init -q -b main
-          rb init --type web --lang es
-          rb verify-cmds Verification
-          test -f .mcp.json && test -f playwright.config.ts && test -f e2e/smoke.spec.ts
+          node "$HARNESS/scripts/rb.mjs" vendor --type web --lang es --from "$HARNESS"
+          for f in tools/rockbuilt/rb.mjs .claude/skills/rb-build/SKILL.md .claude/agents/rb-auditor.md AGENTS.md .mcp.json playwright.config.ts; do
+            test -f "$f" || { echo "missing after vendor: $f"; exit 1; }
+          done
+          node tools/rockbuilt/rb.mjs verify-cmds Verification
       - name: Guard hook runs as Claude Code calls it (exec form, stdin JSON)
         shell: bash
         run: |
