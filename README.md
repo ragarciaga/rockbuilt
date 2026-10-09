@@ -54,7 +54,9 @@ small bounded change is one issue built directly.
 
 ## Install
 
-Requirements on every machine: Node.js 20+, git, and the GitHub CLI (`gh auth login`).
+Requirements on every machine: Node.js 20+, git, and the GitHub CLI (`gh auth login`). Web
+projects also install Playwright and its browser (`npx playwright install chromium`); the first
+issue does it for you.
 On Windows, install Git for Windows so Claude Code uses Git Bash.
 
 ```
@@ -75,6 +77,13 @@ protection and your PR review are the real backstop.
 Deterministic steps live in a small Node CLI, `rb`, available to Claude while the plugin is on:
 `rb doctor`, `rb init`, `rb labels`, `rb baseline`, `rb tasks`, `rb parallel`, `rb worktree`,
 `rb timing`, `rb verify-cmds`. Run `rb help` for flags. Every command accepts `--json`.
+
+## Playwright
+
+Web projects get Playwright from the first issue: `rb init` lays down `playwright.config.ts`, a
+smoke spec and the Playwright MCP server in `.mcp.json` (launched with `node`, so it works on
+Windows, macOS and Linux). Every UI-touching task runs the E2E suite before its PR opens, and
+`/rockbuilt:verify` writes the feature's E2E specs by exploring the live app through the MCP.
 
 ## Parallel mode
 

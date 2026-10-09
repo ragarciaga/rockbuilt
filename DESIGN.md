@@ -60,6 +60,7 @@ bin/rb                            node shebang wrapper, on the Bash PATH
 scripts/rb.mjs                    the rb CLI (section 10)
 scripts/lib/*.mjs                 CLI modules
 templates/project/                files installed into target projects
+templates/web/                    overlay for web projects: playwright.config.ts, e2e/smoke.spec.ts, .mcp.json
 tests/*.test.mjs                  node:test suites (npm test)
 evals/<skill>.md                  A/B eval scenarios per skill (with vs without skill)
 docs/                             README-level docs, guide in Spanish (GUIA.md), roadmap
@@ -119,6 +120,8 @@ docs/specs/NN-<feature-slug>/
   test-report.md                   E2E results
   evals.md                         eval design + baseline score (AI features)
   security-report.md               security review findings
+.mcp.json                          project MCP servers; web projects get `playwright` (node + node_modules/@playwright/mcp/cli.js)
+playwright.config.ts               Playwright config (webServer, PORT, traces on failure, no retries)
 e2e/*.spec.ts                      Playwright specs (web projects)
 evals/*.eval.ts                    eval suites (AI projects), run by `npm run evals`
 ```
@@ -433,3 +436,24 @@ These settle gaps found while writing the skills. They override anything vaguer 
       `rb/spec-<slug>` docs PR. `<slug>` is the spec folder name without the `NN-` prefix.
     - `merge` accepts `rb/verify-*`, `rb/spec-*` and `rb/bookkeeping-*` PRs by file allowlist
       instead of a verifier line. merge refreshes the baseline after every merge it performs.
+
+## 16. Playwright is first-class for web projects
+
+- `rb init` applies `templates/web/` whenever the project type includes `web` (from `--type` or
+  the existing CLAUDE.md): `playwright.config.ts`, `e2e/smoke.spec.ts`, the `playwright` server
+  in `.mcp.json` (merged into an existing file), and the `test:e2e` script in package.json.
+- The MCP server is launched as `node ${CLAUDE_PROJECT_DIR:-.}/node_modules/@playwright/mcp/cli.js
+  --isolated`, never through `npx`, so the same committed file works on Windows, macOS and Linux,
+  and its version is pinned by the lockfile. Install with
+  `npm install -D -E @playwright/test @playwright/mcp` and `npx playwright install chromium`.
+  Claude Code loads MCP servers at startup: restart and approve the server, confirm with `/mcp`.
+- The walking skeleton of a web project includes Playwright, the smoke spec and E2E in CI. `adopt`
+  proposes an "Add Playwright E2E baseline" issue for web repos without it.
+- `rb doctor` checks deps, config, `## E2E` commands, the MCP entry and its install, and the
+  `mcp__playwright` allow rule, for web projects only.
+- `build` runs the E2E commands in the mechanical check of every UI-touching task (serial,
+  `PORT` offset per worktree). A spec that also fails on the default branch is pre-existing and
+  is noted, not kicked back.
+- `fix` reproduces browser-only bugs with a Playwright spec.
+- `verify` prefers the Playwright MCP for exploration; throwaway scripts in `e2e/.explore/` only
+  when the user declines to load the MCP.

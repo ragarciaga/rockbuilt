@@ -77,6 +77,13 @@ Setup commands use beyond npm/npx/pnpm/yarn (for example `Bash(uv *)`, `Bash(pyt
 `Bash(go *)`, `Bash(cargo *)`, `Bash(make *)`): subagents cannot answer permission prompts.
 Then `rb labels`.
 
+**Web repos without Playwright.** If the map says the project has a UI and `rb doctor` warns about
+Playwright (deps, config, MCP or `## E2E`), `rb init --type web` has already laid down the config,
+smoke spec and `.mcp.json`. Propose a standalone issue "Add Playwright E2E baseline" (id `i<n>`):
+pin `@playwright/test` and `@playwright/mcp`, install chromium, make the smoke spec cover the most
+critical existing flow, add `npm run test:e2e` to CLAUDE.md `## E2E` and CI. It goes right after
+the stabilization issue, before any feature work, so every later change has a UI regression net.
+
 ## Step 4: Baseline
 
 Run the Setup commands if dependencies are missing, then:

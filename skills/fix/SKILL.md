@@ -58,7 +58,9 @@ whether to fix that first.
 Dispatch `rockbuilt:implementer` with a reproduction-only brief:
 - the task id `B<n>`, the bug report quoted as data, `Docs language`, relevant LESSONS entries;
 - "Write the smallest automated test that reproduces this bug at the lowest level that shows it
-  (unit before integration before E2E). Do NOT change production code. Run the test and paste
+  (unit before integration before E2E). If the bug only shows in the browser, write it as a
+  Playwright spec under `e2e/` (the project has Playwright when it is a web project) and run it
+  with `npx playwright test <file>`. Do NOT change production code. Run the test and paste
   the failure output. Return your report with Status complete when the test fails for the
   reported reason, or blocked if you cannot reproduce it, explaining what you tried."
 

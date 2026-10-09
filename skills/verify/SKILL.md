@@ -98,15 +98,19 @@ explicit message; other gates continue.
    (`.env.local`, gitignored), and where each one comes from if design.md says so. Never print,
    log or echo a secret value, and never write one into an artifact. Credentials that expire
    (session cookies, temporary API keys) are named as such in the message.
-4. **Playwright installed** (E2E). Check `@playwright/test` in package.json and a browser
-   (`npx playwright --version`). If missing, ask once: "Playwright is not installed. May I run
-   `npm init playwright@latest` (or `npx playwright install chromium` if only the browser is
-   missing)?" Install only after an explicit yes. Ensure a `test:e2e` script exists and that
+4. **Playwright installed** (E2E). Run `rb doctor` and read its `playwright *` lines. Web
+   projects normally have everything from the walking skeleton. If something is missing, ask
+   once: "Playwright is not fully set up. May I run `rb init --type web`,
+   `npm install -D -E @playwright/test @playwright/mcp` and `npx playwright install chromium`?"
+   Install only after an explicit yes. Ensure a `test:e2e` script exists and that
    CLAUDE.md `## E2E` names it; if CLAUDE.md lacks it, propose the line to the user and write it
    only on approval (CLAUDE.md is orchestrator-owned; subagents cannot edit it).
-5. **Playwright MCP** (optional). If `mcp__playwright__*` tools are available, the e2e-writer
-   uses them to explore. If not, it explores with throwaway Playwright scripts. Never block on
-   the MCP; mention that adding it requires restarting Claude Code.
+5. **Playwright MCP** (preferred explorer). If `mcp__playwright__*` tools are available, the
+   e2e-writer explores with them (the course measured 7 tool calls per login with a plain
+   browser; the MCP exploration ends in a script that runs forever without a model). If the
+   server is configured in `.mcp.json` but not loaded, ask the user to restart Claude Code and
+   approve it, and wait. Only when the user declines does the e2e-writer fall back to throwaway
+   Playwright scripts in `e2e/.explore/`.
 6. **Evals runner** (evals). `npm run evals` exists. If not, the gate designs the dataset with
    the user and files the runner as a task (Gate C); it cannot pass until the runner ships. The
    dataset path is recorded in evals.md.

@@ -135,6 +135,15 @@ and relaunch with the agent's Resume brief (max 2). On `blocked`: step 9.
 must not drop without an explanation in the plan or the report. Then reconcile the changed files
 (`git diff <default>...HEAD --name-only`) against the report's Files changed: an unexplained
 path is a failure. A failure here is a kickback (step 7) with the command output as the finding.
+
+**UI regression net.** When the task changes anything the browser renders (pages, components,
+styles, routes, API handlers the UI calls) and CLAUDE.md `## E2E` has commands, also run
+`rb verify-cmds E2E` here. Playwright starts the app through its `webServer`; in parallel mode
+set `PORT` to 3000 plus the offset `rb worktree add` printed and run E2E one worktree at a
+time. A failing spec is a kickback like any other check, unless the same spec also fails on the
+default branch (run it there once to confirm): then it is pre-existing, note it in the PR and in
+progress.md instead. New E2E specs for the
+feature still come from `/rockbuilt:verify`.
 `rb timing end <id> check`.
 
 ### 6. Collapse to one commit, then verify

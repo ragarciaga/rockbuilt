@@ -34,6 +34,16 @@ rb init --type <web,ai,automation subset> --lang <es|en|...>
 It never overwrites; it reports skipped files. If CLAUDE.md was skipped because one existed,
 merge the approved content into it and show the diff before writing.
 
+**Web projects get Playwright from day one.** With `web` in the type, `rb init` also installs
+`playwright.config.ts`, `e2e/smoke.spec.ts` and a project `.mcp.json` with the Playwright MCP
+server (launched with `node`, so it works the same on Windows, macOS and Linux), and adds the
+`test:e2e` script once package.json exists. The skeleton issue then pins the packages:
+`npm install -D -E @playwright/test @playwright/mcp` and `npx playwright install chromium`
+(`--with-deps` on Linux CI). After the install, tell the user to restart Claude Code, approve the
+`playwright` MCP server when prompted, and confirm it with `/mcp` (Claude Code only loads MCP
+servers at startup). `rb init` prints these next steps; relay them. CLAUDE.md `## E2E` holds
+`npm run test:e2e`, and the CI workflow runs it.
+
 Add allow rules for the chosen toolchain to `.claude/settings.json`, one `Bash(cmd *)` rule per
 tool the Verification and Setup commands use beyond npm/npx/pnpm/yarn (for example
 `Bash(uv *)`, `Bash(pytest *)`, `Bash(cargo *)`, `Bash(supabase *)`), and tell the user.
@@ -72,7 +82,9 @@ Stand up the project skeleton so every later task builds on a green, verifiable 
 - Project scaffold for <stack with pinned versions> following docs/adr/0001-stack.md.
 - Toolchain: typecheck, lint, unit tests, build wired as npm scripts (exact commands in CLAUDE.md ## Verification).
 - One thin end-to-end slice through the real architecture: <concrete slice, e.g. "home page calls GET /api/health which reads one row from the database and renders it">.
-- <web> Playwright installed with one smoke spec; `npm run test:e2e` passes.
+- <web> Playwright pinned (`@playwright/test`, `@playwright/mcp`), chromium installed, the smoke
+  spec from `rb init` asserting the skeleton's real slice; `npm run test:e2e` passes locally and
+  in CI. The `playwright` MCP server shows as connected in `/mcp`.
 - <ai> One eval file with 3 smoke cases; `npm run evals` passes; LLM behind an interface.
 - CI workflow running the Verification commands on pull requests.
 - `.env.example` listing every required variable, no secrets committed.

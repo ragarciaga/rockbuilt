@@ -64,6 +64,21 @@ const handlers = {
       r.gitignoreAdded.length ? `.gitignore += ${r.gitignoreAdded.join(', ')}` : '.gitignore already complete',
     ];
     if (r.customized.length) lines.push(`CLAUDE.md set: ${r.customized.join(', ')}`);
+    if (r.web) {
+      const w = r.web;
+      lines.push('web (Playwright):');
+      lines.push(...w.created.map((f) => `created  ${f}`), ...w.skipped.map((f) => `skipped  ${f} (exists)`));
+      if (w.mcp === 'merged') lines.push('merged   .mcp.json (added the playwright server)');
+      if (w.mcp === 'present') lines.push('skipped  .mcp.json (playwright server already configured)');
+      if (w.mcp === 'invalid') lines.push('WARN     .mcp.json is not valid JSON; add the playwright server by hand');
+      if (w.e2eScript === 'added') lines.push('package.json += scripts.test:e2e = "playwright test"');
+      if (w.e2eScript === 'no-package-json') lines.push('WARN     no package.json yet; add "test:e2e": "playwright test" once the app exists');
+      if (w.missingDeps.length) {
+        lines.push(`next: npm install -D -E ${w.missingDeps.join(' ')}`);
+        lines.push('next: npx playwright install chromium');
+      }
+      if (w.mcp === 'created' || w.mcp === 'merged') lines.push('next: restart Claude Code, approve the "playwright" MCP server, confirm with /mcp');
+    }
     return { data: r, text: lines.join('\n'), code: 0 };
   },
 

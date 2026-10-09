@@ -60,7 +60,8 @@
       "Bash(yarn *)",
       "Edit",
       "Write",
-      "Bash(node *scripts/rb.mjs*)"
+      "Bash(node *scripts/rb.mjs*)",
+      "mcp__playwright"
     ],
     "ask": [
       "Bash(gh pr merge*)"

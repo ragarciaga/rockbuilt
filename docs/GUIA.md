@@ -54,6 +54,22 @@ Mientras el repo sea privado, cada persona del equipo necesita acceso de lectura
 
 Si no sabes cuál aplica, describe lo que quieres. Rockbuilt propone el camino y tú confirmas.
 
+## Playwright (pruebas en el navegador)
+
+En proyectos web, Playwright viene desde el issue #1. `rb init` deja la configuración, una prueba
+de humo y el servidor MCP de Playwright en `.mcp.json`, que es lo que le permite a Claude abrir y
+recorrer tu app en un navegador real.
+
+Después de que el issue #1 instale las dependencias:
+1. Reinicia Claude Code (los MCP solo cargan al arrancar).
+2. Aprueba el servidor `playwright` cuando lo pregunte.
+3. Escribe `/mcp` y confirma que aparece conectado.
+
+Desde ahí, cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR, y
+`/rockbuilt:verify` escribe las pruebas nuevas de cada funcionalidad (un camino feliz y dos de
+fallo por flujo). En un proyecto existente sin Playwright, `adopt` propone un issue para
+agregarlo antes de construir.
+
 ## Dónde apruebas
 
 1. El brief (kickoff).

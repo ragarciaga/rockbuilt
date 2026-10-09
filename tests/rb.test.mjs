@@ -458,6 +458,68 @@ test('rb init: works with the real plugin templates when present', async (t) => 
   assert.ok(r.json.gitignoreAdded.includes('.rockbuilt/') || readFileSync(path.join(root, '.gitignore'), 'utf8').includes('.rockbuilt/'));
 });
 
+test('rb init --type web: Playwright config, smoke spec, MCP server and test:e2e script', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  writeFileSync(path.join(root, 'package.json'), '{\n  "name": "demo",\n  "scripts": { "dev": "next dev" }\n}\n');
+  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'web'));
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.json.web.created.sort(), ['.mcp.json', 'e2e/smoke.spec.ts', 'playwright.config.ts']);
+  assert.equal(r.json.web.mcp, 'created');
+  assert.equal(r.json.web.e2eScript, 'added');
+  assert.deepEqual(r.json.web.missingDeps, ['@playwright/test', '@playwright/mcp']);
+  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(pkg.scripts['test:e2e'], 'playwright test');
+  assert.equal(pkg.scripts.dev, 'next dev');
+  const mcp = JSON.parse(readFileSync(path.join(root, '.mcp.json'), 'utf8'));
+  assert.equal(mcp.mcpServers.playwright.command, 'node');
+  assert.match(mcp.mcpServers.playwright.args[0], /node_modules\/@playwright\/mcp\/cli\.js$/);
+
+  // Idempotent: second run creates nothing and keeps the script.
+  const again = await withTemplates(fakeTemplates(), () => rbJson(root, 'init'));
+  assert.deepEqual(again.json.web.created, []);
+  assert.equal(again.json.web.mcp, 'present');
+  assert.equal(again.json.web.e2eScript, 'present');
+});
+
+test('rb init web overlay: merges into an existing .mcp.json and respects a playwright.config.js', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  writeFileSync(path.join(root, '.mcp.json'), JSON.stringify({ mcpServers: { db: { command: 'node', args: ['db.js'] } } }));
+  writeFileSync(path.join(root, 'playwright.config.js'), 'module.exports = {};\n');
+  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'web,ai'));
+  assert.equal(r.json.web.mcp, 'merged');
+  assert.ok(r.json.web.skipped.includes('playwright.config.ts'));
+  assert.ok(!existsSync(path.join(root, 'playwright.config.ts')));
+  assert.equal(r.json.web.e2eScript, 'no-package-json');
+  const mcp = JSON.parse(readFileSync(path.join(root, '.mcp.json'), 'utf8'));
+  assert.deepEqual(Object.keys(mcp.mcpServers).sort(), ['db', 'playwright']);
+});
+
+test('rb init: non-web projects get no Playwright overlay', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'automation'));
+  assert.equal(r.json.web, null);
+  assert.ok(!existsSync(path.join(root, '.mcp.json')));
+});
+
+test('doctor: web project reports missing Playwright pieces as WARN, then PASS once wired', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  writeFileSync(path.join(root, 'CLAUDE.md'), CLAUDE_MD);
+  const gh = () => ({ installed: true, authenticated: true, detail: 'ok' });
+  const names = (r) => Object.fromEntries(r.checks.map((c) => [c.name, c.status]));
+  let r = runDoctor(root, { ghStatusFn: gh });
+  assert.equal(names(r)['playwright deps'], 'WARN');
+  assert.equal(names(r)['playwright config'], 'WARN');
+  assert.equal(names(r)['playwright MCP'], 'WARN');
+  assert.equal(names(r)['E2E commands'], 'PASS');
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { '@playwright/test': '1.64.0', '@playwright/mcp': '0.0.83' } }));
+  await withTemplates(fakeTemplates(), () => rbJson(root, 'init'));
+  mkdirSync(path.join(root, 'node_modules', '@playwright', 'mcp'), { recursive: true });
+  writeFileSync(path.join(root, 'node_modules', '@playwright', 'mcp', 'cli.js'), '');
+  r = runDoctor(root, { ghStatusFn: gh });
+  for (const n of ['playwright deps', 'playwright config', 'playwright MCP']) assert.equal(names(r)[n], 'PASS', n);
+  assert.equal(names(r)['playwright MCP install'], undefined);
+});
+
 // ---------- baseline ----------
 
 test('rb baseline: records sha, branch, commands and green', async () => {
