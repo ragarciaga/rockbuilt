@@ -1,0 +1,334 @@
+{
+  "about": "Headless-runnable eval scenarios. Each one maps to a scenario in evals/<skill>.md. The \"with\" arm vendors the harness into the workspace using the scenario's `vendor` field (rb vendor --type --lang --tools) and commits it; the \"without\" arm stays bare. Run with: node evals/run.mjs [ids...] [--arms with,without] [--parallel 3]",
+  "scenarios": [
+    {
+      "id": "kickoff-s1-vague-es",
+      "source": "kickoff.md#S1",
+      "setup": [],
+      "vendor": {
+        "lang": "es"
+      },
+      "prompt": "Quiero crear una app para mis finanzas personales.",
+      "arms": [
+        "with",
+        "without"
+      ],
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-kickoff"
+        },
+        {
+          "type": "noFilesCreated"
+        },
+        {
+          "type": "finalLanguage",
+          "lang": "es"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "kickoff-s3-existing-code",
+      "source": "kickoff.md#S3 (either rb-kickoff or rb-adopt may load; both must ask before writing)",
+      "setup": [
+        "node-app"
+      ],
+      "vendor": {
+        "lang": "es"
+      },
+      "prompt": "Arranquemos un proyecto nuevo aquí: quiero construir la versión 2 de esta app de gastos.",
+      "checks": [
+        {
+          "type": "worktreeClean"
+        },
+        {
+          "type": "noCommits"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)adopt|carpeta nueva|nueva carpeta|carpeta vac|evolucionar|evolucione|aparte|independiente"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "kickoff-s4-no-trigger",
+      "source": "kickoff.md#S4",
+      "setup": [],
+      "vendor": {
+        "lang": "es"
+      },
+      "prompt": "Explícame qué es un walking skeleton y por qué se hace primero.",
+      "checks": [
+        {
+          "type": "noRockbuiltSkill"
+        },
+        {
+          "type": "noFilesCreated"
+        }
+      ]
+    },
+    {
+      "id": "adopt-s1-green-es",
+      "source": "adopt.md#S1",
+      "setup": [
+        "node-app"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Ya tengo un proyecto, adopta este repo. Quiero agregarle presupuestos mensuales por categoría.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-adopt"
+        },
+        {
+          "type": "agentsInclude",
+          "agents": [
+            "rb-scout"
+          ]
+        },
+        {
+          "type": "fileExists",
+          "path": "docs/current-state.md"
+        },
+        {
+          "type": "noChangesUnder",
+          "paths": [
+            "src/",
+            "tests/",
+            "package.json"
+          ]
+        },
+        {
+          "type": "noCommits"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "fix-s1-es",
+      "source": "fix.md#S1",
+      "setup": [
+        "node-app",
+        "harness-es"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Hay un bug: en el reporte de octubre \"Comida\" y \"comida\" salen como dos categorías distintas. Arréglalo. Para reproducir: node src/cli.js sample-expenses.json 2026-10, esperaba una sola fila comida con 205000.",
+      "arms": [
+        "with",
+        "without"
+      ],
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-fix"
+        },
+        {
+          "type": "agentsInclude",
+          "agents": [
+            "rb-implementer",
+            "rb-verifier",
+            "rb-auditor"
+          ]
+        },
+        {
+          "type": "noMainSessionWrites",
+          "paths": [
+            "src/",
+            "tests/"
+          ]
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "oneCommitOnRbBranch"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "fix-s3-feature-not-bug",
+      "source": "fix.md#S3",
+      "setup": [
+        "node-app",
+        "harness-es"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Esto está roto: la CLI no me deja exportar a CSV.",
+      "arms": [
+        "with",
+        "without"
+      ],
+      "checks": [
+        {
+          "type": "finalMatches",
+          "pattern": "rb-spec|/spec"
+        },
+        {
+          "type": "worktreeClean"
+        },
+        {
+          "type": "noCommits"
+        }
+      ]
+    },
+    {
+      "id": "fix-s4-no-trigger",
+      "source": "fix.md#S4",
+      "setup": [
+        "node-app",
+        "harness-es"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "¿Cómo leo el output de node --test cuando falla una prueba?",
+      "checks": [
+        {
+          "type": "noRockbuiltSkill"
+        },
+        {
+          "type": "worktreeClean"
+        }
+      ]
+    },
+    {
+      "id": "build-s2-red-baseline",
+      "source": "build.md#S2",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "red-baseline",
+        "spec-approved",
+        "tasks-approved"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Construye todas las tareas de docs/specs/01-monthly-budgets.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-build"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-implementer"
+          ]
+        },
+        {
+          "type": "noCommits"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)rojo|red|baseline|línea base"
+        }
+      ]
+    },
+    {
+      "id": "build-tier-c-escalates",
+      "source": "build.md#S6",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "spec-approved",
+        "tasks-approved",
+        "tasks-tier-c"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Construye la tarea T2 de docs/specs/01-monthly-budgets.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-build"
+        },
+        {
+          "type": "anyOf",
+          "checks": [
+            {
+              "type": "noAgentBeforeBash",
+              "agent": "rb-implementer",
+              "pattern": "(?i)\\bescalate\\b|rb:needs-human"
+            },
+            {
+              "type": "finalMatches",
+              "pattern": "(?i)aprobaci|aprueb|approv|tier c|nivel c|needs-human|dependencia"
+            }
+          ]
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "cycle-no-github",
+      "source": "cycle.md#S1",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "spec-approved",
+        "tasks-approved"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Run /rb-cycle.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-cycle"
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "merge-gate(?!.*--dry-run)|gh pr merge|git merge(?![-\\w])"
+        },
+        {
+          "type": "textMatches",
+          "pattern": "(?i)github.{0,60}(no disponible|no est[aá] disponible|unavailable|not available|no responde|sin acceso|sin autenticar|unauthenticated)|modo degradado|degraded mode|sin github|without github"
+        },
+        {
+          "type": "noMainSessionWrites",
+          "paths": [
+            "src/"
+          ]
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    }
+  ]
+}

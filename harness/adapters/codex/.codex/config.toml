@@ -1,0 +1,5 @@
+# Rockbuilt (experimental, untested): Playwright MCP for Codex. Loaded only in trusted projects.
+[mcp_servers.playwright]
+command = "node"
+args = ["node_modules/@playwright/mcp/cli.js", "--isolated"]
+startup_timeout_sec = 20

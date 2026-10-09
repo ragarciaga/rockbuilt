@@ -1,0 +1,121 @@
+# Rockbuilt CI (harness-owned; updated by `rb vendor`). The job name `rockbuilt-ci` is required by
+# `rb merge-gate`: without a green run of it on the PR head, nothing merges automatically.
+# Commands come from AGENTS.md (## Setup, ## Verification, ## E2E) through the rb CLI.
+# If the default branch is not main or master, add it under push.branches.
+name: rockbuilt-ci
+
+on:
+  pull_request:
+    # No labeled/unlabeled: label changes would re-run (and cancel) CI on every rb:* label the harness sets.
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: rockbuilt-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Runs each non-empty, non-comment line from stdin as a command; stops at the first failure.
+  RB_RUN: |
+    const { execSync } = require('node:child_process');
+    const lines = require('node:fs').readFileSync(0, 'utf8').split(/\r?\n/)
+      .map((s) => s.trim()).filter((s) => s && !s.startsWith('#'));
+    for (const cmd of lines) {
+      console.log('::group::' + cmd);
+      try { execSync(cmd, { stdio: 'inherit', shell: true }); }
+      catch { console.log('::endgroup::'); console.log('::error::command failed: ' + cmd); process.exit(1); }
+      console.log('::endgroup::');
+    }
+  # Flags harness files changed by an rb/* branch (stdin: changed paths). A warning, not a failure:
+  # rb merge-gate already classifies these PRs as tier C, so only the human merges them.
+  # .claude/LESSONS.md is bookkeeping (append-only, checked by the gate) and is not flagged.
+  RB_HARNESS: |
+    const files = require('node:fs').readFileSync(0, 'utf8').split(/\r?\n/).filter(Boolean);
+    const re = /^(AGENTS\.md|CLAUDE\.md|\.mcp\.json|\.claude\/|\.cursor\/|\.codex\/|\.agents\/|\.github\/|tools\/rockbuilt\/|docs\/rockbuilt\/)/i;
+    const hit = files.filter((f) => re.test(f) && f !== '.claude/LESSONS.md');
+    for (const f of hit) console.log('::warning file=' + f + '::harness file changed by an rb/* branch: tier C, the human reviews and merges');
+    console.log(hit.length ? hit.length + ' harness file(s) changed; this PR is tier C.' : 'No harness files changed.');
+
+jobs:
+  rockbuilt-ci:
+    name: rockbuilt-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # setup-node's npm cache needs a lockfile; projects without one (pnpm, Python, new repos) skip it.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+
+      - name: Harness files
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'rb/')
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --name-only "origin/${BASE_REF}...HEAD" | node -e "$RB_HARNESS"
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Free for personal accounts; repositories owned by an organization need a free key.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+      - name: Setup
+        run: node tools/rockbuilt/rb.mjs verify-cmds Setup | node -e "$RB_RUN"
+
+      - name: Verification
+        shell: bash
+        run: |
+          if [ -s docs/rockbuilt/known-failures.json ]; then
+            node tools/rockbuilt/rb.mjs baseline --check
+          else
+            node tools/rockbuilt/rb.mjs verify-cmds Verification | node -e "$RB_RUN"
+          fi
+
+  rockbuilt-e2e:
+    name: rockbuilt-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect E2E section
+        id: e2e
+        run: |
+          node -e "
+            const t = (() => { try { return require('fs').readFileSync('AGENTS.md', 'utf8'); } catch { return ''; } })();
+            const has = /^##\s+E2E\s*$/m.test(t);
+            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'has=' + has + '\n');
+            console.log(has ? 'E2E section found' : 'No E2E section in AGENTS.md; nothing to run');
+          "
+
+      - uses: actions/setup-node@v4
+        if: steps.e2e.outputs.has == 'true'
+        with:
+          node-version: 22
+          # setup-node's npm cache needs a lockfile; projects without one (pnpm, Python, new repos) skip it.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
+
+      - name: Setup
+        if: steps.e2e.outputs.has == 'true'
+        run: node tools/rockbuilt/rb.mjs verify-cmds Setup | node -e "$RB_RUN"
+
+      - name: Install Playwright Chromium
+        if: steps.e2e.outputs.has == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        if: steps.e2e.outputs.has == 'true'
+        continue-on-error: false
+        run: node tools/rockbuilt/rb.mjs verify-cmds E2E | node -e "$RB_RUN"

@@ -1,9 +1,9 @@
 {
-  "description": "Rockbuilt guard: blocks pushes to the default branch, force pushes, git/gh outside each subagent's role, subagent edits to orchestrator-owned files, and subagent merges (DESIGN.md section 9).",
+  "description": "Rockbuilt guard (DESIGN.md section 13): no push to the default branch, no force push, no .env reads; write roles get no git or gh and no shell writes to harness files; read-only roles get a command allowlist; subagents may not edit harness files or run privileged rb commands.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",

@@ -1,11 +1,25 @@
 {
   "name": "rockbuilt",
-  "version": "0.1.0",
-  "description": "Spec-driven software delivery for Claude Code: kickoff or adopt a repo, write EARS specs, converge tasks, build with planner/implementer/verifier separation, verify with E2E, evals and security review, and keep humans on the approval and merge gates.",
+  "version": "0.3.0",
+  "description": "Installs and updates the Rockbuilt harness in a project repo (vendored, so cloud routines, Cursor and Codex see it too): EARS specs, verifiable tasks, planner, implementer, verifier and blind auditor separation, autonomy tiers with a mechanical floor, a code-enforced merge gate, and a nightly cycle that escalates to the human only for design, cost and sensitive changes.",
   "author": {
     "name": "Rafael Andrés García"
   },
   "repository": "https://github.com/ragarciaga/rockbuilt",
   "license": "MIT",
-  "keywords": ["spec-driven", "agents", "subagents", "verification", "tdd", "e2e", "evals", "github", "workflow", "harness"]
+  "keywords": [
+    "spec-driven",
+    "agents",
+    "subagents",
+    "verification",
+    "tdd",
+    "e2e",
+    "evals",
+    "github",
+    "workflow",
+    "harness",
+    "autonomy",
+    "routines",
+    "cursor"
+  ]
 }

@@ -3,7 +3,20 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+// Directory holding rb.mjs: scripts/ in the plugin source, tools/rockbuilt/ when vendored.
+export const CODE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// Plugin source root when running from the plugin (scripts/ next to .claude-plugin/), else null.
+export function pluginRoot() {
+  const candidates = [];
+  if (process.env.CLAUDE_PLUGIN_ROOT) candidates.push(path.resolve(process.env.CLAUDE_PLUGIN_ROOT));
+  if (path.basename(CODE_DIR) === 'scripts') candidates.push(path.dirname(CODE_DIR));
+  for (const c of candidates) if (existsSync(path.join(c, '.claude-plugin', 'plugin.json'))) return c;
+  return null;
+}
+
+// Kept for v0.2 callers: the plugin root when known, otherwise the parent of CODE_DIR.
+export const PLUGIN_ROOT = pluginRoot() || path.dirname(CODE_DIR);
 
 export class CliError extends Error {
   constructor(message, code = 1) {
@@ -33,7 +46,7 @@ export function parseArgs(argv, booleans = []) {
 
 export function run(cmd, args, opts = {}) {
   try {
-    const r = spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, ...opts });
+    const r = spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...opts });
     if (r.error) return { ok: false, status: null, stdout: '', stderr: String(r.error.message), missing: r.error.code === 'ENOENT' };
     return { ok: r.status === 0, status: r.status, stdout: (r.stdout || '').trim(), stderr: (r.stderr || '').trim(), missing: false };
   } catch (e) {
@@ -45,8 +58,51 @@ export function git(cwd, args) {
   return run('git', args, { cwd });
 }
 
-export function gh(cwd, args) {
-  return run('gh', args, { cwd });
+// Untrimmed variant for outputs where leading whitespace matters (diffs).
+export function gitRaw(cwd, args) {
+  try {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 256 * 1024 * 1024 });
+    return { ok: r.status === 0, status: r.status, stdout: r.stdout || '', stderr: (r.stderr || '').trim() };
+  } catch (e) {
+    return { ok: false, status: null, stdout: '', stderr: String(e.message) };
+  }
+}
+
+export function readJson(file) {
+  const text = readText(file);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+// Comma or newline separated list flag ("a,b" or true/undefined -> []).
+export function listFlag(value) {
+  if (value === undefined || value === true || value === null) return [];
+  return String(value).split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+}
+
+// Flag that must carry a value.
+export function stringFlag(flags, name, { required = false } = {}) {
+  const v = flags[name];
+  if (v === undefined) {
+    if (required) throw new CliError(`--${name} is required`, 2);
+    return undefined;
+  }
+  if (v === true) throw new CliError(`--${name} needs a value`, 2);
+  return String(v);
+}
+
+// Synchronous sleep without busy waiting.
+export function sleepMs(ms) {
+  if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// Current time, overridable for tests with RB_NOW (ISO string).
+export function now() {
+  return process.env.RB_NOW ? new Date(process.env.RB_NOW) : new Date();
 }
 
 export function repoRoot(cwd) {

@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit tests (guard hook, rb CLI, selfcheck)
+        run: npm test
+      - name: rb help works through bin/ on this OS
+        shell: bash
+        run: |
+          export PATH="$PWD/bin:$PATH"
+          rb help
+      - name: Vendor the harness into a fresh repo and run the vendored rb
+        shell: bash
+        run: |
+          HARNESS="${{ github.workspace }}"
+          mkdir -p "$RUNNER_TEMP/smoke" && cd "$RUNNER_TEMP/smoke"
+          git init -q -b main
+          node "$HARNESS/scripts/rb.mjs" vendor --type web --lang es --from "$HARNESS"
+          for f in tools/rockbuilt/rb.mjs .claude/skills/rb-build/SKILL.md .claude/agents/rb-auditor.md AGENTS.md .mcp.json playwright.config.ts; do
+            test -f "$f" || { echo "missing after vendor: $f"; exit 1; }
+          done
+          node tools/rockbuilt/rb.mjs verify-cmds Verification
+      - name: Guard hook runs as Claude Code calls it (exec form, stdin JSON)
+        shell: bash
+        run: |
+          set +e
+          echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"},"cwd":"."}' | node hooks/guard.mjs
+          code=$?
+          set -e
+          test "$code" = "2"
+      - name: Official plugin validation
+        if: matrix.node == 22
+        shell: bash
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict

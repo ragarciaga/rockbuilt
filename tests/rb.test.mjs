@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { main } from '../scripts/rb.mjs';
-import { sectionCommands } from '../scripts/lib/claudemd.mjs';
+import { sectionCommands } from '../scripts/lib/contract.mjs';
 import { runDoctor } from '../scripts/lib/doctor.mjs';
 import { planBatches } from '../scripts/lib/parallel.mjs';
 import { coverage, parseRequirements, parseTasks } from '../scripts/lib/spec.mjs';
@@ -392,76 +392,59 @@ test('rb timing: invalid phase and missing args fail', async () => {
   assert.match((await rb(root, 'timing', 'report')).out, /No timing data/);
 });
 
-// ---------- init ----------
+// ---------- vendor: v0.2 init behavior (project templates, web overlay) ----------
 
-function fakeTemplates() {
+// A harness root with only project and web templates (other sources missing on purpose).
+function fakeHarness() {
   const dir = tmp('rb-tpl-');
-  mkdirSync(path.join(dir, '.claude'), { recursive: true });
-  mkdirSync(path.join(dir, 'docs'), { recursive: true });
-  writeFileSync(path.join(dir, 'CLAUDE.md'), '# <Project name>\n\nDocs language: <es|en>\nProject type: <web, ai, automation>\n\n## Goal\nx\n');
-  writeFileSync(path.join(dir, '.claude', 'settings.json'), '{}\n');
-  writeFileSync(path.join(dir, 'docs', 'progress.md'), 'template progress\n');
-  writeFileSync(path.join(dir, 'gitignore-additions.txt'), '# comment\n.rockbuilt/\ncoverage/\nnode_modules\n');
+  const p = path.join(dir, 'harness', 'project');
+  mkdirSync(path.join(p, '.claude'), { recursive: true });
+  mkdirSync(path.join(p, 'docs'), { recursive: true });
+  writeFileSync(path.join(p, 'CLAUDE.md'), '# <Project name>\n\nDocs language: <es|en>\nProject type: <web, ai, automation>\n\n## Goal\nx\n');
+  writeFileSync(path.join(p, '.claude', 'settings.json'), '{}\n');
+  writeFileSync(path.join(p, 'docs', 'progress.md'), 'template progress\n');
+  writeFileSync(path.join(p, 'gitignore-additions.txt'), '# comment\n.rockbuilt/\ncoverage/\nnode_modules\n');
+  const real = path.join(HERE, '..', 'harness', 'web');
+  cpSync(real, path.join(dir, 'harness', 'web'), { recursive: true });
   return dir;
 }
 
-async function withTemplates(dir, fn) {
-  const prev = process.env.RB_TEMPLATES_DIR;
-  process.env.RB_TEMPLATES_DIR = dir;
-  try {
-    return await fn();
-  } finally {
-    if (prev === undefined) delete process.env.RB_TEMPLATES_DIR;
-    else process.env.RB_TEMPLATES_DIR = prev;
-  }
-}
-
-test('rb init: copies, skips existing, appends .gitignore, sets type and lang', async () => {
+test('rb init (alias of vendor): copies, skips existing, appends .gitignore, sets type and lang', async () => {
   const root = makeRepo({ claudeMd: null, spec: false });
-  writeFileSync(path.join(root, 'docs-keep.txt'), '');
   mkdirSync(path.join(root, 'docs'), { recursive: true });
   writeFileSync(path.join(root, 'docs', 'progress.md'), 'mine\n');
-  const tpl = fakeTemplates();
-  const r = await withTemplates(tpl, () => rbJson(root, 'init', '--type', 'web,ai', '--lang', 'es'));
-  assert.equal(r.code, 0);
-  assert.deepEqual(r.json.created.sort(), ['.claude/settings.json', 'CLAUDE.md']);
+  const from = fakeHarness();
+  const r = await rbJson(root, 'init', '--from', from, '--type', 'ai', '--lang', 'es');
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.json.created.includes('CLAUDE.md'));
+  assert.ok(r.json.created.includes('.claude/settings.json'));
   assert.deepEqual(r.json.skipped, ['docs/progress.md']);
+  assert.ok(r.json.missing.includes('harness/skills'), 'missing sources are reported, not fatal');
   assert.ok(!existsSync(path.join(root, 'gitignore-additions.txt')));
   assert.equal(readFileSync(path.join(root, 'docs', 'progress.md'), 'utf8'), 'mine\n');
   const claude = readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
-  assert.match(claude, /^Project type: web, ai$/m);
+  assert.match(claude, /^Project type: ai$/m);
   assert.match(claude, /^Docs language: es$/m);
-  const gi = readFileSync(path.join(root, '.gitignore'), 'utf8');
   assert.deepEqual(r.json.gitignoreAdded, ['.rockbuilt/', 'coverage/']);
-  assert.equal(gi, 'node_modules/\n\n# Added by rb init\n.rockbuilt/\ncoverage/\n');
+  assert.equal(readFileSync(path.join(root, '.gitignore'), 'utf8'), 'node_modules/\n\n# Added by rb vendor\n.rockbuilt/\ncoverage/\n');
 
-  const again = await withTemplates(tpl, () => rbJson(root, 'init', '--type', 'automation'));
-  assert.deepEqual(again.json.created, []);
-  assert.equal(again.json.skipped.length, 3);
+  const again = await rbJson(root, 'init', '--from', from, '--type', 'automation');
+  assert.ok(!again.json.created.includes('CLAUDE.md'));
   assert.deepEqual(again.json.gitignoreAdded, []);
-  assert.match(readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), /^Project type: web, ai$/m);
+  assert.match(readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), /^Project type: ai$/m);
 });
 
-test('rb init: rejects unknown type and missing templates dir', async () => {
+test('rb vendor: rejects unknown type and a missing harness root', async () => {
   const root = makeRepo({ claudeMd: null, spec: false });
-  const tpl = fakeTemplates();
-  assert.equal((await withTemplates(tpl, () => rb(root, 'init', '--type', 'mobile'))).code, 1);
-  assert.equal((await withTemplates(path.join(tpl, 'nope'), () => rb(root, 'init'))).code, 1);
+  const from = fakeHarness();
+  assert.equal((await rb(root, 'vendor', '--from', from, '--type', 'mobile')).code, 1);
+  assert.equal((await rb(root, 'vendor', '--from', path.join(from, 'nope'))).code, 1);
 });
 
-test('rb init: works with the real plugin templates when present', async (t) => {
-  const real = path.join(HERE, '..', 'templates', 'project');
-  if (!existsSync(real)) { t.skip('templates/project not written yet'); return; }
-  const root = makeRepo({ claudeMd: null, spec: false });
-  const r = await withTemplates(real, () => rbJson(root, 'init', '--lang', 'en'));
-  assert.equal(r.code, 0);
-  assert.ok(r.json.gitignoreAdded.includes('.rockbuilt/') || readFileSync(path.join(root, '.gitignore'), 'utf8').includes('.rockbuilt/'));
-});
-
-test('rb init --type web: Playwright config, smoke spec, MCP server and test:e2e script', async () => {
+test('rb vendor --type web: Playwright config, smoke spec, MCP server and test:e2e script', async () => {
   const root = makeRepo({ claudeMd: null, spec: false });
   writeFileSync(path.join(root, 'package.json'), '{\n  "name": "demo",\n  "scripts": { "dev": "next dev" }\n}\n');
-  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'web'));
+  const r = await rbJson(root, 'vendor', '--from', fakeHarness(), '--type', 'web');
   assert.equal(r.code, 0);
   assert.deepEqual(r.json.web.created.sort(), ['.mcp.json', 'e2e/smoke.spec.ts', 'playwright.config.ts']);
   assert.equal(r.json.web.mcp, 'created');
@@ -472,20 +455,18 @@ test('rb init --type web: Playwright config, smoke spec, MCP server and test:e2e
   assert.equal(pkg.scripts.dev, 'next dev');
   const mcp = JSON.parse(readFileSync(path.join(root, '.mcp.json'), 'utf8'));
   assert.equal(mcp.mcpServers.playwright.command, 'node');
-  assert.match(mcp.mcpServers.playwright.args[0], /node_modules\/@playwright\/mcp\/cli\.js$/);
 
-  // Idempotent: second run creates nothing and keeps the script.
-  const again = await withTemplates(fakeTemplates(), () => rbJson(root, 'init'));
+  const again = await rbJson(root, 'vendor', '--from', fakeHarness());
   assert.deepEqual(again.json.web.created, []);
   assert.equal(again.json.web.mcp, 'present');
   assert.equal(again.json.web.e2eScript, 'present');
 });
 
-test('rb init web overlay: merges into an existing .mcp.json and respects a playwright.config.js', async () => {
+test('rb vendor web overlay: merges into an existing .mcp.json and respects a playwright.config.js', async () => {
   const root = makeRepo({ claudeMd: null, spec: false });
   writeFileSync(path.join(root, '.mcp.json'), JSON.stringify({ mcpServers: { db: { command: 'node', args: ['db.js'] } } }));
   writeFileSync(path.join(root, 'playwright.config.js'), 'module.exports = {};\n');
-  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'web,ai'));
+  const r = await rbJson(root, 'vendor', '--from', fakeHarness(), '--type', 'web,ai');
   assert.equal(r.json.web.mcp, 'merged');
   assert.ok(r.json.web.skipped.includes('playwright.config.ts'));
   assert.ok(!existsSync(path.join(root, 'playwright.config.ts')));
@@ -494,9 +475,9 @@ test('rb init web overlay: merges into an existing .mcp.json and respects a play
   assert.deepEqual(Object.keys(mcp.mcpServers).sort(), ['db', 'playwright']);
 });
 
-test('rb init: non-web projects get no Playwright overlay', async () => {
+test('rb vendor: non-web projects get no Playwright overlay', async () => {
   const root = makeRepo({ claudeMd: null, spec: false });
-  const r = await withTemplates(fakeTemplates(), () => rbJson(root, 'init', '--type', 'automation'));
+  const r = await rbJson(root, 'vendor', '--from', fakeHarness(), '--type', 'automation');
   assert.equal(r.json.web, null);
   assert.ok(!existsSync(path.join(root, '.mcp.json')));
 });
@@ -512,7 +493,7 @@ test('doctor: web project reports missing Playwright pieces as WARN, then PASS o
   assert.equal(names(r)['playwright MCP'], 'WARN');
   assert.equal(names(r)['E2E commands'], 'PASS');
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { '@playwright/test': '1.64.0', '@playwright/mcp': '0.0.83' } }));
-  await withTemplates(fakeTemplates(), () => rbJson(root, 'init'));
+  await rbJson(root, 'vendor', '--from', fakeHarness());
   mkdirSync(path.join(root, 'node_modules', '@playwright', 'mcp'), { recursive: true });
   writeFileSync(path.join(root, 'node_modules', '@playwright', 'mcp', 'cli.js'), '');
   r = runDoctor(root, { ghStatusFn: gh });
@@ -559,6 +540,15 @@ test('rb baseline: red run exits 1; --check reuses green and re-runs after HEAD 
   assert.equal(c2.json.moved, true);
 });
 
+test('rb baseline: refuses a contract that is still the template', async () => {
+  const root = makeRepo({ claudeMd: null, spec: false });
+  writeFileSync(path.join(root, 'CLAUDE.md'), '# <Project name>\n\nProject type: <web, ai, automation>\n\n## Verification\n```bash\nnpm run typecheck\n```\n');
+  const r = await rbJson(root, 'baseline');
+  assert.equal(r.code, 1);
+  assert.match(JSON.stringify(r.json), /still the rb vendor template/);
+  assert.ok(!existsSync(path.join(root, '.rockbuilt', 'baseline.json')));
+});
+
 test('rb baseline: fails without Verification commands or outside a repo', async () => {
   const root = makeRepo({ claudeMd: '# X\n\n## Goal\nx\n' });
   assert.equal((await rb(root, 'baseline')).code, 1);
@@ -586,7 +576,7 @@ test('rb worktree add/list/remove', async () => {
   assert.ok(!existsSync(r.json.path));
   assert.deepEqual((await rbJson(root, 'worktree', 'list')).json.worktrees, []);
   assert.equal((await rb(root, 'worktree', 'remove', 'T2')).code, 1);
-  assert.equal((await rb(root, 'worktree', 'bogus')).code, 1);
+  assert.equal((await rb(root, 'worktree', 'bogus')).code, 2);
 });
 
 // ---------- gh degradation ----------
@@ -602,7 +592,7 @@ test('doctor: gh missing is a FAIL line, not a crash', () => {
   const r = runDoctor(root, { ghStatusFn: () => ({ installed: false, authenticated: false, detail: 'gh not found on PATH' }) });
   assert.equal(r.ok, false);
   assert.ok(r.checks.some((c) => c.status === 'FAIL' && c.name === 'gh'));
-  assert.ok(r.checks.some((c) => c.name === 'CLAUDE.md sections' && c.status === 'PASS'));
+  assert.ok(r.checks.some((c) => c.name === 'contract sections' && c.status === 'PASS'));
 });
 
 test('doctor: gh unauthenticated is a FAIL line; CLAUDE.md problems are reported', () => {
@@ -610,9 +600,9 @@ test('doctor: gh unauthenticated is a FAIL line; CLAUDE.md problems are reported
   const r = runDoctor(root, { ghStatusFn: () => ({ installed: true, authenticated: false, detail: 'not logged in' }) });
   const byName = Object.fromEntries(r.checks.map((c) => [c.name, c.status]));
   assert.equal(byName['gh auth'], 'FAIL');
-  assert.equal(byName['CLAUDE.md sections'], 'FAIL');
+  assert.equal(byName['contract sections'], 'FAIL');
   assert.equal(byName['verification commands'], 'FAIL');
-  assert.equal(byName['CLAUDE.md header'], 'WARN');
+  assert.equal(byName['contract header'], 'WARN');
   assert.equal(byName['.gitignore'], 'WARN');
 });
 
@@ -625,7 +615,9 @@ test('doctor: authenticated gh without a GitHub remote passes with a WARN', () =
 
 test('labels and doctor via the real binary degrade when gh is not on PATH', () => {
   const root = makeRepo();
+  sh(root, 'git', ['remote', 'add', 'origin', 'https://github.com/acme/app.git']);
   const env = { ...process.env, PATH: [path.dirname(process.execPath), gitDir()].join(path.delimiter) };
+  delete env.RB_GH_BIN;
   // Only meaningful when gh does not live next to node or git.
   const ghVisible = spawnSync('gh', ['--version'], { env, encoding: 'utf8' }).status === 0;
   const labels = spawnSync(process.execPath, [RB_BIN, 'labels'], { cwd: root, env, encoding: 'utf8' });
@@ -659,4 +651,19 @@ test('bin/rb runs as a process', () => {
   const r = spawnSync(process.execPath, [RB_BIN, 'verify-cmds', 'Setup'], { cwd: root, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'npm install');
+});
+
+test('doctor: warns about deploy config under auto autonomy and npm ci without a lockfile', async () => {
+  const { repoWith } = await import('./rb-helpers.mjs');
+  const root = repoWith({
+    'AGENTS.md': '# App\n\nDocs language: es\nProject type: web\nDefault branch: main\nAutonomy: auto\n\n## Verification\n```bash\nnpm test\n```\n\n## Setup\n```bash\nnpm ci\n```\n',
+    'vercel.json': '{}',
+    '.github/workflows/rockbuilt-ci.yml': 'name: rockbuilt-ci\n',
+  });
+  const r = runDoctor(root, { ghStatusFn: () => ({ installed: true, authenticated: false, detail: 'offline' }) });
+  const byName = Object.fromEntries(r.checks.map((c) => [c.name, c]));
+  assert.equal(byName.deploy.status, 'WARN');
+  assert.match(byName.deploy.detail, /reach production/);
+  assert.equal(byName['CI workflow'].status, 'WARN');
+  assert.match(byName['CI workflow'].detail, /package-lock\.json/);
 });

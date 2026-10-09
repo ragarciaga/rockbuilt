@@ -1,4 +1,4 @@
-// Phase timing (DESIGN.md section 10, rb timing).
+// Phase timing (DESIGN.md section 21, rb timing).
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { CliError, readText } from './util.mjs';

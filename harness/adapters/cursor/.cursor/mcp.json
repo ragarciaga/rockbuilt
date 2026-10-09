@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/node_modules/@playwright/mcp/cli.js", "--isolated"]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      { "command": "node tools/rockbuilt/guard.mjs", "timeout": 10, "failClosed": true }
+    ],
+    "beforeReadFile": [
+      { "command": "node tools/rockbuilt/guard.mjs", "timeout": 10, "failClosed": true }
+    ],
+    "preToolUse": [
+      { "command": "node tools/rockbuilt/guard.mjs", "matcher": "Read|Write|Delete", "timeout": 10, "failClosed": true }
+    ]
+  }
+}

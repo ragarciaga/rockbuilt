@@ -1,2 +1,5 @@
 node_modules/
 .rockbuilt/
+
+# Eval run outputs (transcripts are model output, kept locally)
+evals/results/*/
