@@ -117,7 +117,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   if (view.mergeable !== true) no('mergeable', view.mergeable === false ? `not mergeable (${view.mergeable_state || 'conflict'})` : 'mergeability not computed yet; retry');
   // The PR must contain the current tip of the base: CI and reviews ran on that code. Without branch
   // protection GitHub reports "clean" or "unstable" for a PR that is behind (seen live), so compare.
-  if (view.base && head) {
+  // Bookkeeping PRs are exempt: they only touch docs the gate inspects line by line, so a CI run on
+  // an older base proves the same thing (and the cycle opens them at night's end, behind by design).
+  if (view.base && head && prKind(view.head && view.head.ref) !== 'bookkeeping') {
     try {
       const cmp = ops.compare(c, view.base.ref, head);
       if (cmp.behindBy > 0) no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref}: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);

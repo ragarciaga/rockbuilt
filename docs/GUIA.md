@@ -42,6 +42,8 @@ Mientras el repo de Rockbuilt sea privado, cada persona del equipo necesita acce
 1. En GitHub crea el repo vacío, privado y **con README** (así existe la rama `main`).
 2. Dale acceso a la app de Claude: GitHub, Settings, Applications, Claude, Configure,
    Repository access, agrega el repo, Save. Sin esto la sesión no puede clonarlo ni empujar.
+   En el repo, Settings, General, activa **Automatically delete head branches**: la nube no
+   puede borrar ramas, y sin esto se acumula una rama por cada PR fusionado.
 3. Abre una sesión en claude.ai/code con dos repos: el nuevo y `ragarciaga/rockbuilt` (de ahí
    sale el harness que se instala en el proyecto).
 4. Escribe "arranquemos un proyecto", "quiero construir ..." o `/rb-kickoff`; las tres hacen lo mismo. Si tienes notas, pégalas; si no,

@@ -15,7 +15,7 @@ import { defaultBranch } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
 import { syncProject, syncText } from './lib/sync.mjs';
-import { aggregate, appendEvent, readEvents, renderTable, writeProgressBlock } from './lib/timing.mjs';
+import { aggregate, appendEvent, mergeReports, parseBlock, readEvents, renderTable, writeProgressBlock } from './lib/timing.mjs';
 import { CliError, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, stringFlag } from './lib/util.mjs';
 import { vendorProject, vendorText } from './lib/vendor.mjs';
 import { addWorktree, listWorktrees, removeWorktree } from './lib/worktree.mjs';
@@ -206,9 +206,13 @@ const handlers = {
     }
     if (sub === 'report') {
       const report = aggregate(readEvents(root));
-      const table = renderTable(report);
+      let table = renderTable(report);
       let written = null;
-      if (flags.write) written = writeProgressBlock(root, table);
+      if (flags.write) {
+        const merged = mergeReports(parseBlock(readText(path.join(root, 'docs', 'progress.md'))), report);
+        table = renderTable(merged);
+        written = writeProgressBlock(root, table);
+      }
       const text = written ? `${table}\n\nwritten to ${written}` : table;
       return { data: { ...report, table, written }, text, code: 0 };
     }

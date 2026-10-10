@@ -164,6 +164,14 @@ function checkGithub(root, status, client) {
     return out;
   }
   try {
+    const info = ops.repoInfo(c);
+    out.push(info.deleteBranchOnMerge
+      ? pass('branch cleanup', 'GitHub deletes PR branches on merge')
+      : warn('branch cleanup', 'merged rb/* branches pile up on GitHub: turn on Settings, General, "Automatically delete head branches" (cloud sessions cannot change repo settings or delete remote branches)'));
+  } catch (e) {
+    out.push(warn('branch cleanup', `could not read repo settings (${e.message})`));
+  }
+  try {
     const missing = ops.missingLabels(c);
     out.push(missing.length ? warn('labels', `missing: ${missing.join(', ')}; run \`rb labels\``) : pass('labels', 'all rb:* labels present'));
   } catch (e) {

@@ -354,7 +354,10 @@ test('protect on a free private repo exits 3 with the cost explanation; doctor r
   assert.equal(byName['control issue'].status, 'WARN');
   assert.equal(byName['AGENTS.md'].status, 'PASS');
   assert.equal(byName['CI workflow'].status, 'WARN');
+  assert.equal(byName['branch cleanup'].status, 'WARN');
+  assert.match(byName['branch cleanup'].detail, /Automatically delete head branches/);
   gh.state.protection = { mode: 'on', contexts: ['rockbuilt-ci'] };
+  gh.state.deleteBranchOnMerge = true;
   await rbJson(root, ['labels'], { ghRunner: gh.runner });
   await rbJson(root, ['control', 'ensure'], { ghRunner: gh.runner });
   const d2 = await rbJson(root, ['doctor'], { ghRunner: gh.runner });
@@ -362,6 +365,7 @@ test('protect on a free private repo exits 3 with the cost explanation; doctor r
   assert.equal(by2.protection, 'PASS');
   assert.equal(by2.labels, 'PASS');
   assert.equal(by2['control issue'], 'PASS');
+  assert.equal(by2['branch cleanup'], 'PASS');
 });
 
 test('doctor works offline: GitHub failures are WARN, local checks still run', async () => {
@@ -577,4 +581,15 @@ test('gh client: one retry for a transient GET failure, never for writes', async
   assert.throws(() => makeGh({ repo: REPO, runner: notFound }).api('GET', 'user'));
   assert.equal(calls, 1, '4xx is not retried');
   delete process.env.RB_GH_RETRY_MS;
+});
+
+test('merge-gate: a bookkeeping PR behind the base still merges (docs only, checked line by line)', async () => {
+  const root = project();
+  const gh = fakeGh();
+  seed(gh, { body: 'Bookkeeping\n', labels: [], files: [{ filename: 'docs/progress.md', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n+- 2026-10-10: night run.' }] });
+  gh.state.pulls[10].head = 'rb/bookkeeping-run-1';
+  gh.state.compare = { [HEAD]: { behind_by: 3, ahead_by: 1 } };
+  await locked(root, gh);
+  const r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
 });

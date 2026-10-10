@@ -133,6 +133,7 @@ export function handle(s, method, fullPath, body) {
   const q = new URLSearchParams(qs);
   const pre = `repos/${REPO}/`;
   if (p === 'user' && method === 'GET') return ok({ login: s.user, name: 'Bot' });
+  if (p === `repos/${REPO}` && method === 'GET') return ok({ full_name: REPO, private: true, default_branch: 'main', delete_branch_on_merge: Boolean(s.deleteBranchOnMerge) });
   if (!p.startsWith(pre)) return err(404, 'Not Found');
   const r = p.slice(pre.length);
   let m;

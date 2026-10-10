@@ -126,8 +126,10 @@ approved: `wip: escalated: tier C (B<n>)`, push, escalate (`tier-c-diff`), move 
 Collapse as build step 8 with the message `fix(<scope>): <symptom> (B<n>)`; record the reviewed
 head. Then, serially:
 
-- `rb-verifier`: task id, `Reviewed head: <sha>`, the plan, both implementer reports, the diff
-  stat, the default branch, `Docs language`, and "Confirm the reproduction fails on the pre-fix
+- `rb-verifier`: task id, `Reviewed head: <sha>`, `Reproduction commit: <reproduce sha>` (the
+  `wip: reproduce` checkpoint recorded in step 3; it survives the collapse as a reachable object,
+  and the verifier needs it to check that the test was not weakened), the plan, both implementer
+  reports, the diff stat, the default branch, `Docs language`, and "Confirm the reproduction fails on the pre-fix
   code path (mutation probe: revert the fix in the production file, run the test, restore with git
   restore)."
 - `rb-auditor` (blind, tier B and C) with ONLY the inputs of build step 9: task id, reviewed head,

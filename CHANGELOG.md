@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.3 (2026-10-10)
+
+First night of the real scheduled routine (DESIGN 20.12): it fixed and merged a bug on its own.
+Fixes for what it reported:
+
+- Bookkeeping PRs are exempt from the `behind` check (docs only, checked line by line).
+- rb-fix passes `Reproduction commit: <sha>` to the verifier, which needs it after the collapse.
+- `rb timing` accepts the `audit`, `ci` and `merge` stages, and `report --write` keeps rows from
+  earlier runs (a fresh cloud clone has no local timing log).
+- `rb doctor` checks "Automatically delete head branches"; kickoff, GUIA and CLOUD ask to turn
+  it on (cloud sessions cannot delete remote branches or change repo settings).
+
 ## 0.3.2 (2026-10-09)
 
 Final review against trail-blazer-flow (DESIGN 20.11):

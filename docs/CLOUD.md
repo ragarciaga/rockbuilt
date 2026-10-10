@@ -43,6 +43,8 @@ nunca bajarlo.
 - El repo en GitHub, conectado a Claude a través de la **Claude GitHub App** (se instala al
   conectar GitHub en claude.ai/code y le das acceso a ese repo).
 - El harness instalado y fusionado en la rama principal del repo (pasos 1 y 2).
+- En el repo, Settings, General: **Automatically delete head branches** activado. La nube no puede
+  borrar ramas remotas ni cambiar esa configuración; sin esto queda una rama por cada PR.
 
 Por qué hay que instalarlo dentro del repo: las sesiones en la nube **no cargan plugins**. Solo
 ven lo que está commiteado en el repo. Por eso Rockbuilt se copia ("vendoriza") en
