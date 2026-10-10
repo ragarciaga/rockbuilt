@@ -248,6 +248,10 @@ export const ops = {
     const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
     return { behindBy: Number(d && d.behind_by) || 0, aheadBy: Number(d && d.ahead_by) || 0, status: d && d.status };
   },
+  repoInfo(c) {
+    const d = c.api('GET', '{repo}') || {};
+    return { deleteBranchOnMerge: d.delete_branch_on_merge === true, private: d.private === true, defaultBranch: d.default_branch || null };
+  },
   prView(c, n) {
     return shapePr(c.api('GET', `{repo}/pulls/${num(n)}`));
   },

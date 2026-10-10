@@ -552,6 +552,17 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    lines, no HTML comments) because LESSONS is injected into every dispatch; bookkeeping now does
    the same and rejects HTML comments in every bookkeeping file. TBF retries transient GitHub reads
    once; `rb gh` now retries GETs once on 5xx, 429 or no status (writes never).
+12. 2026-10-10, first night of the real scheduled routine on the sandbox (01:07 Bogotá, harness
+   0.3.2, 14 min): it picked `rb:bug` #14, reproduced, planned (B), fixed, verified, audited and
+   merged PR #16 through the gate, opened bookkeeping and posted the digest. Its own warnings, all
+   fixed: the previous bookkeeping PR failed the new `behind` check (bookkeeping is now exempt:
+   docs only, checked line by line); the verifier kicked back once because rb-fix did not pass the
+   reproduction commit (now `Reproduction commit: <sha>`); `rb timing` rejected the `audit` stage
+   rb-build names (phases now include audit, ci, merge) and `report --write` dropped earlier rows,
+   which in a fresh cloud clone exist only in progress.md (rows are now merged). Also seen: merged
+   `rb/*` branches pile up on GitHub, and a cloud session can neither delete remote branches nor
+   change repo settings, so `rb doctor` checks "Automatically delete head branches" and the
+   setup docs ask the owner to turn it on.
 
 ## 21. rb command interface (binding for skills and the CLI)
 

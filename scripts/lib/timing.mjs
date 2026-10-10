@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path';
 import { CliError, readText } from './util.mjs';
 
-export const PHASES = ['plan', 'implement', 'check', 'verify', 'fix', 'e2e', 'evals', 'security', 'pr'];
+export const PHASES = ['plan', 'implement', 'check', 'verify', 'audit', 'fix', 'e2e', 'evals', 'security', 'pr', 'ci', 'merge'];
 export const START_MARK = '<!-- rb:timing:start -->';
 export const END_MARK = '<!-- rb:timing:end -->';
 
@@ -88,6 +88,37 @@ export function renderTable(report) {
   const lines = [head, sep, ...rows, '', 'Minutes per phase.'];
   if (report.open.length) lines.push(`Open (started, not ended): ${report.open.map((o) => `${o.task}/${o.phase}`).join(', ')}.`);
   return lines.join('\n');
+}
+
+// Rows already in the progress.md block, as report tasks (minutes back to ms). Cloud runs start
+// from a fresh clone without .rockbuilt/timing.jsonl, so earlier rows live only in this table.
+export function parseBlock(text) {
+  if (!text) return [];
+  const s = text.indexOf(START_MARK);
+  const e = text.indexOf(END_MARK);
+  if (s === -1 || e === -1 || e < s) return [];
+  const lines = text.slice(s + START_MARK.length, e).split(/\r?\n/).filter((l) => l.trim().startsWith('|'));
+  if (lines.length < 2) return [];
+  const cols = lines[0].split('|').slice(1, -1).map((c) => c.trim().toLowerCase());
+  const tasks = [];
+  for (const row of lines.slice(2)) {
+    const cells = row.split('|').slice(1, -1).map((c) => c.trim());
+    if (!cells[0]) continue;
+    const phases = {};
+    cols.forEach((c, i) => {
+      if (i === 0 || c === 'total' || !PHASES.includes(c) || cells[i] === '' || cells[i] === undefined) return;
+      const v = Number(cells[i]);
+      if (Number.isFinite(v)) phases[c] = v * 60000;
+    });
+    tasks.push({ task: cells[0], phases, totalMs: Object.values(phases).reduce((a, b) => a + b, 0) });
+  }
+  return tasks;
+}
+
+// Existing rows are kept; a task in this run's report replaces its old row.
+export function mergeReports(previous, report) {
+  const fresh = new Set(report.tasks.map((t) => t.task));
+  return { tasks: [...previous.filter((t) => !fresh.has(t.task)), ...report.tasks], open: report.open };
 }
 
 export function writeProgressBlock(root, table) {

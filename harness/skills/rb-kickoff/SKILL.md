@@ -130,7 +130,9 @@ Read `references/setup.md` for exact commands and failure handling.
    If that fails (always the case in cloud sessions, where repos cannot be created), ask the user
    to create the repo in the GitHub UI, **with a README** so the default branch exists, give the
    Claude GitHub app access to it (GitHub, Settings, Applications, Claude, Configure, Repository
-   access), and give you its URL; then wire it as `origin`. Confirm the owner/name and default branch back.
+   access), turn on Settings, General, "Automatically delete head branches" (cloud sessions cannot
+   delete remote branches or change repo settings), and give you its URL; then wire it as
+   `origin`. Confirm the owner/name and default branch back.
 2. **Vendor the harness.** `rb vendor --type <types> --lang <lang> --tools <tools>` (plugin or
    `../rockbuilt` path, see above). Report what it created, merged and skipped. From now on use
    `node tools/rockbuilt/rb.mjs`.

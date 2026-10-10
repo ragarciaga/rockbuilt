@@ -667,3 +667,19 @@ test('doctor: warns about deploy config under auto autonomy and npm ci without a
   assert.equal(byName['CI workflow'].status, 'WARN');
   assert.match(byName['CI workflow'].detail, /package-lock\.json/);
 });
+
+test('rb timing report --write keeps rows from earlier runs (fresh cloud clone) and accepts audit, ci, merge', async () => {
+  const root = makeRepo();
+  mkdirSync(path.join(root, 'docs'), { recursive: true });
+  const progress = path.join(root, 'docs', 'progress.md');
+  writeFileSync(progress, '# Progress\n\n## Timing\n<!-- rb:timing:start -->\n| Task | plan | verify | Total |\n|---|---:|---:|---:|\n| T2 | 1.0 | 1.1 | 2.1 |\n| B14 | 1.5 | 2.6 | 4.1 |\n\nMinutes per phase.\n<!-- rb:timing:end -->\n');
+  for (const phase of ['audit', 'ci', 'merge']) {
+    assert.equal((await rb(root, 'timing', 'start', 'B14', phase)).code, 0, phase);
+    assert.equal((await rb(root, 'timing', 'end', 'B14', phase)).code, 0, phase);
+  }
+  assert.equal((await rb(root, 'timing', 'report', '--write')).code, 0);
+  const text = readFileSync(progress, 'utf8');
+  assert.match(text, /\| T2 \| 1\.0 \|[^\n]*\| 2\.1 \|/, 'previous run row kept');
+  assert.equal((text.match(/\| B14 \|/g) || []).length, 1, 'this run replaces its own row');
+  assert.match(text, /\| Task \| plan \| verify \| audit \|[^\n]*ci \| merge \|/);
+});
