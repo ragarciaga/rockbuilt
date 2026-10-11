@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="t d">
+  <title id="t">Rockbuilt</title>
+  <desc id="d">Rockbuilt wordmark over layered rock strata: a development harness from idea to verified, merged code.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="s1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b45309"/>
+      <stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="s2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#78716c"/>
+      <stop offset="1" stop-color="#a8a29e"/>
+    </linearGradient>
+    <linearGradient id="s3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#44403c"/>
+      <stop offset="1" stop-color="#57534e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="360" fill="url(#sky)"/>
+  <g opacity="0.07" stroke="#e2e8f0" stroke-width="1">
+    <path d="M0 60H1280M0 120H1280M0 180H1280"/>
+    <path d="M160 0V220M320 0V220M480 0V220M640 0V220M800 0V220M960 0V220M1120 0V220"/>
+  </g>
+  <path d="M0 250 L180 228 L360 240 L560 220 L760 236 L960 216 L1140 232 L1280 222 V360 H0 Z" fill="url(#s3)"/>
+  <path d="M0 282 L220 262 L430 276 L650 256 L860 272 L1060 254 L1280 266 V360 H0 Z" fill="url(#s2)"/>
+  <path d="M0 316 L250 298 L520 312 L780 294 L1030 308 L1280 296 V360 H0 Z" fill="url(#s1)"/>
+  <g transform="translate(96 92)">
+    <rect x="0" y="22" width="18" height="18" rx="3" fill="#d97706"/>
+    <rect x="22" y="22" width="18" height="18" rx="3" fill="#a8a29e"/>
+    <rect x="11" y="0" width="18" height="18" rx="3" fill="#f59e0b"/>
+  </g>
+  <text x="156" y="128" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="64" font-weight="800" fill="#f8fafc" letter-spacing="-1">Rockbuilt</text>
+  <text x="98" y="182" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" fill="#cbd5e1">From idea to verified, merged code. Built while you sleep.</text>
+  <text x="98" y="216" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="17" fill="#94a3b8">spec  &#183;  plan  &#183;  build  &#183;  verify  &#183;  blind audit  &#183;  merge gate</text>
+</svg>
