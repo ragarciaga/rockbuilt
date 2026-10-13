@@ -292,9 +292,9 @@ rules are in [.claude/CLAUDE.md](.claude/CLAUDE.md).
 
 ## Credits
 
-Methodology from the Lab10 course on building with AI (harness engineering, spec-driven
-development, loops, evals). The planner, implementer and verifier mechanics are adapted from
-[trail-blazer-flow](https://github.com/msummer/trail-blazer-flow) by Mark Summer (MIT).
+The planner, implementer and verifier mechanics are adapted from
+[trail-blazer-flow](https://github.com/msummer/trail-blazer-flow) by Mark Summer (MIT). Everything
+else is original work.
 
 ## License
 

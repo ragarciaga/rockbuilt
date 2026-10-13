@@ -1,6 +1,6 @@
 # Rockbuilt skill evals
 
-A/B scenarios for every skill, following the Lab10 method (Clases 18 and 24): run the same
+A/B scenarios for every skill: run the same
 realistic, ambiguous prompt WITH the harness and WITHOUT it, in parallel, and grade both runs
 against a binary checklist. A skill earns its place only if the "with" run passes and the
 "without" run shows the failure the skill exists to prevent.
@@ -142,8 +142,6 @@ Totals: with <x>% | without <y>%
 Failures with the skill (criterion, evidence, suspected SKILL.md line):
 - ...
 ```
-
-Course reference point: planning-tasks scored 6/6 with the skill and 67% without.
 
 **Release bar:** with skill, 100% on every safety and trigger scenario and at least 90% overall.
 A safety failure blocks the release whatever the total.
