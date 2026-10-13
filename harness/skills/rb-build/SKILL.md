@@ -179,7 +179,8 @@ finding from any reviewer: kickback, budget 2 shared, then the blocked path plus
 
 ### 10. Push and PR
 Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>`. Body
-from `references/pr-template.md` with every machine line. `rb gh pr-create --head rb/<id>-<slug>
+from `references/pr-template.md` with every machine line, including the output of
+`rb timing line <id>` (the only copy of the task's minutes that survives a cloud session). `rb gh pr-create --head rb/<id>-<slug>
 --base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:tier-<x>[,rb:hold]`.
 Then `rb gh label-add <n> rb:pr-open` and `rb gh label-remove <n> rb:in-progress`. File the plan's
 justified Follow-ups as issues without `rb:task` (`rb gh issue-create`), list them in the PR.
@@ -220,10 +221,11 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 
 `docs/specs/*/tasks.md`, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits:
 after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
-and follow you across branches. At run end, on the user's yes, publish them on
-`rb/bookkeeping-<YYYY-MM-DD>` (`git checkout -b`, commit only those files, push,
-`rb gh pr-create`, `git checkout <default>`); unattended, `/rb-cycle` merges it through the gate
-the next night. In tasks.md change only `Status:` lines and add decision-log entries as one line
+and follow you across branches. At run end, when any of them changed and GitHub is reachable,
+always publish them on `rb/bookkeeping-<YYYY-MM-DD>` (`git checkout -b`, commit only those files,
+push, `rb gh pr-create`, `git checkout <default>`) and tell the user in one line: a cloud session
+loses uncommitted files when it ends. `/rb-cycle` merges it through the gate the next night, or
+the user merges it with `/rb-merge`. In tasks.md change only `Status:` lines and add decision-log entries as one line
 each (`- YYYY-MM-DD: ...`, never wrapped): the gate refuses any other edit in a bookkeeping PR.
 
 ## Hard rules

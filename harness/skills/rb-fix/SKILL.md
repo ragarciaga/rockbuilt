@@ -148,7 +148,7 @@ Any finding: kickback (budget 2 shared, re-collapse and re-review), then the blo
 
 `rb timing start B<n> pr`. Confirm HEAD is the reviewed head. `git push -u origin rb/B<n>-<slug>`.
 Body per the PR template (Problem = expected vs actual; Criteria start with the reproduction;
-How to test runs it; every machine line). `rb gh pr-create --head rb/B<n>-<slug> --base <default>
+How to test runs it; every machine line, including `rb timing line B<n>`). `rb gh pr-create --head rb/B<n>-<slug> --base <default>
 --title "fix: <symptom> (B<n>)" --body-file <f> --label rb:tier-<b|c>`, then
 `rb gh label-add <n> rb:pr-open`, `rb gh label-remove <n> rb:in-progress`.
 

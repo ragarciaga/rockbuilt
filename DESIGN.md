@@ -563,6 +563,12 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    `rb/*` branches pile up on GitHub, and a cloud session can neither delete remote branches nor
    change repo settings, so `rb doctor` checks "Automatically delete head branches" and the
    setup docs ask the owner to turn it on.
+13. 2026-10-13, owner report: in a cloud project the timing table in progress.md was empty. The
+   log (`.rockbuilt/timing.jsonl`) is gitignored and dies with the session, and an interactive
+   `/rb-build` only published bookkeeping on the user's yes. Now every task PR carries
+   `<!-- rockbuilt:timing task=<id> ... -->` (`rb timing line <id>`), `rb timing report` rebuilds
+   the table from progress.md, those PR lines and the local log (freshest wins), and rb-build
+   always publishes bookkeeping at run end when it changed.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -578,7 +584,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `tasks <spec-dir>` | Parse tasks.md strictly (Spanish synonyms accepted), coverage vs requirements |
 | `parallel <spec-dir> [--ids] [--max]` | Disjoint batches |
 | `worktree add|remove|list` | As in v0.2 |
-| `timing start|end|report [--write]` | As in v0.2 |
+| `timing start|end <task> <phase> \| line <task> \| report [--write]` | Phase minutes; `line` prints the PR machine line; `report` merges progress.md, rb/* PR bodies and the local log |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
@@ -609,4 +615,5 @@ PR body machine lines (each on its own line):
 `<!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->`,
 `<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=pass head=<sha> -->`,
 `<!-- rockbuilt:security required -->` when the security review applies,
-`<!-- rockbuilt:tier <A|B|C> -->`.
+`<!-- rockbuilt:tier <A|B|C> -->`, and `<!-- rockbuilt:timing task=<id> <phase>=<minutes> ... -->`
+(informational; the gate ignores it).

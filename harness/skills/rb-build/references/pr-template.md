@@ -2,7 +2,8 @@
 
 Write the body in the docs language. Headings below are English; translate them (Spanish:
 Problema, Resumen técnico, Criterios, Verificación, Revisiones, Cómo probar localmente, Riesgos,
-Registro de decisiones). Machine lines, markers and command output stay exactly as they are.
+Registro de decisiones). Machine lines, markers and command output stay exactly as they are. The
+timing line is the output of `rb timing line <id>`, pasted as is.
 
 ~~~~markdown
 Closes #<issue>
@@ -54,6 +55,7 @@ issues filed: #a, #b.>
 - <date>: <key decisions incl. RESOLVED ones>, because <reason>.
 
 <!-- rockbuilt:tier <A|B|C> -->
+<!-- rockbuilt:timing task=<id> plan=<min> implement=<min> ... -->
 <!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
 <!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->
 <!-- rockbuilt:security required -->

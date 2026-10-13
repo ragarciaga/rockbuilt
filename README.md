@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.3.3-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.3.4-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -269,7 +269,7 @@ tier C decision and comes to me first.
 
 ## Status
 
-Version 0.3.3. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.3.4. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
