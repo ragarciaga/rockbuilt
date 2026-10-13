@@ -683,3 +683,30 @@ test('rb timing report --write keeps rows from earlier runs (fresh cloud clone) 
   assert.equal((text.match(/\| B14 \|/g) || []).length, 1, 'this run replaces its own row');
   assert.match(text, /\| Task \| plan \| verify \| audit \|[^\n]*ci \| merge \|/);
 });
+
+test('rb timing line and report read durable timing from rb/* PR bodies (fresh cloud clone)', async () => {
+  const { parseTimingLines, timingLine, aggregate } = await import('../scripts/lib/timing.mjs');
+  const { fakeGh, REPO, repoWith, sh, rbJson } = await import('./rb-helpers.mjs');
+  const ev = [
+    { task: 'T1', phase: 'plan', event: 'start', ts: '2026-10-10T00:00:00Z' },
+    { task: 'T1', phase: 'plan', event: 'end', ts: '2026-10-10T00:01:30Z' },
+    { task: 'T1', phase: 'verify', event: 'start', ts: '2026-10-10T00:02:00Z' },
+    { task: 'T1', phase: 'verify', event: 'end', ts: '2026-10-10T00:05:00Z' },
+  ];
+  const line = timingLine(aggregate(ev), 'T1');
+  assert.equal(line, '<!-- rockbuilt:timing task=T1 plan=1.5 verify=3.0 -->');
+  assert.deepEqual(parseTimingLines(`body\n${line}\n`).map((t) => [t.task, t.totalMs]), [['T1', 270000]]);
+
+  const root = repoWith({ 'docs/progress.md': '# Progress\n' });
+  sh(root, 'git', ['remote', 'add', 'origin', `https://github.com/${REPO}.git`]);
+  const gh = fakeGh();
+  gh.state.issues[5] = { number: 5, title: 'feat: T1', body: `x\n${line}\n`, state: 'closed', labels: [], isPr: true };
+  gh.state.pulls[5] = { number: 5, head: 'rb/T1-a', base: 'main', headSha: 'a'.repeat(40), merged_at: '2026-10-10T01:00:00Z' };
+  gh.state.issues[6] = { number: 6, title: 'human PR', body: '<!-- rockbuilt:timing task=X1 plan=9.0 -->', state: 'open', labels: [], isPr: true };
+  gh.state.pulls[6] = { number: 6, head: 'feature/x', base: 'main', headSha: 'b'.repeat(40) };
+  const r = await rbJson(root, ['timing', 'report', '--write'], { ghRunner: gh.runner });
+  assert.equal(r.code, 0, r.err);
+  const text = readFileSync(path.join(root, 'docs', 'progress.md'), 'utf8');
+  assert.match(text, /\| T1 \| 1\.5 \| 3\.0 \| 4\.5 \|/);
+  assert.doesNotMatch(text, /X1/, 'only rb/* branches count');
+});

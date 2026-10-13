@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.4 (2026-10-13)
+
+- **Timing survives cloud sessions.** The timing log is local and gitignored, so a cloud project
+  showed an empty timing table. Every task PR now carries a timing machine line
+  (`rb timing line <id>`), and `rb timing report` rebuilds the table from progress.md, the rb/* PR
+  bodies on GitHub and the local log, the freshest source winning (DESIGN 20.13).
+- `/rb-build` always publishes the bookkeeping PR at run end when tasks.md, progress.md or
+  LESSONS.md changed; it used to wait for the user's yes, and a cloud session lost them.
+
 ## 0.3.3 (2026-10-10)
 
 First night of the real scheduled routine (DESIGN 20.12): it fixed and merged a bug on its own.

@@ -15,7 +15,7 @@ import { defaultBranch } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
 import { syncProject, syncText } from './lib/sync.mjs';
-import { aggregate, appendEvent, mergeReports, parseBlock, readEvents, renderTable, writeProgressBlock } from './lib/timing.mjs';
+import { aggregate, appendEvent, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, timingLine, writeProgressBlock } from './lib/timing.mjs';
 import { CliError, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, stringFlag } from './lib/util.mjs';
 import { vendorProject, vendorText } from './lib/vendor.mjs';
 import { addWorktree, listWorktrees, removeWorktree } from './lib/worktree.mjs';
@@ -29,7 +29,7 @@ export const COMMANDS = {
   tasks: 'Parse tasks.md strictly and check coverage against requirements.md  <spec-dir>',
   parallel: 'Batch ready tasks with disjoint files  <spec-dir> [--ids T4,T6] [--max 3]',
   worktree: 'add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list',
-  timing: 'start|end <task> <phase> | report [--write]',
+  timing: 'start|end <task> <phase> | line <task> | report [--write]',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
@@ -197,26 +197,40 @@ const handlers = {
     throw new CliError('usage: rb worktree add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list', 2);
   },
 
-  timing({ cwd, positionals, flags }) {
+  timing({ cwd, positionals, flags, io }) {
     const root = projectRoot(cwd);
     const [sub, task, phase] = positionals;
     if (sub === 'start' || sub === 'end') {
       const rec = appendEvent(root, sub, task, phase);
       return { data: rec, text: `${sub} ${task} ${phase} at ${rec.ts}`, code: 0 };
     }
-    if (sub === 'report') {
-      const report = aggregate(readEvents(root));
-      let table = renderTable(report);
-      let written = null;
-      if (flags.write) {
-        const merged = mergeReports(parseBlock(readText(path.join(root, 'docs', 'progress.md'))), report);
-        table = renderTable(merged);
-        written = writeProgressBlock(root, table);
-      }
-      const text = written ? `${table}\n\nwritten to ${written}` : table;
-      return { data: { ...report, table, written }, text, code: 0 };
+    if (sub === 'line') {
+      if (!task) throw new CliError('usage: rb timing line <task>', 2);
+      const line = timingLine(aggregate(readEvents(root)), task);
+      if (!line) throw new CliError(`no timing events for ${task} in this checkout`);
+      return { data: { line }, text: line, code: 0 };
     }
-    throw new CliError('usage: rb timing start|end <task> <phase> | rb timing report [--write]');
+    if (sub === 'report') {
+      const local = aggregate(readEvents(root));
+      // Oldest to freshest: progress.md rows, then timing lines in rb/* PR bodies on GitHub, then
+      // this checkout's events. A fresher source replaces a task's row.
+      let report = { tasks: parseBlock(readText(path.join(root, 'docs', 'progress.md'))), open: [] };
+      let github = null;
+      try {
+        const prs = ops.prList(client(root, flags, io), { state: 'all', headPrefix: 'rb/' });
+        const rows = prs.slice().reverse().flatMap((p) => parseTimingLines(p.body));
+        report = mergeReports(report.tasks, { tasks: rows, open: [] });
+        github = `${rows.length} task(s) from PR bodies`;
+      } catch (e) {
+        github = `not read (${e.message})`;
+      }
+      report = mergeReports(report.tasks, local);
+      const table = renderTable(report);
+      const written = flags.write ? writeProgressBlock(root, table) : null;
+      const text = `${table}${written ? `\n\nwritten to ${written}` : ''}\n\nGitHub: ${github}`;
+      return { data: { ...report, table, written, github }, text, code: 0 };
+    }
+    throw new CliError('usage: rb timing start|end <task> <phase> | line <task> | report [--write]');
   },
 
   risk({ cwd, flags, io }) {
