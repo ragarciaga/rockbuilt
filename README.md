@@ -12,15 +12,14 @@
 </p>
 
 <p align="center">
-  <b>A development harness for AI coding agents.</b><br>
-  You decide what to build. Rockbuilt plans it, builds it, has it reviewed by agents that did not
-  write it, and merges it, every night, in the cloud. It stops and asks you only for design
-  decisions, anything that costs money, and changes that are risky or hard to undo.
+  <b>The harness I use to build software with AI agents.</b><br>
+  Agents plan, build, review and merge code at night, in the cloud. I get pulled in for design
+  decisions, anything that costs money, and changes that are hard to undo.
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#how-it-works">How it works</a> ·
+  <a href="#how-a-day-looks">How a day looks</a> ·
   <a href="#what-you-need">What you need</a> ·
   <a href="#autonomy-tiers">Autonomy tiers</a> ·
   <a href="docs/GUIA.md">Guía en español</a>
@@ -31,38 +30,40 @@
 > "Everyone who hears these words of mine and does them will be like a wise man who built his
 > house on the rock." (Matthew 7:24)
 
-## What it is
+## Why I built it
 
-Rockbuilt is a set of skills, agents, a small CLI (`rb`) and a guard hook that you install into a
-project repository. Together they turn Claude Code (and Cursor, and experimentally Codex) into a
-disciplined delivery team:
+My setup with AI coding agents used to look like this. I wrote what I wanted, the agent wrote the
+code, the same agent told me the code was fine, and I approved it. Then the next change, and the
+next one. Most of my time went to reading small diffs and typing ok, ok, ok.
 
-- **A planner** reads the live code and writes a plan for one task, with its risk tier and costs.
-- **An implementer** writes the code and the tests. It cannot touch git, GitHub or secrets.
-- **A verifier** checks the work against the plan and plants bugs on purpose to prove the tests
-  catch them.
-- **A blind auditor** tests the running software against the acceptance criteria without ever
-  seeing the plan, the code review or how it was built.
-- **A merge gate written in code**, not in a prompt, decides what can merge on its own.
+Two things bothered me. The agent was reviewing its own work, and of course it liked it. And I
+could not leave it running at night, because nothing stopped it from adding a paid API, touching
+production or merging something broken.
 
-It covers the whole path: idea, validation, spec, tasks, GitHub issues, implementation, unit and
-end-to-end tests (Playwright), evals for AI features, security review and merge. It works for new
-projects and for repositories already in progress.
+So I started from [trail-blazer-flow](https://github.com/msummer/trail-blazer-flow), an open source
+harness by Mark Summer that already separated the planner, the implementer and the verifier, and
+adapted it to how I work: mostly in the cloud, mostly unattended, with one hard rule about money.
+Any amount that is a cost comes to me first.
 
-## Why use it
+## What it does
 
-AI coding agents fail in predictable ways. Each one has a concrete mechanism here:
+Rockbuilt is a set of skills, agents, a small Node CLI (`rb`) and a guard hook that get installed
+inside each project repository. I use it with Claude Code; it also runs in Cursor, and Codex is
+experimental.
 
-| What goes wrong | What Rockbuilt does |
-|---|---|
-| The agent builds the wrong thing from a vague request | Idea validation with an honest go/no-go, then requirements in EARS with numbered acceptance criteria |
-| It grades its own work | Separate implementer, verifier with mutation probes, and a blind auditor with no build context |
-| "It works on my machine" | Every task carries a binary check; CI (`rockbuilt-ci`) must be green before anything merges |
-| It forgets everything between sessions | Specs, decision logs, ADRs and lessons live in the repo; run state lives in GitHub issues |
-| It spends money or breaks production while nobody watches | Risk tiers computed from the real diff; paid APIs, deploys and dependencies always go to you |
-| You end up approving every small step | Tier A and B work merges on its own; you only see what really needs you |
+| Who | Does | Cannot |
+|---|---|---|
+| Planner | Reads the live code and writes the plan for one task, with its risk tier and any cost | Write code |
+| Implementer | Writes the code and the tests | Touch git, GitHub or secrets |
+| Verifier | Checks the work against the plan, and plants small bugs on purpose to see if the tests catch them | Fix anything |
+| Blind auditor | Tests the running software against the acceptance criteria | See the plan, the review or how it was built |
+| Merge gate | Decides what merges on its own. It is code, so a model cannot talk its way past it | Merge tier C work |
 
-## How it works
+It covers the whole path: the idea and whether it is worth building, the spec, the tasks as GitHub
+issues, the code, unit and end-to-end tests with Playwright, evals for AI features, a security
+review and the merge. It works for new projects and for repositories that already have code.
+
+## How a day looks
 
 ```mermaid
 flowchart TD
@@ -78,18 +79,21 @@ flowchart TD
     H --> D
 ```
 
-**A normal day:**
+In the morning I get a notification. The `Rockbuilt control` issue on GitHub has the digest of the
+night: what merged (each with a one-line command to revert it), what waits for me, and how many
+minutes each task took.
 
-1. **Morning.** You get a notification. The `Rockbuilt control` issue on GitHub has the digest:
-   what merged overnight (each with a one-line revert command), what waits for you, and how long
-   each task took.
-2. **During the day.** You answer the questions it left (a comment, or the `rb:approved` label),
-   from your phone if you want. New small work is a GitHub issue labelled `rb:task` or `rb:bug`.
-   A new feature is a short session where you approve its requirements and design.
-3. **At night.** The routine picks up the backlog and your answers, builds, reviews and merges.
+During the day I answer what it asked, with a comment or the `rb:approved` label, usually from the
+phone. Small work I add as a GitHub issue labelled `rb:task` or `rb:bug`. A new feature is a short
+session where I approve the requirements and the design. That is most of my part.
 
-Nothing runs on your computer unless a step truly needs it (a local browser or local
-credentials). Those come labelled `rb:needs-local`, with the exact commands to run.
+At night the routine picks up the backlog and my answers, builds, reviews and merges. The first
+real night it took a bug from an issue, reproduced it with a test, fixed it, had it verified and
+audited, and merged it in 14 minutes. The verifier sent it back once on the way, because the
+tests did not catch two of the bugs it planted.
+
+My computer stays out of it unless a step really needs it, like a local browser or credentials
+that only live on my machine. Those come labelled `rb:needs-local` with the exact commands.
 
 ## What you need
 
@@ -182,7 +186,7 @@ opens a revert PR for you to merge.
 
 ## Safety
 
-Unattended agents need hard limits, not good intentions. From strongest to weakest:
+From strongest to weakest:
 
 1. **GitHub side.** `rockbuilt-ci` (verification, end-to-end tests when possible, gitleaks secret
    scan) and `rb merge-gate`, the only merge path. The gate checks: tier labels against the live
@@ -196,10 +200,10 @@ Unattended agents need hard limits, not good intentions. From strongest to weake
    itself. Read-only agents get an allowlist.
 4. **Agent instructions.**
 
-The guard is a tripwire, not a sandbox, which is why the merge gate and CI exist. Known limit: in
-the cloud the harness acts with your GitHub token, so it could in theory imitate your approval.
-Every harness comment is marked to reduce this; a separate bot identity is on the
-[roadmap](docs/roadmap.md).
+The guard catches mistakes, and a determined agent could still find a way around it, so the
+merge gate and CI are what I really trust. One limit I have not solved: in the cloud the harness uses my own GitHub token, so in theory
+it could imitate my approval. Every comment it writes is marked to make that harder, and a
+separate bot identity is on the [roadmap](docs/roadmap.md).
 
 ## What gets installed in a project
 
@@ -254,20 +258,31 @@ cleanup, deploy settings) and says what to fix.
 
 ## What it costs
 
-- **Your Claude plan.** Each nightly run uses plan usage, like a long session. In our tests a
-  night with one or two tasks used the equivalent of USD 1 to 3 at API prices, on the
-  subscription, not billed separately.
-- **GitHub Actions.** Free private repos include a monthly quota of minutes; CI runs on PR open
-  and push, not on label changes.
-- **Anything else** (paid APIs, hosting, GitHub Pro) is a tier C decision that comes to you first.
+A night with one or two tasks used roughly 1 to 3 dollars of plan usage in my tests, measured at
+API prices. It runs on my Claude subscription, so nothing extra is billed. GitHub Actions on a
+private repository has a free monthly quota of minutes, and CI only runs when a PR opens or gets a
+new push.
+
+Branch protection on a private repository needs GitHub Pro, 4 dollars a month. I have not bought
+it; the merge gate does the same job meanwhile. Any other cost, like a paid API or hosting, is a
+tier C decision and comes to me first.
 
 ## Status
 
-Version 0.3.3. Tested with two independent adversarial reviews, a live end-to-end test on a
-private repository (real GitHub and Actions), and real scheduled routines that built, audited and
-merged work on their own. CI runs on Windows, macOS and Linux. Cursor is supported; Codex is
-experimental and untested. See [CHANGELOG.md](CHANGELOG.md) and the evidence log in
-[DESIGN.md](DESIGN.md) (section 20).
+Version 0.3.3. Before trusting it I asked two separate agents, with no context on how it was
+built, to try to break it. The first review found the money check switched off in every project:
+the harness decides if code uses a paid service by looking for that service in the project, and
+its own files list those services by name. That one is fixed, with a test, together with everything
+else both reviews found.
+
+Then I ran it against a private test repository with real GitHub and real CI, and later as a real
+scheduled routine. CI passes on Windows, macOS and Linux; the macOS run is how I found that the
+guard did nothing when the project path went through a symlink.
+
+What stays manual for now: creating each repository, giving the Claude app access to it, approving
+designs, anything that costs money and merging tier C work. I use Cursor little and I have not
+tested Codex at all. The full history is in [CHANGELOG.md](CHANGELOG.md) and the evidence for each
+decision in [DESIGN.md](DESIGN.md) (section 20).
 
 ## Documentation
 
@@ -293,8 +308,8 @@ rules are in [.claude/CLAUDE.md](.claude/CLAUDE.md).
 ## Credits
 
 The planner, implementer and verifier mechanics are adapted from
-[trail-blazer-flow](https://github.com/msummer/trail-blazer-flow) by Mark Summer (MIT). Everything
-else is original work.
+[trail-blazer-flow](https://github.com/msummer/trail-blazer-flow) by Mark Summer (MIT). The rest is
+my own work.
 
 ## License
 
