@@ -4,8 +4,8 @@ Purpose: converge tasks.md against the real repo with parallel read-only reviewe
 coverage, then file one GitHub issue per task. No second approval: the spec approval covers the
 tasks (DESIGN.md section 6.4); the human is asked only when a task would change the approved scope.
 
-Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm vendors the harness and commits it. These mirror the course's two
-planning-tasks scenarios (bootstrap and per-task review).
+Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm vendors the harness and commits it. Two scenarios: bootstrap and
+per-task review.
 
 ## S1: No tasks yet, bootstrap (core, language)
 
