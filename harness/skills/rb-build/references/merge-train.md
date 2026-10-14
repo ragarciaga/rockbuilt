@@ -40,11 +40,21 @@ touched.
    - The only reasons are `behind` (and the checks it implies): update the branch as in step 2,
      then continue with the next PR; this one is re-evaluated after its CI finishes.
    - The only reason is `stale-head` (a review line whose `head=` is older than the PR head) after
-     step 2's update-branch (the update added only a base merge): re-review once per PR per run. Dispatch
-     the verifier with `Previously reviewed commit: <old head>` and `Reviewed head: <new head>`
-     (scope: the base merge), for tier B the auditor again (inputs as in build step 9), security
-     when required; rewrite the machine lines with the new head (`rb gh issue-edit <pr>
-     --body-file <f>`) and run the gate once more.
+     step 2's update-branch (the update added only a base merge): re-review once per PR per run,
+     light or full (DESIGN 8.3). In a checkout of the new head (`git fetch origin`, then the PR
+     branch at the new head, fast-forward only), run
+     `rb review-delta --reviewed <old reviewed head> --base origin/<default>`.
+     - **Exit 0 (identical):** the task's diff against the new base is byte-identical to the
+       reviewed one. Dispatch only the verifier with `Identity check: <old head>`,
+       `Reviewed head: <new head>` and the review-delta output. It confirms the identity itself and
+       runs the full Verification; on pass its line carries `identical-to=<old head>`. Replace only
+       the verifier line in the body; the auditor and security lines keep their old `head=`. The
+       gate re-checks the identity through GitHub and refuses if it does not hold.
+     - **Exit 3 (different), or the light verifier fails:** full re-review. Dispatch the verifier
+       with `Previously reviewed commit: <old head>` and `Reviewed head: <new head>` (scope: the
+       base merge), for tier B the auditor again (inputs as in build step 9), security when
+       required; rewrite every machine line with the new head.
+     Then `rb gh issue-edit <pr> --body-file <f>` and run the gate once more.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
    - Anything else: hold with the reasons verbatim in the digest; next PR.

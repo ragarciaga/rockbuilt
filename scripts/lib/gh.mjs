@@ -274,6 +274,13 @@ export const ops = {
     const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
     return { behindBy: Number(d && d.behind_by) || 0, aheadBy: Number(d && d.ahead_by) || 0, status: d && d.status };
   },
+  // Files changed in base...head with their patches (index lines are not part of GitHub patches).
+  // The compare API lists at most 300 files; treat that many as truncated.
+  compareFiles(c, base, head) {
+    const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`) || {};
+    const files = (d.files || []).map((f) => ({ filename: f.filename, status: f.status, previous: f.previous_filename || null, sha: f.sha || null, patch: typeof f.patch === 'string' ? f.patch : null, changes: Number(f.changes) || 0 }));
+    return { files, truncated: files.length >= 300 };
+  },
   repoInfo(c) {
     const d = c.api('GET', '{repo}') || {};
     return { deleteBranchOnMerge: d.delete_branch_on_merge === true, private: d.private === true, defaultBranch: d.default_branch || null };
@@ -378,7 +385,7 @@ export function ghStatus(cwd) {
 
 export const GH_OPS = {
   'issue-create': '--title <t> --body-file <f> [--label a,b]',
-  'issue-edit': '<n> [--body-file <f>] [--title <t>] [--state open|closed]',
+  'issue-edit': '<n> [--body-file <f>] [--title <t>] [--state open|closed] [--add-label a,b] [--remove-label a]',
   'issue-comment': '<n> --body-file <f>',
   'issue-view': '<n>',
   'issue-list': '[--label a,b] [--state open|closed|all]',
@@ -414,19 +421,62 @@ function labelsFlag(v) {
   return String(v).split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+// Flags every op accepts besides its own (from the GH_OPS usage line).
+const GLOBAL_GH_FLAGS = new Set(['repo', 'json', 'help']);
+
+// An unknown flag is an error, never silently ignored: `issue-edit --add-label` once did nothing
+// and a PR went without its tier label (3d_brain, 2026-10-14).
+function checkFlags(op, flags) {
+  if (!Object.hasOwn(GH_OPS, op)) return;
+  const allowed = new Set([...GH_OPS[op].matchAll(/--([a-z][a-z-]*)/g)].map((m) => m[1]));
+  if (allowed.has('body-file')) allowed.add('body');
+  const bad = Object.keys(flags).filter((k) => !allowed.has(k) && !GLOBAL_GH_FLAGS.has(k));
+  if (bad.length) throw new CliError(`rb gh ${op}: unknown flag ${bad.map((k) => `--${k}`).join(', ')}; usage: rb gh ${op} ${GH_OPS[op]}`, 2);
+}
+
+const TIER_MARKER = /<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i;
+
+// pr-create labels: the body's `<!-- rockbuilt:tier X -->` adds rb:tier-x when no tier label was
+// given; a given tier label below the declared tier is refused (the gate would refuse it later).
+export function prLabels(body, labels) {
+  const m = String(body || '').match(TIER_MARKER);
+  if (!m) return labels;
+  const declared = m[1].toUpperCase();
+  const given = labels.filter((l) => /^rb:tier-[abc]$/i.test(l)).map((l) => l.slice(-1).toUpperCase());
+  if (!given.length) return [...labels, `rb:tier-${declared.toLowerCase()}`];
+  const rank = (t) => 'ABC'.indexOf(t);
+  if (given.some((t) => rank(t) < rank(declared))) throw new CliError(`the body declares tier ${declared} but --label gives rb:tier-${given.map((t) => t.toLowerCase()).join(',rb:tier-')}`, 2);
+  return labels;
+}
+
 export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
   const [a, b] = positionals;
   const str = (k) => (typeof flags[k] === 'string' ? flags[k] : undefined);
+  checkFlags(op, flags);
   switch (op) {
     case 'issue-create': return ops.issueCreate(c, { title: str('title'), body: bodyFrom(flags, cwd), labels: labelsFlag(flags.label) });
-    case 'issue-edit': return ops.issueEdit(c, req(a, op), { title: str('title'), body: bodyFrom(flags, cwd, { required: false }), state: str('state') });
+    case 'issue-edit': {
+      const n = req(a, op);
+      const add = labelsFlag(flags['add-label']);
+      const remove = labelsFlag(flags['remove-label']);
+      const body = bodyFrom(flags, cwd, { required: false });
+      const edited = (str('title') || body !== undefined || str('state')) ? ops.issueEdit(c, n, { title: str('title'), body, state: str('state') }) : ops.issueView(c, n);
+      let labels = edited.labels;
+      if (add.length) labels = ops.labelAdd(c, n, add).labels;
+      for (const l of remove) ops.labelRemove(c, n, l);
+      if (remove.length) labels = labels.filter((l) => !remove.includes(l));
+      return { ...edited, labels };
+    }
     case 'issue-comment': return ops.issueComment(c, req(a, op), bodyFrom(flags, cwd));
     case 'issue-view': return ops.issueView(c, req(a, op));
     case 'issue-list': return ops.issueList(c, { labels: labelsFlag(flags.label), state: str('state') || 'open' });
     case 'label-add': return ops.labelAdd(c, req(a, op), labelsFlag(req(b, op)));
     case 'label-remove': return ops.labelRemove(c, req(a, op), req(b, op));
     case 'labels-ensure': return ops.labelsEnsure(c);
-    case 'pr-create': return ops.prCreate(c, { head: str('head'), base: str('base') || defaultBranch(), title: str('title'), body: bodyFrom(flags, cwd), labels: labelsFlag(flags.label), draft: Boolean(flags.draft) });
+    case 'pr-create': {
+      const body = bodyFrom(flags, cwd);
+      return ops.prCreate(c, { head: str('head'), base: str('base') || defaultBranch(), title: str('title'), body, labels: prLabels(body, labelsFlag(flags.label)), draft: Boolean(flags.draft) });
+    }
     case 'pr-view': return ops.prView(c, req(a, op));
     case 'pr-list': return ops.prList(c, { state: str('state') || 'open', headPrefix: str('head-prefix') || null });
     case 'pr-files': return ops.prFiles(c, req(a, op));

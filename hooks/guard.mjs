@@ -23,7 +23,7 @@ const PRIVILEGED_RB = new Set([
   'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init',
 ]);
 // rb subcommands a read-only role may run (they only read).
-const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help']);
+const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan']);
 
 // "rb-implementer", "rockbuilt:rb-implementer", "implementer" -> "implementer".
 export function roleOf(agentType) {

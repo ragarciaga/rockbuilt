@@ -13,6 +13,16 @@ process after the audit (`kill <pid>`). The auditor cannot start servers itself 
 denies it). An auditor `incomplete` with "app not reachable" is an environment problem, not a
 kickback: start the app and re-dispatch once, then escalate `--kind local`.
 
+## Own copy (when it overlaps the verifier)
+
+The verifier mutates files transiently; an auditor in the same directory observes those mutations
+(seen in 3d_brain, 2026-10-14). Serial is the default. To run the auditor while the verifier works,
+give it a detached copy at the reviewed head and use that path as its `Working directory`:
+`git worktree add --detach .rockbuilt/audit-<id> <reviewed head>`, run the AGENTS.md Setup there,
+start the app from there (its own port), and afterwards `git worktree remove --force
+.rockbuilt/audit-<id>`. If the verifier then fails, discard the audit: the kickback changes the
+head and the next audit runs on the new one.
+
 ## The prompt contains ONLY
 
 ```

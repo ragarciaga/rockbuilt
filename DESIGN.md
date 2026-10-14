@@ -149,6 +149,8 @@ Autonomy: auto                   # auto | supervised (supervised = v0.2 behavior
 Parallel: auto
 Max parallel: 3
 Max tasks per run: 6
+E2E shards: 1                    # optional, 1 to 8: CI jobs the Playwright suite is split into
+Hours: github                    # optional, github | local | off (section 22)
 
 ## Goal / ## Stack / ## Conventions      (as before: business goal, pinned stack, non-obvious rules)
 
@@ -243,11 +245,13 @@ holds, evaluated by code:
 3. `rb risk --pr <n>` on the live diff returns a tier no higher than the label.
 4. The PR body contains the verifier line `outcome=pass head=<sha>` (and for tier B the auditor
    line, and the security line when the body declares `security: required`), with `<sha>` equal
-   to the PR head.
+   to the PR head. Exception in section 8.3: auditor and security lines on an earlier head hold
+   when the verifier line certifies `identical-to=<that head>` and the gate confirms it.
 5. Every check run and commit status on the head SHA completed with success, and among them a
    `rockbuilt-ci` **check run created by GitHub Actions** concluded `success`. A commit status
    named `rockbuilt-ci` does not count (any token with repo access can post one). No CI, no
-   automatic merge.
+   automatic merge. When AGENTS.md has `## E2E`, a successful `rockbuilt-e2e` check run is also
+   required (its shard jobs start late, so "every present check is green" is not enough).
 6. The stop switch is off (section 9).
 7. The merge train lock is held by this run.
 
@@ -274,6 +278,30 @@ Merges are serial (merge train), one PR at a time:
 
 `rb revert` opens its PR labelled `rb:tier-c` and `rb:needs-human`: undoing a merge is the
 user's call, and a red default branch already stops the next cycle at the baseline step.
+
+### 8.3 Light re-review after an update-branch
+
+After `rb gh pr-update-branch` the head changes, so every review line is stale. A full re-review
+repeats work when the update only merged the base and the task's diff did not move. Rule:
+
+- `rb review-delta --reviewed <old head> --base origin/<default>` compares `git diff
+  <merge-base(base, old head)> <old head>` with `git diff <base> HEAD`, ignoring `index` lines.
+  Identical (exit 0): the verifier runs in identity mode (`Identity check: <old head>`): it
+  re-runs review-delta, checks that every first-parent commit after the old head is a merge, and
+  runs the full Verification (E2E when the task has `[e2e]` criteria). No mutation probe, no
+  criteria walk. Its pass line carries `identical-to=<old head>`. Anything else: full re-review.
+- The gate does not trust the claim: for auditor and security lines whose `head=` is the
+  `identical-to` commit, it compares the patch sets of `base...old head` and `base...head` from the
+  GitHub compare API (filename, status, previous name, blob sha, patch). Any file without a patch
+  (binary, mode-only, too large; GitHub reports some with changes 0) or 300 files means "not
+  confirmed". Not confirmed: `stale-head`, full re-review. review-delta likewise keeps each
+  file's post-image blob and mode, so a binary or mode change after review is "different".
+- The verifier line itself is always on the current head, and CI must be green on it.
+
+Evidence (3d_brain, 2026-10-14, runs cycle-d52a895-vxmo to cycle-026d53f-mxwp): five PRs (#116,
+#119, #124, #126, #128) were re-reviewed in full after update-branch; no re-review found anything,
+several task diffs against main were byte-identical, and the auditor spent 15 to 25 minutes each
+time. Every real finding of the night came from the first round.
 
 If the repo can enforce branch protection (public repo or GitHub Pro), `rb protect` configures
 required status checks on the default branch so GitHub itself rejects a merge without green CI.
@@ -580,6 +608,19 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    entries were halved by overlapping marks, parts could pass GitHub's comment size limit and
    fail forever, retried tasks doubled the estimate, a busy repo hid comments past 2000, two
    hours issues hid one, and repo names compared case-sensitively. All fixed with tests.
+15. 2026-10-14, 3d_brain nights (cycle-d52a895-vxmo, cycle-97d0089-tqje, cycle-026d53f-mxwp;
+   digests on its issue #1): the E2E job (fixed 30 min) was cancelled twice at 30 min with every
+   test green, the suite taking 24 to 27 min with 2 workers, and one test passed its 180 s limit
+   under shared CPU; now `E2E shards: <n>` runs the suite in n jobs (section 21) behind one
+   `rockbuilt-e2e` check. Re-reviews after update-branch found nothing in five PRs (section 8.3).
+   `rb gh issue-edit --add-label` was silently ignored (unknown flags now fail; issue-edit takes
+   `--add-label`/`--remove-label`); PRs reached the gate without `rb:tier-b` (pr-create labels the
+   tier from the body marker); `rb sync` left tasks undone when an id existed in several specs
+   (the PR body now repeats the task marker, and sync reads the spec from the closed issue) and
+   deleted local branches of open PRs (`git branch -d` accepts a branch merged into its own
+   upstream; sync now deletes only merged-PR tips or branches contained in the default branch,
+   never an open PR's); the auditor saw the verifier's mutation probe when both ran in one
+   directory (it runs after the verifier, or in its own detached copy).
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -597,6 +638,9 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `worktree add|remove|list` | As in v0.2 |
 | `timing start|end <task> <phase> \| line <task> [--est <hours>] \| report [--write]` | Phase minutes; `line` prints the PR machine line (with the planner's Human estimate as `est=`); `report` merges progress.md, rb/* PR bodies and the local log |
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
+| `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
+| `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
+| `review-delta --reviewed <sha> [--base <ref>]` | Section 8.3: exit 0 when the task diff against the base is byte-identical (index lines aside) to the reviewed one, 3 otherwise |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
@@ -611,12 +655,14 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `labels` | Create the `rb:*` labels that are missing (same as `rb gh labels-ensure`) |
 
 `rb gh` ops (all print JSON): `issue-create --title --body-file [--label a,b]`,
-`issue-edit <n> [--body-file] [--title] [--state open|closed]`, `issue-comment <n> --body-file`,
+`issue-edit <n> [--body-file] [--title] [--state open|closed] [--add-label a,b] [--remove-label a]`, `issue-comment <n> --body-file`,
 `issue-view <n>` (includes comments and author_association), `issue-list [--label a,b] [--state]`,
 `label-add <n> <labels>`, `label-remove <n> <label>`, `labels-ensure`,
 `pr-create --head --base --title --body-file [--label a,b] [--draft]`, `pr-view <n>`,
 `pr-list [--state] [--head-prefix rb/]`, `pr-files <n>`, `pr-comment <n> --body-file`,
 `pr-update-branch <n>`, `checks <sha>`, `whoami`, `protection`. Optional `--repo owner/name`.
+An unknown flag is a usage error (exit 2), never ignored. `pr-create` adds `rb:tier-x` from the
+body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one.
 
 Labels (exact): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:blocked`, `rb:in-progress`,
 `rb:pr-open`, `rb:tier-a`, `rb:tier-b`, `rb:tier-c`, `rb:needs-human`, `rb:needs-local`,

@@ -593,3 +593,80 @@ test('merge-gate: a bookkeeping PR behind the base still merges (docs only, chec
   const r = await gate(root, gh, ['--run', 'run-1']);
   assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
 });
+
+test('merge-gate: auditor and security lines on the previous head hold when the verifier certifies identical-to and the gate confirms it', async () => {
+  const OLD = 'b'.repeat(7) + '1234567890abcdef1234567890abcdef1';
+  const patch = '@@ -0,0 +1 @@\n+export const f = 1;';
+  const file = { filename: 'src/feature.js', status: 'added', changes: 1, patch };
+  const body = (extraVerifier) => [
+    `<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD}${extraVerifier} -->`,
+    statusLine('rb-auditor', OLD.slice(0, 12)),
+    '<!-- rockbuilt:security required -->',
+    statusLine('rb-security-reviewer', OLD.slice(0, 12)),
+    '<!-- rockbuilt:tier B -->',
+  ].join('\n');
+  const root = project();
+
+  // Identical patches: eligible.
+  let gh = fakeGh();
+  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
+  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [file] };
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+
+  // The verifier's claim is not enough: a different patch means a full re-review.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
+  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [{ ...file, patch: `${patch}\n+export const g = 2;` }] };
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.every((x) => x.rule === 'stale-head'), JSON.stringify(r.json.reasons));
+  assert.match(r.json.reasons[0].detail, /does not confirm/);
+
+  // A file without a patch (binary or too large) cannot be confirmed.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
+  gh.state.compareFiles = { [OLD.slice(0, 12)]: [{ ...file, patch: null }], [HEAD]: [{ ...file, patch: null }] };
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+
+  // Binary files come back from the compare API without a patch and with changes 0: never confirmed.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
+  const bin = { filename: 'fixtures/x.bin', status: 'added', changes: 0, patch: null, sha: 'a1' };
+  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file, bin], [HEAD]: [file, { ...bin, sha: 'b2' }] };
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+
+  // Without identical-to the old lines are stale, as before.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: body('') });
+  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [file] };
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual([...new Set(reasonRules(r))], ['stale-head']);
+  assert.equal(parseBody(`<!-- rockbuilt:status stage=rb-verifier outcome=pass head=abc1234 identical-to=def5678 -->`).status['rb-verifier']['identical-to'], 'def5678');
+});
+
+test('merge-gate: with an ## E2E section the rockbuilt-e2e check must exist and pass', async () => {
+  const root = repoWith({ 'AGENTS.md': `${AGENTS}\n## E2E\n\`\`\`bash\nnpm run test:e2e\n\`\`\`\n`, 'src/app.js': 'export const a = 1;\n' });
+  sh(root, 'git', ['remote', 'add', 'origin', `https://github.com/${REPO}.git`]);
+  let gh = fakeGh();
+  seed(gh);
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual(reasonRules(r), ['e2e'], 'rockbuilt-ci alone is not enough');
+  gh = fakeGh();
+  seed(gh, { checks: [
+    { name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' },
+    { name: 'rockbuilt-e2e (1/2)', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' },
+    { name: 'rockbuilt-e2e', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' },
+  ] });
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});

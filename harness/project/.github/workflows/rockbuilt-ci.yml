@@ -83,39 +83,74 @@ jobs:
             node tools/rockbuilt/rb.mjs verify-cmds Verification | node -e "$RB_RUN"
           fi
 
-  rockbuilt-e2e:
-    name: rockbuilt-e2e
+  # E2E in shards (AGENTS.md header `E2E shards: <1-8>`, default 1). The plan job reads AGENTS.md,
+  # each shard runs `--shard=i/n` of the Playwright suite on its own runner with its own timeout, and
+  # the `rockbuilt-e2e` job keeps the single check name projects and branch protection expect: it is
+  # green only when every shard is green (or when there is no ## E2E section).
+  rockbuilt-e2e-plan:
+    name: rockbuilt-e2e-plan
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      has: ${{ steps.plan.outputs.has }}
+      total: ${{ steps.plan.outputs.total }}
+      shards: ${{ steps.plan.outputs.shards }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detect E2E section
-        id: e2e
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Plan
+        id: plan
         run: |
-          node -e "
-            const t = (() => { try { return require('fs').readFileSync('AGENTS.md', 'utf8'); } catch { return ''; } })();
-            const has = /^##\s+E2E\s*$/m.test(t);
-            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'has=' + has + '\n');
-            console.log(has ? 'E2E section found' : 'No E2E section in AGENTS.md; nothing to run');
-          "
+          node tools/rockbuilt/rb.mjs e2e-plan | tee -a "$GITHUB_OUTPUT"
+
+  rockbuilt-e2e-shard:
+    name: rockbuilt-e2e (${{ matrix.shard }}/${{ needs.rockbuilt-e2e-plan.outputs.total }})
+    needs: rockbuilt-e2e-plan
+    if: needs.rockbuilt-e2e-plan.outputs.has == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.rockbuilt-e2e-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
-        if: steps.e2e.outputs.has == 'true'
         with:
           node-version: 22
           # setup-node's npm cache needs a lockfile; projects without one (pnpm, Python, new repos) skip it.
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
       - name: Setup
-        if: steps.e2e.outputs.has == 'true'
         run: node tools/rockbuilt/rb.mjs verify-cmds Setup | node -e "$RB_RUN"
 
       - name: Install Playwright Chromium
-        if: steps.e2e.outputs.has == 'true'
         run: npx playwright install --with-deps chromium
 
       - name: E2E
-        if: steps.e2e.outputs.has == 'true'
-        continue-on-error: false
-        run: node tools/rockbuilt/rb.mjs verify-cmds E2E | node -e "$RB_RUN"
+        env:
+          SHARD: ${{ matrix.shard }}/${{ needs.rockbuilt-e2e-plan.outputs.total }}
+        run: node tools/rockbuilt/rb.mjs verify-cmds E2E --shard "$SHARD" | node -e "$RB_RUN"
+
+  rockbuilt-e2e:
+    name: rockbuilt-e2e
+    needs: [rockbuilt-e2e-plan, rockbuilt-e2e-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All shards green
+        env:
+          PLAN: ${{ needs.rockbuilt-e2e-plan.result }}
+          HAS: ${{ needs.rockbuilt-e2e-plan.outputs.has }}
+          SHARDS: ${{ needs.rockbuilt-e2e-shard.result }}
+        run: |
+          if [ "$PLAN" != "success" ]; then echo "::error::E2E plan job: $PLAN"; exit 1; fi
+          if [ "$HAS" != "true" ]; then echo "No E2E section in AGENTS.md; nothing to run"; exit 0; fi
+          if [ "$SHARDS" != "success" ]; then echo "::error::E2E shards: $SHARDS (a failed, cancelled or timed-out shard)"; exit 1; fi
+          echo "All E2E shards passed"
