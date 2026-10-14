@@ -30,10 +30,9 @@ PR; ese PR lo fusionas tú.
 
 **Actualizar** es lo mismo: `/rockbuilt:install` (o "actualiza rockbuilt"). No pregunta nada,
 copia la versión nueva y abre el PR. Tus archivos (`AGENTS.md`, `CLAUDE.md`, `docs/`,
-`LESSONS.md`) nunca se sobrescriben.
-
-Mientras el repo de Rockbuilt sea privado, cada persona del equipo necesita acceso de lectura a
-`ragarciaga/rockbuilt` para instalar el plugin.
+`LESSONS.md`) nunca se sobrescriben. Revisa el [CHANGELOG](../CHANGELOG.md): algunas versiones
+piden un paso a mano. Desde la 0.4.0, por ejemplo, el prompt de cada rutina termina en
+`[rockbuilt:unattended]`, y las rutinas creadas antes hay que editarlas.
 
 ## Proyecto nuevo
 
@@ -86,6 +85,7 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Fusionar un PR de nivel C, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
 | Deshacer un merge | `/rb-merge revierte el PR 12` |
 | Retomar al día siguiente | `/rb-status` |
+| Ver tus horas por proyecto, feature y tarea | "reporte de horas" (`/rb-status`) |
 | Cerrar una funcionalidad o reportar algo del harness | `/rb-retro` |
 
 Si no sabes cuál aplica, describe lo que quieres. Rockbuilt propone el camino y tú confirmas.
@@ -144,9 +144,15 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 ## El merge
 
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
-(`rockbuilt-ci`) está en verde, el verifier y el auditor aprobaron el último commit, no hay
-interruptor de parada y la corrida tiene el candado. Los PRs se fusionan uno por uno, y después
-de cada merge el siguiente se actualiza y se vuelve a revisar.
+(`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
+el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
+Los PRs se fusionan uno por uno, y después de cada merge el siguiente se actualiza con `main`.
+
+Después de esa actualización no siempre se repite toda la revisión. Si el diff de la tarea quedó
+idéntico (solo entró lo nuevo de `main`), un verificador corto lo confirma y corre todas las
+pruebas otra vez, sin repetir al auditor. El gate no le cree al verificador: compara él mismo los
+diffs en GitHub antes de aceptar la revisión anterior del auditor. Si cambió cualquier cosa, la
+revisión completa se repite.
 
 Los PRs de nivel C los fusionas tú en GitHub, o le dices a Claude "haz merge del PR 12". Cada
 merge deja en el PR el comando para revertirlo.

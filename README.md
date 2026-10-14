@@ -92,6 +92,10 @@ real night it took a bug from an issue, reproduced it with a test, fixed it, had
 audited, and merged it in 14 minutes. The verifier sent it back once on the way, because the
 tests did not catch two of the bugs it planted.
 
+Merges go one at a time, so after each one the next PR is behind `main` and gets updated. If the
+update changed nothing in the task's own diff, a short check confirms that and runs the tests
+again, instead of repeating the whole review. If anything changed, the full review runs again.
+
 My computer stays out of it unless a step really needs it, like a local browser or credentials
 that only live on my machine. Those come labelled `rb:needs-local` with the exact commands.
 
@@ -149,6 +153,27 @@ not block, new ones do) and asks what you want to do first.
 Open a new session afterwards so the commands load, then continue with "let's start a project" or
 "adopt this repo". Locally, Rockbuilt can create the GitHub repository for you with `gh`.
 
+### Updating a project
+
+In a session on the project, say "update rockbuilt" (or run `/rockbuilt:install` again). It
+copies the new version into the repo in a PR. Read the [CHANGELOG](CHANGELOG.md): some versions
+ask for one manual step, like the routine prompt below.
+
+Every routine prompt ends with `[rockbuilt:unattended]` (since 0.4.0). That tag tells the hours
+report the message was not yours. Routines created before need it added by hand.
+
+### Settings in AGENTS.md
+
+Header lines at the top of the project's `AGENTS.md`. All have defaults.
+
+| Line | Default | What it does |
+|---|---|---|
+| `Autonomy: auto` | `auto` | `supervised` makes every PR wait for you |
+| `Parallel: auto` / `Max parallel: 3` | `auto`, 3 | Tasks with no shared files are built at the same time |
+| `Max tasks per run: 6` | 6 | How much one nightly run takes on |
+| `E2E shards: 3` | 1 | Splits the Playwright suite into that many CI jobs, each with its own 30 minute limit. Use it when the suite passes about 15 minutes. On a private repo each shard spends extra Actions minutes |
+| `Hours: local` | `github` (`local` on public repos) | Where your time marks go. Use `local` in a client's repo: the hours issue shows timestamps and branch names to anyone who can see the repo. `off` disables it |
+
 ### Talking to it
 
 You do not need the command names. These work in any session:
@@ -163,6 +188,8 @@ You do not need the command names. These work in any session:
 | "verify the feature" | `/rb-verify` (E2E, security, evals) |
 | "merge PR 12", "revert PR 12" | `/rb-merge` |
 | "where are we", "what happened last night" | `/rb-status` |
+| "hours report", "how many hours this month" | `/rb-status` (your hours per project, feature and task) |
+| "log 45 minutes of a client call on feature 02" | `/rb-status` (a manual time entry) |
 | "retro" | `/rb-retro` |
 
 ## Autonomy tiers
@@ -190,8 +217,11 @@ From strongest to weakest:
 
 1. **GitHub side.** `rockbuilt-ci` (verification, end-to-end tests when possible, gitleaks secret
    scan) and `rb merge-gate`, the only merge path. The gate checks: tier labels against the live
-   diff, reviewer verdicts on the exact head commit, a green CI run from GitHub Actions, the PR is
-   up to date with `main`, the stop switch is off, and the run holds the lock.
+   diff, reviewer verdicts on the exact head commit, a green CI run from GitHub Actions (and the
+   `rockbuilt-e2e` check when the project has end-to-end tests), the PR is up to date with
+   `main`, the stop switch is off, and the run holds the lock. After an update with `main`, the
+   auditor's verdict on the previous commit only counts if the gate itself confirms, through
+   GitHub, that the task's diff did not change; the verifier saying so is not enough.
 2. **Permissions.** Narrow allow rules in `.claude/settings.json`. No reading `.env` files, no
    force pushes, no `reset --hard`, no `rm -rf`.
 3. **Guard hook.** One Node script that every tool call goes through. It blocks pushes to `main`,
@@ -216,7 +246,7 @@ separate bot identity is on the [roadmap](docs/roadmap.md).
 | `CLAUDE.md` | `@AGENTS.md` plus notes for Claude Code |
 | `tools/rockbuilt/` | The `rb` CLI and the guard hook, with a `VERSION` file |
 | `.claude/skills/rb-*`, `.claude/agents/rb-*` | Skills and agents (Claude Code and Cursor read this path) |
-| `.claude/settings.json` | Permissions and the guard hook |
+| `.claude/settings.json` | Permissions, the guard hook and the two hooks that record your hours |
 | `.github/workflows/rockbuilt-ci.yml` | The CI the merge gate requires |
 | `docs/specs/`, `docs/adr/`, `docs/progress.md`, `.claude/LESSONS.md` | Specs, decisions, progress and lessons |
 | `.cursor/*` (`--tools cursor`), `.agents/skills`, `.codex/*` (`--tools codex`) | Adapters for other tools |
@@ -247,9 +277,10 @@ plugin is only the installer and updater: run `/rockbuilt:install` again to upda
 <summary>The rb CLI</summary>
 
 Deterministic steps live in a small Node CLI: `node tools/rockbuilt/rb.mjs <command>` in a project.
-Commands: `vendor`, `doctor`, `verify-cmds`, `baseline`, `tasks`, `parallel`, `worktree`,
-`timing`, `risk`, `sync`, `gh`, `merge-gate`, `revert`, `control`, `lock`, `stop`, `escalate`,
-`digest`, `protect`, `labels`. Every command accepts `--json`; `help` lists the flags.
+Commands: `vendor`, `doctor`, `verify-cmds`, `e2e-plan`, `baseline`, `tasks`, `parallel`,
+`worktree`, `timing`, `hours`, `risk`, `review-delta`, `sync`, `gh`, `merge-gate`, `revert`,
+`control`, `lock`, `stop`, `escalate`, `digest`, `protect`, `labels`. Every command accepts
+`--json`; `help` lists the flags.
 
 `rb doctor` checks the whole setup (contract, CI, permissions, labels, control issue, branch
 cleanup, deploy settings) and says what to fix.
@@ -267,6 +298,21 @@ Branch protection on a private repository needs GitHub Pro, 4 dollars a month. I
 it; the merge gate does the same job meanwhile. Any other cost, like a paid API or hosting, is a
 tier C decision and comes to me first.
 
+## Your hours
+
+I work on several projects at once, so a session clock lies: two hours jumping between three
+projects would count as six. Rockbuilt counts attention instead. Each message I write in a
+project session and each comment I leave on its GitHub issues and PRs is a mark with a time
+(only the time and the branch, never the text). Marks closer than 10 minutes form a block, and
+when two projects overlap in time the minutes are split between them. A call or anything that
+leaves no mark I add by hand ("log 45 minutes of a client call").
+
+"Hours report" gives a table per project, feature and task with my hours, the agents' minutes and
+two baselines: my own estimate of the feature without agents (asked when I approve the
+requirements) and the planner's estimate per task. It also gives a CSV; the hourly rate goes in
+my spreadsheet, never in the repo. It is an estimate, so before quoting with it I compare it with
+a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
+
 ## Status
 
 Version 0.5.0. Before trusting it I asked two separate agents, with no context on how it was
@@ -278,6 +324,11 @@ else both reviews found.
 Then I ran it against a private test repository with real GitHub and real CI, and later as a real
 scheduled routine. CI passes on Windows, macOS and Linux; the macOS run is how I found that the
 guard did nothing when the project path went through a symlink.
+
+Now it runs every night on a real project. Its nights decide what changes: in 0.5.0 the
+end-to-end suite stopped fitting in 30 minutes (now it runs in shards), five re-reviews in one
+night found nothing and cost 15 to 25 minutes each (now a short check when the diff did not
+change), and a few small bugs in labels and branch cleanup.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not
