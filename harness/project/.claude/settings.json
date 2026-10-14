@@ -14,6 +14,40 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/tools/rockbuilt/rb.mjs",
+              "hours",
+              "mark",
+              "--hook"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/tools/rockbuilt/rb.mjs",
+              "hours",
+              "flush",
+              "--hook"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
     ]
   },
   "permissions": {

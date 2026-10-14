@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 (2026-10-13)
+
+- **Your hours, per project, feature and task (`rb hours`).** A base to cost hours and an ROI
+  (DESIGN 22). It measures attention, not sessions: each prompt in a project session (a
+  `UserPromptSubmit` hook; time and branch only, never the text), each of your own comments on
+  the repo's issues and PRs, and manual entries (`rb hours log`). Marks less than 10 min apart form
+  a block with a 5 min tail; when projects overlap in time the minutes are split evenly, so two
+  hours jumping between three projects add up to two. Marks survive cloud sessions on a
+  `Rockbuilt hours` issue (one comment per session, edited in place by a `Stop` hook). Output:
+  Markdown and CSV, with agent minutes and two baselines side by side.
+- rb-spec asks the owner for the feature's baseline hours at requirements approval
+  (`Baseline: <h> h`); the planner adds a Human estimate per task, carried as `est=` in the PR
+  timing line (`rb timing line <id> --est <h>`).
+- `Hours: github | local | off` in the AGENTS.md header. Use `local` in a client's or a public
+  repo: the hours issue shows timestamps and branch names to anyone who can see the repo.
+- `/rb-status` answers "reporte de horas" and logs manual time on request.
+- Routine prompts end with `[rockbuilt:unattended]` (nightly: `Run /rb-cycle. [rockbuilt:unattended]`;
+  also the PR-audit prompt), so they do not count as your time. Update existing routines.
+
 ## 0.3.4 (2026-10-13)
 
 - **Timing survives cloud sessions.** The timing log is local and gitignored, so a cloud project

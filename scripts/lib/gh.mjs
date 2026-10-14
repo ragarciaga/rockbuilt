@@ -95,10 +95,10 @@ export function makeGh({ cwd = process.cwd(), repo = null, runner = null } = {})
       }
       return parseJson(r.stdout);
     },
-    // Follows page numbers until a short page (per_page 100, at most 20 pages).
-    paged(apiPath, params = {}, pick = (x) => x) {
+    // Follows page numbers until a short page (per_page 100, at most `maxPages` pages).
+    paged(apiPath, params = {}, pick = (x) => x, maxPages = 20) {
       const all = [];
-      for (let page = 1; page <= 20; page++) {
+      for (let page = 1; page <= maxPages; page++) {
         const data = client.api('GET', apiPath, { params: { ...params, per_page: 100, page } });
         const items = pick(data) || [];
         all.push(...items);
@@ -150,6 +150,7 @@ export function shapePr(p) {
     draft: Boolean(p.draft),
     merged: Boolean(p.merged || p.merged_at),
     merged_at: p.merged_at || null,
+    created_at: p.created_at || null,
     merge_commit_sha: p.merge_commit_sha || null,
     mergeable: p.mergeable === undefined ? null : p.mergeable,
     mergeable_state: p.mergeable_state || null,
@@ -193,14 +194,39 @@ export const ops = {
   issueComments(c, n) {
     return c.paged(`{repo}/issues/${num(n)}/comments`).map(shapeComment);
   },
+  // Edits a comment in place (no notification). Used for the per-session attention comment.
+  commentEdit(c, id, body) {
+    return shapeComment(c.api('PATCH', `{repo}/issues/comments/${num(id)}`, { body: { body } }));
+  },
+  // Every issue and PR comment in the repo (or review comments with review=true), with the issue
+  // or PR number it belongs to.
+  repoComments(c, { since = null, review = false } = {}) {
+    const p = review ? '{repo}/pulls/comments' : '{repo}/issues/comments';
+    // A busy repo (lock, unlock and digest comments every night) passes 2000 comments quickly.
+    return c.paged(p, since ? { since } : {}, (x) => x, 200).map((x) => {
+      const url = String(x.issue_url || x.pull_request_url || '');
+      const n = Number((url.match(/\/(\d+)$/) || [])[1]) || null;
+      return { ...shapeComment(x), number: n };
+    });
+  },
+  // owner/name of the repos where `login` opened a "<title>" issue (REST search).
+  reposWithIssueTitled(c, login, title) {
+    const q = `in:title "${title}" author:${login} is:issue`;
+    const d = c.api('GET', 'search/issues', { params: { q, per_page: 100 } }) || {};
+    const repos = (d.items || [])
+      .filter((i) => i.title === title)
+      .map((i) => String(i.repository_url || '').replace(/^.*\/repos\//, ''))
+      .filter(Boolean);
+    return [...new Set(repos)].sort();
+  },
   issueView(c, n) {
     const i = shapeIssue(c.api('GET', `{repo}/issues/${num(n)}`));
     return { ...i, comments: ops.issueComments(c, n) };
   },
-  issueList(c, { labels = [], state = 'open' } = {}) {
+  issueList(c, { labels = [], state = 'open', maxPages = 20 } = {}) {
     const params = { state };
     if (labels.length) params.labels = labels.join(',');
-    return c.paged('{repo}/issues', params).filter((i) => !i.pull_request).map(shapeIssue);
+    return c.paged('{repo}/issues', params, (x) => x, maxPages).filter((i) => !i.pull_request).map(shapeIssue);
   },
   labelAdd(c, n, labels) {
     if (!labels.length) throw new CliError('no labels given', 2);
@@ -255,8 +281,8 @@ export const ops = {
   prView(c, n) {
     return shapePr(c.api('GET', `{repo}/pulls/${num(n)}`));
   },
-  prList(c, { state = 'open', headPrefix = null } = {}) {
-    const all = c.paged('{repo}/pulls', { state }).map(shapePr);
+  prList(c, { state = 'open', headPrefix = null, maxPages = 20 } = {}) {
+    const all = c.paged('{repo}/pulls', { state }, (x) => x, maxPages).map(shapePr);
     return headPrefix ? all.filter((p) => p.head && p.head.ref.startsWith(headPrefix)) : all;
   },
   prFiles(c, n) {

@@ -133,7 +133,7 @@ export function handle(s, method, fullPath, body) {
   const q = new URLSearchParams(qs);
   const pre = `repos/${REPO}/`;
   if (p === 'user' && method === 'GET') return ok({ login: s.user, name: 'Bot' });
-  if (p === `repos/${REPO}` && method === 'GET') return ok({ full_name: REPO, private: true, default_branch: 'main', delete_branch_on_merge: Boolean(s.deleteBranchOnMerge) });
+  if (p === `repos/${REPO}` && method === 'GET') return ok({ full_name: REPO, private: !s.public, default_branch: 'main', delete_branch_on_merge: Boolean(s.deleteBranchOnMerge) });
   if (!p.startsWith(pre)) return err(404, 'Not Found');
   const r = p.slice(pre.length);
   let m;
@@ -163,6 +163,20 @@ export function handle(s, method, fullPath, body) {
       return ok(c, 201);
     }
     return ok(page(s.comments[m[1]], q));
+  }
+  if (r === 'issues/comments' && method === 'GET') {
+    const since = q.get('since');
+    const list = Object.entries(s.comments).flatMap(([n, cs]) => cs.map((c) => ({ ...c, issue_url: `https://api.github.com/repos/${REPO}/issues/${n}` })))
+      .filter((c) => !since || String(c.created_at) >= since).sort((a, b) => a.id - b.id);
+    return ok(page(list, q));
+  }
+  if (r === 'pulls/comments' && method === 'GET') return ok(page(s.reviewComments || [], q));
+  if ((m = r.match(/^issues\/comments\/(\d+)$/)) && method === 'PATCH') {
+    const c = Object.values(s.comments).flat().find((x) => x.id === Number(m[1]));
+    if (!c) return err(404, 'Not Found');
+    c.body = body.body;
+    s.edits = (s.edits || 0) + 1;
+    return ok(c);
   }
   if ((m = r.match(/^issues\/(\d+)\/labels$/)) && method === 'POST') {
     const i = s.issues[m[1]];

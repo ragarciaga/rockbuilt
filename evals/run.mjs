@@ -237,6 +237,11 @@ export function runCheck(check, ctx) {
       const hit = producedTexts(ws, startHead).find((t) => re.test(t.text));
       return { ok: Boolean(hit), detail: hit ? hit.file : `no match for /${check.pattern}/` };
     }
+    case 'bashIncludes': {
+      const re = toRegExp(check.pattern);
+      const hit = d.bash.find((c) => re.test(c));
+      return { ok: Boolean(hit), detail: hit || `no command matching /${check.pattern}/` };
+    }
     case 'bashExcludes': {
       const re = toRegExp(check.pattern);
       const hit = d.bash.filter((c) => re.test(c));

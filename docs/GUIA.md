@@ -186,8 +186,44 @@ Ten en cuenta que 3 agentes en paralelo consumen el límite del plan 3 veces má
 ## Tiempos
 
 Cada tarea registra cuánto tardó en planear, implementar, verificar, auditar y corregir. La tabla
-queda al final de `docs/progress.md` y el resumen nocturno incluye el tiempo por tarea. Sirve
-para cotizar proyectos con datos reales.
+queda al final de `docs/progress.md` y el resumen nocturno incluye el tiempo por tarea. Ese es
+el tiempo de la máquina, no el tuyo.
+
+## Tus horas (para costear y para el ROI)
+
+Di "reporte de horas" (o "cuántas horas llevo en este proyecto", con un periodo si quieres) y
+sale una tabla por proyecto, por feature y por tarea con:
+
+- **Tus horas.** Se estiman por atención: cada mensaje que le escribes a Claude en ese repo y
+  cada comentario tuyo en sus issues y PRs dejan una marca con la hora. Las marcas a menos de 10
+  minutos se unen en un bloque, y el bloque termina 5 minutos después de la última. Si en el mismo
+  rato tocaste dos o tres proyectos, ese tiempo se reparte entre ellos, así que dos horas saltando
+  entre tres proyectos suman dos horas y no seis.
+- **Minutos del agente** por tarea.
+- **Línea base:** la tuya por feature (te la pregunto cuando apruebas los requisitos: cuántas
+  horas te tomaría sin agentes) y la del planner por tarea, una al lado de la otra.
+
+Lo que no deja marca (una llamada con el cliente, una sesión en el tablero) lo agregas diciendo,
+por ejemplo, "anota 45 minutos de llamada con el cliente en la feature 02". La tarifa por hora
+nunca va en el repo: pide el CSV y haz la cuenta en tu hoja de cálculo.
+
+Las marcas viven en el issue `Rockbuilt hours` de cada repo (un comentario por sesión). Nunca se
+guarda el texto de tus mensajes, solo la hora y la rama. La rutina nocturna no cuenta como tiempo
+tuyo porque su prompt lleva la etiqueta `[rockbuilt:unattended]`; cualquier otra rutina que crees
+debe llevarla también.
+
+**Repos de clientes o públicos.** Quien vea el repo ve ese issue (horas y nombres de rama), y
+quien lo siga recibe un aviso por cada sesión nueva. En un repo de cliente pon `Hours: local` en
+la cabecera de `AGENTS.md`: las marcas y lo que anotes a mano quedan solo en tu computador (en la
+nube se pierden al cerrar la sesión). En un repo público eso pasa solo, salvo que pongas
+`Hours: github`. `Hours: off` lo apaga. Solo cuentan tus comentarios: si otra persona usa
+Rockbuilt en el mismo repo, sus horas no se suman a las tuyas.
+
+Para que el reparto entre proyectos funcione, el reporte tiene que ver todos tus proyectos a la
+vez. Desde tu computador los encuentra solo. En una sesión en la nube solo ve los repos que le
+agregaste a esa sesión: agrégalos todos o pídelo desde tu computador.
+
+Antes de cotizar con estas cifras, calibra: lleva tus horas a mano una semana y compara.
 
 ## Archivos que verás en tu proyecto
 

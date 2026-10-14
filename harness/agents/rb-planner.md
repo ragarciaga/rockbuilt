@@ -125,6 +125,11 @@ Claims this change falsifies is updated or deleted.")
 ## Size
 S | M | L, with one sentence of justification.
 
+## Human estimate
+<hours> h: how long one competent developer would take for this task without agents (reading,
+coding, testing, review). It is a baseline for cost reports (`rb hours`), never a deadline; give
+one number, not a range.
+
 ## Affected files
 - src/a.ts: <what changes>
 - src/a.test.ts: <what is tested>

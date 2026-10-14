@@ -306,9 +306,10 @@ All four live in GitHub so they survive a fresh cloud clone.
 ## 10. Cloud routines
 
 - **Nightly cycle:** a Claude Code routine with a schedule trigger (default 01:07 local time), on
-  the project repo, prompt `Run /rb-cycle.` The routine runs on the user's subscription.
+  the project repo, prompt `Run /rb-cycle. [rockbuilt:unattended]` The routine runs on the user's subscription.
 - **PR audit (optional):** a routine with a pull_request trigger on `rb/*` branches that runs the
-  blind auditor in a fresh session, for an extra independent check.
+  blind auditor in a fresh session, for an extra independent check. Every routine prompt ends
+  with `[rockbuilt:unattended]` (section 22).
 - **Environment:** setup script `npm ci` (and `npx playwright install chromium` when it succeeds);
   network level Trusted, plus the project's hosts when E2E needs them. No secrets in environment
   variables; credentials go through the cloud API-credentials feature or stay local.
@@ -569,6 +570,16 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    `<!-- rockbuilt:timing task=<id> ... -->` (`rb timing line <id>`), `rb timing report` rebuilds
    the table from progress.md, those PR lines and the local log (freshest wins), and rb-build
    always publishes bookkeeping at run end when it changed.
+14. 2026-10-13, owner request: a time report to cost hours and base an ROI on. What existed
+   measured only agent minutes per phase; nothing measured the owner, who works on several
+   projects at once, so a session clock would count the same two hours three times. Section 22
+   (rb hours): attention marks from prompts (hook), the owner's own GitHub comments and manual
+   entries, blocks with a gap and a tail, overlaps between repos split evenly; feature baseline
+   from the owner at requirements approval and a planner estimate per task in the PR timing line.
+   A blind review before merge found: marks could land in another attached repo (shell cwd), manual
+   entries were halved by overlapping marks, parts could pass GitHub's comment size limit and
+   fail forever, retried tasks doubled the estimate, a busy repo hid comments past 2000, two
+   hours issues hid one, and repo names compared case-sensitively. All fixed with tests.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -584,7 +595,8 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `tasks <spec-dir>` | Parse tasks.md strictly (Spanish synonyms accepted), coverage vs requirements |
 | `parallel <spec-dir> [--ids] [--max]` | Disjoint batches |
 | `worktree add|remove|list` | As in v0.2 |
-| `timing start|end <task> <phase> \| line <task> \| report [--write]` | Phase minutes; `line` prints the PR machine line; `report` merges progress.md, rb/* PR bodies and the local log |
+| `timing start|end <task> <phase> \| line <task> [--est <hours>] \| report [--write]` | Phase minutes; `line` prints the PR machine line (with the planner's Human estimate as `est=`); `report` merges progress.md, rb/* PR bodies and the local log |
+| `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
@@ -615,5 +627,58 @@ PR body machine lines (each on its own line):
 `<!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->`,
 `<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=pass head=<sha> -->`,
 `<!-- rockbuilt:security required -->` when the security review applies,
-`<!-- rockbuilt:tier <A|B|C> -->`, and `<!-- rockbuilt:timing task=<id> <phase>=<minutes> ... -->`
+`<!-- rockbuilt:tier <A|B|C> -->`, and `<!-- rockbuilt:timing task=<id> <phase>=<minutes> ... [est=<hours>] -->`
 (informational; the gate ignores it).
+
+## 22. Attention hours (rb hours)
+
+Purpose: a base to cost the owner's hours and an ROI, per project, feature and task. Agent
+minutes (section 21, `rb timing`) say where machine time goes; they are not billable time.
+
+- **What is measured.** Attention, not sessions. A mark is a moment the owner touched a project:
+  each prompt in a Claude Code session of that repo (`UserPromptSubmit` hook, `rb hours mark
+  --hook`: UTC time, session id and branch; the prompt text is never stored). The project is
+  `CLAUDE_PROJECT_DIR` (never the shell's cwd, which may sit in another attached repo), and a
+  repo without `tools/rockbuilt/rb.mjs` is never written. Also each of the owner's
+  own comments on its issues and PRs (comments with a `<!-- rockbuilt:` marker are the harness
+  and are skipped), and manual entries (`rb hours log`) for work that leaves no mark.
+- **Durability.** Marks live in `.rockbuilt/attention.jsonl` (gitignored) and the `Stop` hook
+  (`rb hours flush --hook`) copies them after every reply to one comment per session on the
+  repo's open `Rockbuilt hours` issue: edited in place, only the parts that changed, split by
+  lines (900) and size (50,000 characters, under GitHub's 65,536 limit). State is one file per
+  session (`.rockbuilt/attention-state/`), written after every API write. The issue rotates at
+  1500 comments; the report reads every hours issue, open or closed. Edits are silent, but
+  creating the issue and each session's first comment notify watchers of the repo.
+- **Where it goes.** AGENTS.md header `Hours: github` | `local` (marks and `rb hours log`
+  entries stay on the machine, `.rockbuilt/attention*.jsonl`: right for a client's repo, where
+  timestamps and branch names would be visible; lost with a cloud container) | `off`. Unset means
+  `github` on a private repo and `local` on a public one (checked at a session's first flush).
+- **Whose time.** Only comments by the owner (`whoami`) on hours issues the owner opened count:
+  collaborators run the same hooks, and on a public repo anyone can post a fake manual entry.
+- Hooks print nothing, never fail the session and skip the 10 s GitHub retry. A prompt carrying
+  `[rockbuilt:unattended]` is not a mark: every routine prompt ends with it (section 10).
+- **Arithmetic.** Per repo, marks closer than `gap` (10 min) chain; a mark owns the time until the
+  next one, the last one in a block owns `tail` (5 min). Segments of different repos that overlap
+  in time share it evenly (k segments, 1/k each; a sweep line), so jumping between three projects
+  for two hours adds up to two hours. Manual entries (ending at `--at`) are added in full, never
+  split: they are time the owner states outright.
+- **Attribution.** Branch `rb/<id>-...` or issue/PR number -> the `<!-- rockbuilt:task <id>
+  spec=<dir> -->` marker of its issue or PR; a task id alone (branch before its PR, manual
+  `--ref`) takes the spec when only one spec has that id; `rb/spec-<NN-slug>` is the feature's
+  spec work, `rb/verify-<slug>` the spec whose folder ends in the slug; anything else is
+  `(general)` of the repo (including attended work while the session sits on the default branch
+  during parallel builds in worktrees). Agent minutes and `est=` come from the newest PR of each
+  task: a retry `-r<k>` in the same checkout repeats them cumulatively; a retry on another night
+  (fresh container) carries only its own attempt, so those minutes under-count.
+- **Baselines.** The owner's number per feature (`Baseline: <h> h` in requirements.md, asked at
+  requirements approval) and the planner's Human estimate per task (`est=` in the PR timing
+  line). Both are shown side by side; the owner's number is the one to defend.
+- **Report.** Markdown (features, tasks, the method) and CSV (`--csv`). Repos: `--repos`, else
+  every repo where the owner opened a `Rockbuilt hours` issue (REST search) plus the current one.
+  A cloud session reaches only the repos attached to it and its proxy refuses search (seen live
+  2026-10-13), so there the report covers the current repo and says so; the cross-project split
+  needs `--repos` with every project attached, or a run from the owner's computer.
+  The hourly rate is never stored in a repo; it belongs in the owner's spreadsheet.
+- **Known limits.** Thinking without touching anything and work in repos outside the report are
+  invisible; a pause longer than `gap` inside a task splits it. Calibrate `gap` and `tail` against
+  a week of hand-kept hours before quoting the numbers.

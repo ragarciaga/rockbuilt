@@ -128,7 +128,7 @@ Do these once per project, in this order:
       the brief and the architecture decisions, creates the labels and the control issue, and
       opens the kickoff PR. You merge that one.
 - [ ] **Create the nightly routine**: a scheduled routine on the repo with the prompt
-      `Run /rb-cycle.`, notifications on. Step by step in [docs/CLOUD.md](docs/CLOUD.md).
+      `Run /rb-cycle. [rockbuilt:unattended]`, notifications on. Step by step in [docs/CLOUD.md](docs/CLOUD.md).
 - [ ] **Specify the first feature** in a short session: "new feature: ..." (or `/rb-spec`).
       From then on the routine builds every night.
 
@@ -269,7 +269,7 @@ tier C decision and comes to me first.
 
 ## Status
 
-Version 0.3.4. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.4.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
