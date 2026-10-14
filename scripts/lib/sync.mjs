@@ -4,7 +4,7 @@ import path from 'node:path';
 import { holdsLock } from './control.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
-import { currentBranch } from './repo.mjs';
+import { currentBranch, defaultBranch } from './repo.mjs';
 import { exists, git, readText, slugify, toPosix } from './util.mjs';
 
 export function specDirs(root) {
@@ -52,9 +52,12 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   for (const s of specs) s.parsed = parseTasks(s.text);
 
   let merged = [];
+  let openPrs = [];
+  let issueSpec = new Map();
   if (c) {
     try {
       merged = ops.prList(c, { state: 'closed' }).filter((p) => p.merged_at);
+      openPrs = ops.prList(c, { state: 'open' });
     } catch (e) {
       result.github = `skipped: ${e.message}`;
       c = null;
@@ -63,10 +66,27 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
     result.github = 'skipped: no GitHub access';
   }
 
+  // Task issues carry `<!-- rockbuilt:task <id> spec=<dir> -->`; a PR body without its own marker
+  // still says `Closes #n`, which names the spec when the id repeats across specs. Best effort.
+  if (c) {
+    try {
+      for (const i of ops.issueList(c, { state: 'all' })) {
+        const m = String(i.body || '').match(/<!--\s*rockbuilt:task\s+(\S+?)(?:\s+spec=(\S+?))?\s*-->/);
+        if (m && m[2] && m[2] !== 'none') issueSpec.set(i.number, { id: m[1].toUpperCase().startsWith('T') ? m[1].toUpperCase() : m[1], spec: m[2].replace(/\/+$/, '') });
+      }
+    } catch (e) {
+      result.github = `partial: ${e.message}`;
+    }
+  }
+
   // Tasks done from merged PRs.
   for (const pr of merged) {
     const ref = taskRefFromPr(pr);
     if (!ref) continue;
+    if (!ref.spec) {
+      const closes = [...String(pr.body || '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map((m) => issueSpec.get(Number(m[1]))).filter((x) => x && x.id === ref.id);
+      if (closes.length) { ref.spec = closes[0].spec; ref.via = `${ref.via}+issue`; }
+    }
     let cands = specs.filter((s) => s.parsed.tasks.some((t) => t.id === ref.id));
     if (ref.spec) cands = cands.filter((s) => s.rel === ref.spec || s.rel.endsWith(`/${path.posix.basename(ref.spec)}`));
     if (cands.length > 1 && ref.slug) {
@@ -95,20 +115,28 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   }
   for (const s of specs) if (s.dirty) writeFileSync(path.join(s.dir, 'tasks.md'), s.text);
 
-  // Merged local rb/* branches: git branch -d; squash-merged ones only when the tip equals the PR head.
+  // Local rb/* branches of merged PRs: deleted only when the tip equals the merged PR head, or the
+  // branch is contained in the default branch. Never `git branch -d` alone: it also accepts a
+  // branch merged into its own upstream, which is every pushed branch of an open PR (3d_brain,
+  // 2026-10-14). A branch with an open PR is always kept.
   const cur = currentBranch(root);
+  const openHeads = new Set(openPrs.filter((p) => p.head).map((p) => p.head.ref));
+  const base = (() => {
+    const d = defaultBranch(root);
+    for (const ref of [`refs/remotes/origin/${d}`, `refs/heads/${d}`]) if (git(root, ['rev-parse', '--verify', '--quiet', ref]).ok) return ref;
+    return null;
+  })();
   const wt = git(root, ['worktree', 'list', '--porcelain']).stdout.split(/\r?\n/).filter((l) => l.startsWith('branch ')).map((l) => l.slice(7).replace(/^refs\/heads\//, ''));
   const heads = new Map(merged.filter((p) => p.head).map((p) => [p.head.ref, p.head.sha]));
   const branches = git(root, ['for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/heads/rb/']).stdout.split(/\r?\n/).filter(Boolean);
   for (const line of branches) {
     const [b, sha] = line.split(' ');
     if (b === cur || wt.includes(b)) { result.branches.kept.push({ branch: b, reason: 'checked out' }); continue; }
-    const d = git(root, ['branch', '-d', b]);
-    if (d.ok) { result.branches.deleted.push({ branch: b, how: 'merged' }); continue; }
-    if (heads.get(b) && heads.get(b) === sha) {
-      const u = git(root, ['update-ref', '-d', `refs/heads/${b}`, sha]);
-      if (u.ok) { result.branches.deleted.push({ branch: b, how: 'squash-merged (tip equals the merged PR head)' }); continue; }
-    }
+    if (openHeads.has(b)) { result.branches.kept.push({ branch: b, reason: 'open PR' }); continue; }
+    let how = null;
+    if (heads.get(b) && heads.get(b) === sha) how = 'squash-merged (tip equals the merged PR head)';
+    else if (base && git(root, ['merge-base', '--is-ancestor', sha, base]).ok) how = 'merged into the default branch';
+    if (how && git(root, ['update-ref', '-d', `refs/heads/${b}`, sha]).ok) { result.branches.deleted.push({ branch: b, how }); continue; }
     result.branches.kept.push({ branch: b, reason: 'not merged' });
   }
 

@@ -169,6 +169,12 @@ Después de que el esqueleto instale las dependencias:
 Cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR. En la nube, si no hay
 navegador, esa tarea queda con `rb:needs-local` y los comandos para correrlas en tu computador.
 
+**Cuando la suite crece.** El CI le da 30 minutos a cada corrida de E2E. Si tu suite pasa de unos
+15 minutos, agrega en la cabecera de `AGENTS.md` la línea `E2E shards: 2` (o 3, hasta 8). El CI la
+parte en ese número de trabajos en paralelo, cada uno con su propio límite de 30 minutos, y el
+check `rockbuilt-e2e` sale en verde solo si todos pasan. En un repo público no cuesta nada; en uno
+privado gasta más minutos de Actions, porque cada parte repite la instalación.
+
 ## Cursor y Codex
 
 Si usas Cursor, elige `cursor` al instalar. Cursor lee `AGENTS.md`, los skills y los agentes del

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 (2026-10-14)
+
+From the 3d_brain nights of 2026-10-14 (DESIGN 20.15).
+
+- **E2E in shards.** The header `E2E shards: <1-8>` in AGENTS.md (default 1) splits the Playwright
+  suite into that many CI jobs (`--shard=i/n`), each with its own 30 min limit. A plan job reads
+  AGENTS.md and the `rockbuilt-e2e` job keeps the single check name: green only when every shard
+  is. New `rb e2e-plan` and `rb verify-cmds E2E --shard i/n`. Public repos run Actions free; on a
+  private repo each shard repeats setup and spends more Actions minutes.
+- **Light re-review after update-branch** (DESIGN 8.3). `rb review-delta` checks that the task diff
+  against the new base is byte-identical to the reviewed one; then only the verifier runs, in
+  identity mode (full Verification, no mutation probe), and its line carries `identical-to=<old
+  head>`. The gate accepts the auditor and security lines on that old head only after confirming
+  the identity itself through the GitHub compare API. Any difference: full re-review.
+- With an `## E2E` section the gate also requires a successful `rockbuilt-e2e` check run (shard
+  jobs start late; "every present check is green" could be read before they exist).
+- `rb gh` rejects unknown flags instead of ignoring them; `issue-edit` takes `--add-label` and
+  `--remove-label`.
+- `rb gh pr-create` adds `rb:tier-x` from the body's `<!-- rockbuilt:tier X -->` when `--label`
+  has no tier, and refuses a lower one.
+- `rb sync` reads the spec from the closed task issue when an id (T1, T2...) exists in several
+  specs, and never deletes the local branch of an open PR (it used `git branch -d`, which also
+  accepts a branch merged into its own upstream). The PR template repeats the task marker.
+- The auditor never runs in the directory the verifier is mutating: after it, or in its own
+  detached copy (`audit.md`, "Own copy").
+
 ## 0.4.0 (2026-10-13)
 
 - **Your hours, per project, feature and task (`rb hours`).** A base to cost hours and an ROI

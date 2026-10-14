@@ -167,7 +167,10 @@ Record `git rev-parse HEAD` as the reviewed head. `--hard` is denied and never n
   implementer report, `git diff origin/<default>...HEAD --stat`, the default branch, the working
   directory, `Docs language`, `Dispatch attempt: <k>`.
 - **Blind auditor** (tiers B and C), after the verifier passes: follow `references/audit.md`
-  (start the app, the exact prompt, what never goes in it, how to read the verdict).
+  (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
+  at the same time as the verifier in the same directory: the verifier's mutation probe edits
+  files the auditor would observe. To overlap them, give the auditor its own copy
+  (`audit.md`, "Own copy").
 - **Security reviewer** when the plan's Risk and cost or Risks flag auth, permissions, payments,
   personal data, secrets, file upload or external input, or the verifier lists security flags:
   `Mode: task`, task id, spec folder (or `none`), diff range `origin/<default>...HEAD`, the
@@ -182,7 +185,9 @@ Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<i
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>
---base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:tier-<x>[,rb:hold]`.
+--base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:tier-<x>[,rb:hold]`
+(the body's `<!-- rockbuilt:tier X -->` line also sets the label when `--label` has none; the gate
+refuses a PR without its tier label).
 Then `rb gh label-add <n> rb:pr-open` and `rb gh label-remove <n> rb:in-progress`. File the plan's
 justified Follow-ups as issues without `rb:task` (`rb gh issue-create`), list them in the PR.
 

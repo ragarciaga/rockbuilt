@@ -135,7 +135,8 @@ head. Then, serially:
 - `rb-auditor` (blind, tier B and C) with ONLY the inputs of build step 9: task id, reviewed head,
   working directory, the bug's Expected and Steps from the issue as the criteria (plus the manual
   script when the repro is manual), how to run the app from AGENTS.md. Never the plan, the
-  reports, the verifier verdict or the diff.
+  reports, the verifier verdict or the diff. After the verifier, or in its own copy
+  (rb-build `references/audit.md`, "Own copy"): never in the directory the verifier is mutating.
 - `rb-security-reviewer` when the plan flags auth, permissions, payments, personal data, secrets,
   file upload or external input: `Mode: task`, spec folder `none`, the bug report, diff range
   `origin/<default>...HEAD`, the triggers, `.claude/skills/rb-verify/references/security.md`,

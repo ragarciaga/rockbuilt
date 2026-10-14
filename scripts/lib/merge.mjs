@@ -5,6 +5,7 @@ import path from 'node:path';
 import { holdsLock, stopStatus } from './control.mjs';
 import { ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
+import { readContract } from './contract.mjs';
 import { computeRisk, maxTier, tierRank } from './risk.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
 
@@ -14,6 +15,17 @@ export const CI_CHECK = 'rockbuilt-ci';
 
 // The CI evidence must be a check run created by GitHub Actions and concluded success. A commit status
 // with the same name proves nothing: any token with repo access can post one.
+// With an `## E2E` section the `rockbuilt-e2e` check must exist and pass: since E2E runs in shards
+// behind a plan job, its check runs appear late, and "every present check is green" alone could
+// be read before they exist.
+export const E2E_CHECK = 'rockbuilt-e2e';
+function e2eRequired(root, checks, no) {
+  const { text } = readContract(root);
+  if (!/^##\s+E2E\s*$/m.test(text || '')) return;
+  const ok = checks.some((x) => x.name === E2E_CHECK && x.source === 'check-run' && x.app === 'github-actions' && x.status === 'completed' && x.conclusion === 'success');
+  if (!ok) no('e2e', `no successful ${E2E_CHECK} check run on the head (AGENTS.md has ## E2E)`);
+}
+
 export function ciPassed(checks) {
   return checks.some((x) => (x.name === CI_CHECK || x.name.startsWith(`${CI_CHECK} `) || x.name.startsWith(`${CI_CHECK}/`))
     && x.source === 'check-run' && x.app === 'github-actions' && x.status === 'completed' && x.conclusion === 'success');
@@ -23,7 +35,7 @@ export function ciPassed(checks) {
 export function parseBody(body) {
   const status = {};
   for (const m of String(body || '').matchAll(/<!--\s*rockbuilt:status\s+([^>]*?)\s*-->/g)) {
-    const kv = Object.fromEntries([...m[1].matchAll(/(\w+)=(\S+)/g)].map((x) => [x[1], x[2]]));
+    const kv = Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\S+)/g)].map((x) => [x[1], x[2]]));
     if (kv.stage) status[kv.stage] = kv;
   }
   const tier = (String(body || '').match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
@@ -34,6 +46,43 @@ export function parseBody(body) {
 
 function shaMatches(given, head) {
   return Boolean(given && head && given.length >= 7 && head.toLowerCase().startsWith(given.toLowerCase()));
+}
+
+// Two SHAs (either may be abbreviated, 7+ chars) name the same commit.
+function sameSha(a, b) {
+  if (!a || !b || a.length < 7 || b.length < 7) return false;
+  const x = a.toLowerCase();
+  const y = b.toLowerCase();
+  return x.startsWith(y) || y.startsWith(x);
+}
+
+// Normalized patch set of base...head from the GitHub compare API, or null when it cannot be
+// compared reliably: any file without a patch (binary, mode-only, too large; GitHub reports some of
+// them with changes 0) or 300 files (the API truncates). The blob sha pins the file content.
+function patchSet(c, base, head) {
+  const d = ops.compareFiles(c, base, head);
+  if (d.truncated) return null;
+  const out = [];
+  for (const f of d.files) {
+    if (typeof f.patch !== 'string' && f.status !== 'removed') return null;
+    out.push(`${f.status}\u0000${f.previous || ''}\u0000${f.filename}\u0000${f.sha || ''}\u0000${f.patch || ''}`);
+  }
+  return out.sort();
+}
+
+// DESIGN 8.3: after a clean update-branch, the task's diff against the new base equals the diff the
+// reviewers saw (old head against its own base). Computed by the gate, not taken from the verifier.
+export function reviewedDiffIdentical(c, baseRef, reviewedHead, head) {
+  try {
+    const before = patchSet(c, baseRef, reviewedHead);
+    const after = patchSet(c, baseRef, head);
+    if (!before || !after) return { identical: false, detail: 'diff too large or binary to compare' };
+    if (before.length !== after.length) return { identical: false, detail: `${before.length} file(s) reviewed, ${after.length} now` };
+    for (let i = 0; i < before.length; i++) if (before[i] !== after[i]) return { identical: false, detail: `differs in ${after[i].split('\u0000')[2]}` };
+    return { identical: true, detail: `${after.length} file(s), identical patches` };
+  } catch (e) {
+    return { identical: false, detail: `compare failed: ${e.message}` };
+  }
 }
 
 // PR kinds that carry no reviewer lines (DESIGN 8.1). Bookkeeping may merge unattended when it only
@@ -160,13 +209,24 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   const need = ['rb-verifier'];
   if (tierRank(tier) >= 1) need.push('rb-auditor');
   if (body.security) need.push('rb-security-reviewer');
+  // A verifier pass on the current head may certify `identical-to=<sha>`: the head only merged the
+  // base and the task diff is unchanged. Auditor and security lines on that older head then still
+  // hold, once the gate itself confirms the identity through the compare API (DESIGN 8.3).
+  const ver = body.status['rb-verifier'];
+  const identicalTo = ver && ver.outcome === 'pass' && shaMatches(ver.head, head) && ver['identical-to'] ? ver['identical-to'] : null;
+  let identity = null;
   for (const stage of need) {
     const s = body.status[stage];
     if (!s) no('status-line', `missing ${stage} line`);
     // needs-local: the auditor could not observe a criterion in the cloud; the human checked it on
     // their machine and asked for the merge in the current conversation.
     else if (s.outcome !== 'pass' && !(stage === 'rb-auditor' && s.outcome === 'needs-local' && humanApproved)) no('status-line', `${stage} outcome=${s.outcome}`);
-    else if (!shaMatches(s.head, head)) no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
+    else if (!shaMatches(s.head, head)) {
+      if (stage !== 'rb-verifier' && identicalTo && sameSha(s.head, identicalTo)) {
+        if (!identity) identity = reviewedDiffIdentical(c, view.base.ref, identicalTo, head);
+        if (!identity.identical) no('stale-head', `${stage} reviewed ${s.head}; the verifier says the diff is identical, but the gate does not confirm it (${identity.detail}): full re-review`);
+      } else no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
+    }
   }
 
   // 5. Checks on the head SHA, rockbuilt-ci among them.
@@ -177,6 +237,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
     no('checks', `could not read checks: ${e.message}`);
   }
   if (!ciPassed(checks)) no('ci', `no successful ${CI_CHECK} check run from GitHub Actions on ${String(head).slice(0, 7)}: no CI, no automatic merge`);
+  e2eRequired(root, checks, no);
   for (const x of checks) {
     if (x.status !== 'completed') no('checks', `${x.name} is ${x.status}`);
     else if (!OK_CONCLUSIONS.includes(x.conclusion)) no('checks', `${x.name} concluded ${x.conclusion}`);

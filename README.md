@@ -269,7 +269,7 @@ tier C decision and comes to me first.
 
 ## Status
 
-Version 0.4.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.5.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything

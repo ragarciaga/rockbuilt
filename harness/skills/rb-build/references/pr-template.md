@@ -54,6 +54,7 @@ issues filed: #a, #b.>
 ## Decision log
 - <date>: <key decisions incl. RESOLVED ones>, because <reason>.
 
+<!-- rockbuilt:task <id> spec=<docs/specs/NN-slug | none> -->
 <!-- rockbuilt:tier <A|B|C> -->
 <!-- rockbuilt:timing task=<id> plan=<min> implement=<min> ... -->
 <!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
@@ -68,8 +69,13 @@ Rules:
   from the final passing verdicts. Tier A carries no auditor line. The two security lines appear
   only when the security review applies (then both are required). `rb merge-gate` compares every
   `head=` with the PR head.
+- The task line repeats the task issue's marker: `rb sync` uses it to mark the right task done
+  when an id like T1 exists in several specs.
 - Replace, never append, after a re-review (CI fix, update-branch re-review): the body describes
-  the tree the head commit carries. Apply edits with `rb gh issue-edit <pr> --body-file <f>`.
+  the tree the head commit carries. After a light re-review (identical diff) only the verifier line
+  changes; the auditor and security lines keep their `head=`. Apply edits with
+  `rb gh issue-edit <pr> --body-file <f>` (labels: `--add-label` / `--remove-label`, or
+  `rb gh label-add`).
 - `Closes #n` only when the PR completes the task; a deliberate partial PR says `Part of #n`.
 - Numbers come from command output you ran in the mechanical check, never from memory.
 - Bug PRs (rb-fix): Problem is expected vs actual; Criteria start with "the reproduction test

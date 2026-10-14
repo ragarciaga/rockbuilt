@@ -48,6 +48,9 @@ npm run build
 # Delete this section if the project has no browser flows.
 npm run test:e2e
 ```
+When the suite passes about 15 minutes in CI, add the header line `E2E shards: 2` (up to 8): CI
+then runs it in that many parallel jobs, each with `--shard=i/n` (public repos run Actions free;
+private ones spend more Actions minutes, each shard repeats setup).
 
 ## Run
 ```bash

@@ -221,7 +221,7 @@ export function handle(s, method, fullPath, body) {
   if ((m = r.match(/^pulls\/(\d+)\/update-branch$/)) && method === 'PUT') return ok({ message: 'Updating pull request branch.' }, 202);
   if ((m = r.match(/^compare\/([^.]+)\.\.\.(.+)$/))) {
     const head = decodeURIComponent(m[2]);
-    return ok({ status: 'ahead', ...((s.compare || {})[head] || { behind_by: 0, ahead_by: 1 }) });
+    return ok({ status: 'ahead', files: (s.compareFiles || {})[head] || [], ...((s.compare || {})[head] || { behind_by: 0, ahead_by: 1 }) });
   }
   if ((m = r.match(/^commits\/([^/]+)\/check-runs$/))) {
     const runs = (s.checkRuns[m[1]] || []).map((x) => ({ app: { slug: 'github-actions' }, ...x }));

@@ -160,3 +160,35 @@ test('rb sync without GitHub degrades: local branches only, github skipped', asy
   assert.match(r.json.github, /^skipped/);
   assert.deepEqual(r.json.branches.deleted.map((b) => b.branch), ['rb/T7-done']);
 });
+
+test('rb sync keeps pushed branches of open PRs and resolves a repeated task id through the closed issue', async () => {
+  const tasks = (title) => `# Tasks\n\n## T1: ${title}\n- Purpose: x\n- Covers: R1.1\n- Size: S\n- Depends on: none\n- Files: src/a.js\n- Verify: \`npm test\`\n- Status: in-review\n`;
+  const root = repoWith({ 'docs/specs/01-a/tasks.md': tasks('First'), 'docs/specs/02-b/tasks.md': tasks('Second') });
+  // A pushed branch with its own commit, tracking an upstream at the same tip: `git branch -d` would delete it.
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T1-open']);
+  write(root, 'src/open.js', 'export const x = 1;\n');
+  commitAll(root, 'wip');
+  const openSha = sh(root, 'git', ['rev-parse', 'HEAD']);
+  sh(root, 'git', ['update-ref', 'refs/remotes/origin/rb/T1-open', openSha]);
+  sh(root, 'git', ['remote', 'add', 'origin', root]);
+  sh(root, 'git', ['config', 'branch.rb/T1-open.remote', 'origin']);
+  sh(root, 'git', ['config', 'branch.rb/T1-open.merge', 'refs/heads/rb/T1-open']);
+  sh(root, 'git', ['checkout', '-q', 'main']);
+  const gh = fakeGh();
+  const s = gh.state;
+  s.issues[5] = { number: 5, title: 'T1: Second', body: '<!-- rockbuilt:task T1 spec=docs/specs/02-b -->', state: 'closed', labels: ['rb:task'] };
+  s.issues[6] = { number: 6, title: 'feat: Second (T1)', body: 'Closes #5\n', state: 'closed', labels: [], isPr: true };
+  s.pulls[6] = { number: 6, head: 'rb/T1-second-thing', base: 'main', headSha: 'e'.repeat(40), merged_at: '2026-10-14T01:00:00Z' };
+  s.issues[7] = { number: 7, title: 'feat: open', body: '', state: 'open', labels: [], isPr: true };
+  s.pulls[7] = { number: 7, head: 'rb/T1-open', base: 'main', headSha: openSha };
+  s.nextNumber = 8;
+  const r = await rbJson(root, ['sync', '--repo', REPO], { ghRunner: gh.runner });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.json.github, 'ok');
+  assert.deepEqual(r.json.ambiguous, []);
+  assert.deepEqual(r.json.tasks.map((t) => `${t.spec} ${t.task}`), ['docs/specs/02-b T1']);
+  assert.match(read(root, 'docs/specs/02-b/tasks.md'), /Status: done/);
+  assert.match(read(root, 'docs/specs/01-a/tasks.md'), /Status: in-review/);
+  assert.ok(sh(root, 'git', ['branch', '--list', 'rb/T1-open']).includes('rb/T1-open'), 'open PR branch kept');
+  assert.ok(r.json.branches.kept.some((b) => b.branch === 'rb/T1-open' && b.reason === 'open PR'));
+});

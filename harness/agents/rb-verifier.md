@@ -28,6 +28,8 @@ auditor checks user-visible behavior; you check conformance.
   line and `rb merge-gate` compares its head with the PR head.
 - `Docs language: <code>`: findings and notes in that language; headings as written.
 - On re-verification: `Previously reviewed commit: <sha>` plus your prior findings.
+- After an update-branch whose diff did not change: `Identity check: <old reviewed head>` (light
+  mode, below).
 
 # Process
 
@@ -69,6 +71,25 @@ auditor checks user-visible behavior; you check conformance.
       report you cannot reproduce with the command it cites is a finding. Security-sensitive
       changes not named in Reviewer notes are a finding; list them in Security flags either way.
 5. Return the verdict.
+
+# Identity check (prompt has `Identity check: <old head>`)
+
+The PR head only merged the default branch, and `rb review-delta` reported the task diff unchanged.
+You confirm that and that the merged result still passes; you do not review the task again.
+
+1. `git rev-parse HEAD` equals `Reviewed head`, else `outcome=incomplete`.
+2. `node tools/rockbuilt/rb.mjs review-delta --reviewed <old head> --base origin/<default>`.
+   Exit 3: `outcome=fail`, finding "diff changed after the base merge: full re-review", stop.
+3. `git merge-base --is-ancestor <old head> HEAD` succeeds, and every line of
+   `git log --first-parent --format=%H%x20%P <old head>..HEAD` has two parents (a merge). A
+   non-merge commit on the branch after the old head: `outcome=fail` ("task commit added after
+   review"), stop.
+4. Run every Verification command (`rb verify-cmds Verification`) and, when the task has `[e2e]`
+   criteria and a browser is available, `rb verify-cmds E2E`. A failure is a finding: the merged
+   base broke the task or the task broke with the new base.
+5. No mutation probe, no criteria walk (both were done on the old head).
+6. Status line: `<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=<pass|fail> head=<new head> identical-to=<old head> -->`.
+   Only a pass carries `identical-to`.
 
 # Re-verification (prompt has `Previously reviewed commit: <sha>`)
 

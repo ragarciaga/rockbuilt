@@ -11,6 +11,8 @@ import { acquireLock, ensureControl, escalate, lockStatus, postDigest, releaseLo
 import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
+import { reviewDelta } from './lib/delta.mjs';
+import { e2ePlan, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
@@ -26,7 +28,9 @@ export const COMMANDS = {
   vendor: 'Install or update the harness  [--tools claude,cursor,codex] [--type web,ai,automation] [--lang es] [--from <harness root>]',
   init: 'Alias of vendor',
   doctor: 'Environment, contract, vendored version, CI, protection mode, labels, control issue',
-  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup]',
+  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup] [--shard i/n (E2E only)]',
+  'e2e-plan': 'CI: has E2E, shard count and matrix from AGENTS.md (key=value lines for GITHUB_OUTPUT)',
+  'review-delta': 'Is the task diff after an update-branch identical to the reviewed one?  --reviewed <sha> [--base origin/<default>] (exit 3 when not)',
   baseline: 'Run Verification and ratchet against docs/rockbuilt/known-failures.json  [--check] [--accept]',
   tasks: 'Parse tasks.md strictly and check coverage against requirements.md  <spec-dir>',
   parallel: 'Batch ready tasks with disjoint files  <spec-dir> [--ids T4,T6] [--max 3]',
@@ -168,14 +172,34 @@ const handlers = {
     return { data: { labels: results }, text: results.map((r) => `${r.action.padEnd(8)} ${r.name}`).join('\n'), code: 0 };
   },
 
-  'verify-cmds'({ cwd, positionals }) {
+  'verify-cmds'({ cwd, positionals, flags }) {
     const wanted = positionals[0] || 'Verification';
     const section = COMMAND_SECTIONS.find((s) => s.toLowerCase() === wanted.toLowerCase()) || wanted;
     const { file, text } = readContract(projectRoot(cwd));
     if (text === null) throw new CliError('AGENTS.md (or CLAUDE.md) not found at the project root');
-    const commands = sectionCommands(text, section);
+    let commands = sectionCommands(text, section);
     if (commands === null) throw new CliError(`section "## ${section}" not found in ${file}`);
+    const shard = stringFlag(flags, 'shard');
+    if (shard !== undefined) {
+      if (section !== 'E2E') throw new CliError('--shard applies to the E2E section only', 2);
+      const { index, total } = parseShard(shard);
+      commands = shardCommands(commands, index, total);
+    }
     return { data: { file, section, commands }, text: commands.join('\n'), code: 0 };
+  },
+
+  'e2e-plan'({ cwd }) {
+    const { text } = readContract(projectRoot(cwd));
+    const plan = e2ePlan(text || '');
+    return { data: plan, text: `has=${plan.has}\ntotal=${plan.total}\nshards=${JSON.stringify(plan.shards)}`, code: 0 };
+  },
+
+  'review-delta'({ cwd, flags }) {
+    const root = requireRepoRoot(cwd);
+    const reviewed = stringFlag(flags, 'reviewed', { required: true });
+    const base = stringFlag(flags, 'base') || `origin/${defaultBranch(root)}`;
+    const r = reviewDelta(root, { base, reviewed });
+    return { data: r, text: `${r.identical ? 'identical' : 'different'}: ${r.detail}`, code: r.identical ? 0 : 3 };
   },
 
   baseline({ cwd, flags, io }) {
