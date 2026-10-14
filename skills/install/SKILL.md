@@ -158,7 +158,7 @@ Tell the user, in two or three short lines:
   migrates the CLAUDE.md contract into AGENTS.md.
 - Unattended nightly runs: once the PR is merged, follow `docs/CLOUD.md` in the Rockbuilt repo
   (https://github.com/ragarciaga/rockbuilt/blob/main/docs/CLOUD.md) to create the routine with
-  the prompt `Run /rb-cycle.`
+  the prompt `Run /rb-cycle. [rockbuilt:unattended]`
 
 ## Rules
 

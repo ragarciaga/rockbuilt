@@ -117,8 +117,11 @@ quedan marcadas `rb:needs-local` con los comandos exactos para correr las prueba
 6. **Prompt,** exactamente:
 
 ```
-Run /rb-cycle.
+Run /rb-cycle. [rockbuilt:unattended]
 ```
+
+   La etiqueta `[rockbuilt:unattended]` le dice a `rb hours` que ese mensaje no es tuyo, para
+   que la corrida de la noche no cuente como tiempo tuyo en el reporte de horas.
 
 7. Elige el entorno del paso 3.
 8. **Notificaciones:** activa el aviso al terminar la corrida (push al celular, correo o ambos).
@@ -152,7 +155,11 @@ the task id from the PR title, the acceptance criteria from the linked issue or 
 requirements.md, the run instructions from AGENTS.md, and the head SHA. Never pass it the PR
 body, the plan, the diff or other reviews. Post its verdict as a PR comment with
 node tools/rockbuilt/rb.mjs gh pr-comment <pr> --body-file <file>. Never push, merge or edit code.
+[rockbuilt:unattended]
 ```
+
+Cualquier rutina o sesión automática que crees sobre un repo con Rockbuilt debe terminar su prompt
+con `[rockbuilt:unattended]`; sin la etiqueta, `rb hours` la cuenta como tiempo tuyo.
 
 Cada PR consume una corrida de tu plan. Si tienes muchos PRs al día, deja solo la nocturna.
 

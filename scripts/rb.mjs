@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 // rb: the Rockbuilt CLI (DESIGN.md section 21). Zero dependencies, Node >= 20.
 // Exit codes: 0 ok, 1 error, 2 usage, 3 not eligible / not allowed.
-import { realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acceptBaseline, checkBaseline, runBaseline } from './lib/baseline.mjs';
-import { COMMAND_SECTIONS, readContract, sectionCommands } from './lib/contract.mjs';
+import { COMMAND_SECTIONS, headerField, readContract, sectionCommands } from './lib/contract.mjs';
 import { acquireLock, ensureControl, escalate, lockStatus, postDigest, releaseLock, stopStatus } from './lib/control.mjs';
 import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
+import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
 import { planBatches } from './lib/parallel.mjs';
-import { defaultBranch } from './lib/repo.mjs';
+import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
 import { syncProject, syncText } from './lib/sync.mjs';
@@ -29,7 +31,8 @@ export const COMMANDS = {
   tasks: 'Parse tasks.md strictly and check coverage against requirements.md  <spec-dir>',
   parallel: 'Batch ready tasks with disjoint files  <spec-dir> [--ids T4,T6] [--max 3]',
   worktree: 'add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list',
-  timing: 'start|end <task> <phase> | line <task> | report [--write]',
+  timing: 'start|end <task> <phase> | line <task> [--est <hours>] | report [--write]',
+  hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
@@ -45,7 +48,7 @@ export const COMMANDS = {
   help: 'Show this help',
 };
 
-const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft'];
+const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft', 'hook'];
 
 function makeIo(io) {
   return {
@@ -53,6 +56,7 @@ function makeIo(io) {
     out: io.out || ((s) => process.stdout.write(`${s}\n`)),
     err: io.err || ((s) => process.stderr.write(`${s}\n`)),
     ghRunner: io.ghRunner || null,
+    stdin: io.stdin || (() => readFileSync(0, 'utf8')),
   };
 }
 
@@ -78,6 +82,67 @@ function bodyFile(cwd, flags, name = 'body-file') {
   const text = readText(path.resolve(cwd, f));
   if (text === null) throw new CliError(`cannot read ${f}`);
   return text;
+}
+
+// The open "Rockbuilt hours" issue (attention marks and manual entries), created on demand. A
+// full one (1500 comments, like the control issue) is closed and replaced; the report reads all.
+export const HOURS_ROTATE_AT = 1500;
+const HOURS_BODY = '<!-- rockbuilt:hours -->\nAttention marks and manual time entries for `rb hours` (one comment per Claude Code session). Do not close this issue.';
+
+// Only issues the owner opened count: in a shared or public repo anyone can open one.
+function hoursIssue(c, { create, login }) {
+  const found = ops.issueList(c, { state: 'open' }).filter((i) => i.title === HOURS_TITLE && i.author === login).sort((a, b) => a.number - b.number)[0];
+  if (found && !(create && (found.comment_count || 0) >= HOURS_ROTATE_AT)) return found;
+  if (!create) return null;
+  const next = ops.issueCreate(c, { title: HOURS_TITLE, body: found ? `${HOURS_BODY}\nPrevious: #${found.number}.` : HOURS_BODY });
+  if (found) ops.issueEdit(c, found.number, { state: 'closed' });
+  return next;
+}
+
+// Every hours issue, open or closed (rotated ones, or two created at once by parallel sessions).
+function hoursIssues(c, login, issues = null) {
+  return (issues || ops.issueList(c, { state: 'all', maxPages: 200 })).filter((i) => i.title === HOURS_TITLE && i.author === login);
+}
+
+// AGENTS.md header `Hours: github | local | off`; null when unset (then: github on a private repo,
+// local on a public one, decided at the first flush).
+function hoursMode(root) {
+  const v = (headerField(readText(path.join(root, 'AGENTS.md')) || '', 'Hours') || '').trim().toLowerCase();
+  return ['github', 'local', 'off'].includes(v) ? v : null;
+}
+
+const digest = (text) => createHash('sha1').update(text).digest('hex');
+
+// Upserts this session's attention comment(s) from the local marks, touching only parts that
+// changed. Quiet no-op without new marks.
+function flushSession(root, session, flags, io) {
+  const marks = readMarks(root).filter((m) => m.session === session);
+  if (!marks.length) return { flushed: 0 };
+  const known = readState(root, session) || { issue: null, comments: [], sent: [], count: 0 };
+  if (known.count === marks.length) return { flushed: 0 };
+  if (known.localOnly && hoursMode(root) !== 'github') return { flushed: 0 };
+  if (known.localOnly) known.localOnly = false;
+  const c = client(root, flags, io);
+  const bodies = sessionComments(session, marks);
+  if (!known.issue) {
+    // Unset mode on a public repo: keep marks local (timestamps and branches would be public).
+    if (hoursMode(root) === null && !ops.repoInfo(c).private) {
+      writeState(root, session, { ...known, localOnly: true, count: marks.length });
+      return { flushed: 0, skipped: 'public repo, set Hours: github to publish' };
+    }
+    known.issue = hoursIssue(c, { create: true, login: ops.whoami(c).login }).number;
+  }
+  bodies.forEach((body, k) => {
+    const h = digest(body);
+    if (known.comments[k] && known.sent[k] === h) return;
+    if (known.comments[k]) ops.commentEdit(c, known.comments[k], body);
+    else known.comments[k] = ops.issueComment(c, known.issue, body).id;
+    known.sent[k] = h;
+    writeState(root, session, known); // after every write, so a later failure never re-posts
+  });
+  known.count = marks.length;
+  writeState(root, session, known);
+  return { flushed: marks.length, issue: known.issue, comments: known.comments };
 }
 
 // Each handler returns { data, text, code }.
@@ -206,7 +271,10 @@ const handlers = {
     }
     if (sub === 'line') {
       if (!task) throw new CliError('usage: rb timing line <task>', 2);
-      const line = timingLine(aggregate(readEvents(root)), task);
+      const est = stringFlag(flags, 'est');
+      const estHours = est === undefined ? null : Number(est);
+      if (est !== undefined && !(estHours > 0)) throw new CliError('--est must be a positive number of hours', 2);
+      const line = timingLine(aggregate(readEvents(root)), task, { estHours });
       if (!line) throw new CliError(`no timing events for ${task} in this checkout`);
       return { data: { line }, text: line, code: 0 };
     }
@@ -231,6 +299,148 @@ const handlers = {
       return { data: { ...report, table, written, github }, text, code: 0 };
     }
     throw new CliError('usage: rb timing start|end <task> <phase> | line <task> | report [--write]');
+  },
+
+  // Attention hours (DESIGN.md section 22). `mark` and `flush` run as Claude Code hooks: they read
+  // the hook JSON on stdin, print nothing and never fail the session.
+  hours({ cwd, positionals, flags, io }) {
+    const [sub = 'report', ...rest] = positionals;
+    if (sub === 'mark' || sub === 'flush') {
+      if (!flags.hook) throw new CliError(`usage: rb hours ${sub} --hook (reads the Claude Code hook JSON on stdin)`, 2);
+      try {
+        let input = {};
+        try { input = JSON.parse(io.stdin() || '{}') || {}; } catch { input = {}; }
+        // The project is the session's project dir, never the shell's cwd (it may sit in another
+        // attached repo), and only a vendored project is ever written to.
+        const at = process.env.CLAUDE_PROJECT_DIR || input.cwd || cwd;
+        const project = projectRoot(at);
+        const root = mainCheckoutRoot(project);
+        if (!existsSync(path.join(root, 'tools', 'rockbuilt', 'rb.mjs'))) return { data: { skipped: 'not a Rockbuilt project' }, text: null, code: 0 };
+        const mode = hoursMode(root);
+        if (mode === 'off') return { data: { skipped: 'Hours: off' }, text: null, code: 0 };
+        const session = String(input.session_id || 'unknown');
+        if (sub === 'mark') {
+          if (String(input.prompt || '').includes(UNATTENDED_TAG)) return { data: { skipped: 'unattended' }, text: null, code: 0 };
+          const rec = recordMark(root, { session, branch: currentBranch(project), ts: Date.now() });
+          return { data: rec, text: null, code: 0 };
+        }
+        if (mode === 'local') return { data: { skipped: 'Hours: local' }, text: null, code: 0 };
+        // A hook must not stall the end of a reply: no 10 s retry wait on a flaky GitHub.
+        process.env.RB_GH_RETRY_MS = '0';
+        return { data: flushSession(root, session, flags, io), text: null, code: 0 };
+      } catch (e) {
+        return { data: { error: e.message }, text: null, code: 0 };
+      }
+    }
+    if (sub === 'log') {
+      const root = projectRoot(cwd);
+      const minutes = Number(rest[0]);
+      if (!(minutes > 0) || minutes > 24 * 60) throw new CliError('usage: rb hours log <minutes> [--ref T3] [--spec docs/specs/NN-slug] [--at iso] [--note text]', 2);
+      const atFlag = stringFlag(flags, 'at');
+      const at = atFlag === undefined ? new Date() : new Date(parseWindow(atFlag, 'at'));
+      const entry = { minutes, at: at.toISOString(), ref: stringFlag(flags, 'ref') || null, spec: stringFlag(flags, 'spec') || null };
+      const c = client(root, flags, io);
+      let mode = hoursMode(mainCheckoutRoot(root));
+      if (mode === null) mode = ops.repoInfo(c).private ? 'github' : 'local';
+      if (mode === 'local' || mode === 'off') {
+        recordManualLocal(mainCheckoutRoot(root), entry);
+        return { data: { local: true, ...entry }, text: `logged ${minutes} min on this machine only (Hours: ${mode})`, code: 0 };
+      }
+      const issue = hoursIssue(c, { create: true, login: ops.whoami(c).login });
+      const body = manualComment({ ...entry, note: stringFlag(flags, 'note') });
+      const comment = ops.issueComment(c, issue.number, body);
+      return { data: { issue: issue.number, comment: comment.id, minutes, at: at.toISOString() }, text: `logged ${minutes} min on #${issue.number} (${c.repo})`, code: 0 };
+    }
+    if (sub !== 'report') throw new CliError('usage: rb hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv file] | log <minutes> ... | mark|flush --hook', 2);
+
+    const root = projectRoot(cwd);
+    const num = (name, dflt) => {
+      const v = stringFlag(flags, name);
+      if (v === undefined) return dflt;
+      const n = Number(v);
+      if (!(n > 0)) throw new CliError(`--${name} must be a positive number of minutes`, 2);
+      return n;
+    };
+    const opts = { gapMin: num('gap', HOURS_DEFAULTS.gapMin), tailMin: num('tail', HOURS_DEFAULTS.tailMin), since: parseWindow(stringFlag(flags, 'since'), 'since'), until: parseWindow(stringFlag(flags, 'until'), 'until') };
+    const here = client(root, flags, io);
+    const notes = [];
+    let login = null;
+    try { login = ops.whoami(here).login; } catch (e) { throw new CliError(`cannot reach GitHub (${e.message}); rb hours needs it`); }
+    let repos = listFlag(flags.repos);
+    if (!repos.length) {
+      let current = null;
+      try { current = here.repo; } catch { current = null; }
+      try {
+        repos = ops.reposWithIssueTitled(here, login, HOURS_TITLE);
+      } catch (e) {
+        // Cloud sessions only reach the repos attached to them (search is refused).
+        notes.push(`Only this repository is included: finding your other projects failed (${String(e.message).split(':')[0]}). Overlaps with projects not in the report are not split. Pass --repos with every project (in a cloud session, attach them first), or run it from your computer.`);
+      }
+      if (current) repos.push(current);
+    }
+    const seenRepo = new Set();
+    repos = repos.filter((r) => !seenRepo.has(r.toLowerCase()) && seenRepo.add(r.toLowerCase())).sort();
+    if (!repos.length) throw new CliError('no repositories: pass --repos owner/name[,owner/name]');
+    const sinceIso = opts.since === null ? null : new Date(opts.since).toISOString();
+    const localRepo = (() => { try { return here.repo; } catch { return null; } })();
+    const projects = repos.map((repo) => {
+      const c = makeGh({ cwd: root, repo, runner: io.ghRunner });
+      const issues = ops.issueList(c, { state: 'all', maxPages: 200 });
+      // Only the owner's own comments on the owner's own hours issues: collaborators run the same
+      // hooks, and on a public repo anyone can post a fake manual entry.
+      const att = parseAttention(hoursIssues(c, login, issues).flatMap((i) => ops.issueComments(c, i.number).filter((x) => x.author === login).map((x) => x.body)));
+      let marks = att.marks;
+      if (localRepo && repo.toLowerCase() === localRepo.toLowerCase()) {
+        att.manual.push(...readManualLocal(mainCheckoutRoot(root)));
+        const seen = new Set(marks.map((m) => `${m.session}|${new Date(m.ts).toISOString()}`));
+        const local = readMarks(mainCheckoutRoot(root)).filter((m) => !seen.has(`${m.session}|${new Date(m.ts).toISOString()}`));
+        if (local.length) notes.push(`${local.length} mark(s) from this machine are not on GitHub yet (they are flushed at the end of each reply).`);
+        marks = [...marks, ...local];
+      }
+      const human = (x) => x.author === login && !/<!--\s*rockbuilt:/.test(x.body) && x.number;
+      const comments = [...ops.repoComments(c, { since: sinceIso }), ...ops.repoComments(c, { since: sinceIso, review: true })]
+        .filter(human)
+        .map((x) => ({ ts: x.created_at, number: x.number }));
+      const prs = ops.prList(c, { state: 'all', maxPages: 200 });
+      const resolver = makeResolver({ prs, issues });
+      const inWindow = (iso) => {
+        const t = Date.parse(iso || '');
+        if (!Number.isFinite(t)) return opts.since === null && opts.until === null;
+        return (opts.since === null || t >= opts.since) && (opts.until === null || t < opts.until);
+      };
+      // One row per task: the newest PR's timing line (a retry rb/<id>-<slug>-r<k> repeats the
+      // estimate, and locally its minutes already include the earlier attempt).
+      const latest = new Map();
+      for (const p of [...prs].sort((a, b) => a.number - b.number)) {
+        if (!inWindow(p.merged_at || p.created_at)) continue;
+        const ref = resolver.number(p.number);
+        for (const t of parseTimingLines(p.body)) {
+          const task = ref.task === '(general)' ? t.task : ref.task;
+          latest.set(`${ref.spec || ''}\u0000${task}`, { task, spec: ref.spec, minutes: t.totalMs / 60000, estHours: t.estHours });
+        }
+      }
+      const agent = [...latest.values()];
+      const baselines = {};
+      const specs = [...new Set([...prs, ...issues].map((x) => resolver.number(x.number).spec).filter(Boolean))];
+      if (specs.length) {
+        let ref = null;
+        try { ref = ops.repoInfo(c).defaultBranch; } catch { ref = null; }
+        for (const spec of specs) {
+          const b = parseBaseline(ops.fileAt(c, `${spec}/requirements.md`, ref || 'main'));
+          if (b !== null) baselines[spec] = b;
+        }
+      }
+      return { repo, marks, comments, manual: att.manual, resolver, agent, baselines };
+    });
+    const report = computeHours(projects, opts);
+    const text = renderHours(report, { repos, notes });
+    const csv = stringFlag(flags, 'csv');
+    let written = null;
+    if (csv) {
+      written = path.resolve(cwd, csv);
+      writeFileSync(written, renderCsv(report));
+    }
+    return { data: { ...report, repos, notes, csv: written }, text: written ? `${text}\n\nCSV written to ${written}` : text, code: 0 };
   },
 
   risk({ cwd, flags, io }) {
@@ -369,7 +579,8 @@ export async function main(argv, ioOverrides = {}) {
   }
   try {
     const r = handler({ cwd: io.cwd, flags, positionals, io });
-    io.out(flags.json ? json(r.data) : r.text);
+    if (flags.json) io.out(json(r.data));
+    else if (r.text !== null) io.out(r.text);
     return r.code;
   } catch (e) {
     if (!(e instanceof CliError)) throw e;

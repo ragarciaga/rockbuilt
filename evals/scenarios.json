@@ -329,6 +329,52 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "status-hours-es",
+      "source": "status.md#S5",
+      "setup": [
+        "node-app",
+        "harness-es"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Dame el reporte de horas de este proyecto, lo necesito para costear.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-status"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs hours"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "rb\\.mjs (doctor|baseline)|npm (test|run)"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-planner",
+            "rb-implementer",
+            "rb-verifier",
+            "rb-auditor"
+          ]
+        },
+        {
+          "type": "worktreeClean"
+        },
+        {
+          "type": "finalLanguage",
+          "lang": "es"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }

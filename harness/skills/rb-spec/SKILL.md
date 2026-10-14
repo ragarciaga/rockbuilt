@@ -98,8 +98,12 @@ Write `docs/specs/NN-slug/requirements.md` from `templates/requirements.md`. EAR
   says so; running it needs a budget in AGENTS.md `Paid services` (asked at design approval).
 
 Present a compact view (requirement titles, criterion count, tags breakdown, anything
-`[manual]`), ask the questions you still have one at a time, and get explicit approval. On
-approval set `Status: approved` and the date.
+`[manual]`), ask the questions you still have one at a time, and get explicit approval. In the
+same sitting ask the user for the feature's baseline: how many hours it would take them (or the
+person who would otherwise build it) without agents. On approval set `Status: approved`, the
+date, and the line `Baseline: <hours> h` (Spanish docs: `Línea base: <horas> h`) under the
+status; it is the user's number for cost reports (`rb hours`). If they have no number, write
+`Baseline: unknown` rather than guessing.
 
 ## Step 4: design.md and ADRs
 

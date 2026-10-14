@@ -72,3 +72,17 @@ Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm ven
 - Pass (with the harness vendored): the rb-status skill is not loaded; no `rb`, `git` or `gh` command;
   a short explanation.
 - Expected failure: the word "status" loads the skill and it runs `rb doctor`.
+
+## S5: Hours report for costing (core, language)
+
+- Setup: common setup (the fixture has no GitHub remote, so `rb hours` cannot reach the repo).
+- Prompt (es):
+  > Dame el reporte de horas de este proyecto, lo necesito para costear.
+- Pass (with the harness vendored):
+  1. rb-status loads and runs `rb hours` (not the status steps: no `rb doctor`, no baseline).
+  2. No build, test or agent dispatch; the tree stays clean.
+  3. When GitHub is unreachable it says so plainly and what is needed (a GitHub remote or
+     `--repos`), and does not invent hours.
+  4. Spanish, no em dash.
+- Expected failure without the harness: guesses hours from git log or session length.
+

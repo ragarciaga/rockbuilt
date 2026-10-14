@@ -117,10 +117,12 @@ export function parseBlock(text) {
 
 // Durable timing: one machine line per task in its PR body, so minutes survive a fresh cloud clone.
 // <!-- rockbuilt:timing task=T1 plan=1.0 implement=0.4 verify=2.6 -->
-export function timingLine(report, task) {
+// `est` is the planner's estimate, in hours, of the task done by a person without agents.
+export function timingLine(report, task, { estHours = null } = {}) {
   const t = report.tasks.find((x) => x.task === task);
   if (!t) return null;
   const parts = PHASES.filter((p) => t.phases[p] !== undefined).map((p) => `${p}=${(t.phases[p] / 60000).toFixed(1)}`);
+  if (Number.isFinite(estHours) && estHours > 0) parts.push(`est=${Number(estHours.toFixed(2))}`);
   return `<!-- rockbuilt:timing task=${task} ${parts.join(' ')} -->`.replace(/  +/g, ' ');
 }
 
@@ -130,11 +132,13 @@ export function parseTimingLines(text) {
   const tasks = [];
   for (const m of String(text || '').matchAll(LINE_RE)) {
     const phases = {};
+    let est = null;
     for (const kv of m[2].trim().split(/\s+/).filter(Boolean)) {
       const [k, v] = kv.split('=');
       if (PHASES.includes(k) && Number.isFinite(Number(v))) phases[k] = Number(v) * 60000;
+      if (k === 'est' && Number.isFinite(Number(v))) est = Number(v);
     }
-    tasks.push({ task: m[1], phases, totalMs: Object.values(phases).reduce((a, b) => a + b, 0) });
+    tasks.push({ task: m[1], phases, totalMs: Object.values(phases).reduce((a, b) => a + b, 0), estHours: est });
   }
   return tasks;
 }

@@ -5,16 +5,18 @@ description: >
   stop switch, last digest), lists open rb:needs-human and rb:needs-local escalations first with
   what the user must answer, PRs waiting for the human, merges since the last digest with their
   revert commands, baseline and protection mode from rb doctor, and the next scheduled run if
-  known; then gives the single next action. Read-only. Use at the start of any session, or when
-  the user says "where are we", "what's next", "status", "resume", "continue the project", "what
-  happened last night", "en qué vamos", "qué sigue", "retomemos", "estado del proyecto", "dónde
-  quedamos", "qué pasó anoche".
+  known; then gives the single next action. Also reports the user's hours per feature and task
+  (rb hours). Read-only. Use at the start of any session, or when the user says "where are we",
+  "what's next", "status", "resume", "continue the project", "what happened last night", "hours
+  report", "how much time did I spend", "en qué vamos", "qué sigue", "retomemos", "estado del
+  proyecto", "dónde quedamos", "qué pasó anoche", "reporte de horas", "cuánto tiempo le he
+  dedicado", "cuántas horas llevo".
 ---
 
 # Status
 
 The first command of every session. Read-only: you change no files and no GitHub state, except
-an optional `docs/progress.md` refresh the user approves. This skill dispatches no agents.
+an optional `docs/progress.md` refresh the user approves and an `rb hours log` entry they ask for. This skill dispatches no agents.
 
 **Language.** Report in the user's conversation language; if they have not written yet, use
 `Docs language:` from AGENTS.md (fallback `CLAUDE.md` for v0.2 projects). In Spanish, address
@@ -118,9 +120,22 @@ Omit empty sections. Mention doctor WARN/FAIL lines only if they affect the next
 GitHub Actions quota warning is always worth one line (without Actions, nothing merges). If
 progress.md is stale, offer to refresh it; write only on approval.
 
+## Hours report (when asked)
+
+When the user asks for hours, time spent or a cost base, skip Steps 1 and 2 and run
+`rb hours` (add `--since <YYYY-MM-DD>` / `--until` when they name a period, `--repos a/b,c/d` when
+they name projects; by default it finds every repo with a `Rockbuilt hours` issue). Show the
+feature table and the total, then one line on the method (attention time estimated from prompts,
+their GitHub comments and manual entries; overlaps between projects split evenly). Offer the
+task table and the CSV (`rb hours --csv .rockbuilt/hours.csv`, then paste it in a code block so
+they can take it to a spreadsheet). The hourly rate is theirs and never goes into the repo. To add
+time that left no mark (a call, a whiteboard session): `rb hours log <minutes> --note "<what>"`
+(`--spec docs/specs/NN-slug`, or `--ref <task id or issue number>`, when it belongs to one), only
+when they ask. Manual minutes are added in full, never split with other projects.
+
 ## Rules
 
-- Read-only. Never run builds, tests beyond `rb baseline --check`, commits, merges, label changes
+- Read-only (an `rb hours log` the user asks for is the one exception). Never run builds, tests beyond `rb baseline --check`, commits, merges, label changes
   or lock operations. Never answer an escalation on the user's behalf.
 - Exactly one next action. If two are equally valid, pick one and mention the other in one line.
 - Show revert commands; never run them from this skill.

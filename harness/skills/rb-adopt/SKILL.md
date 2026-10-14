@@ -185,7 +185,7 @@ Report, in the user's language:
 - Control issue number; the adopt PR.
 - Nightly cycle (optional): `docs/CLOUD.md` in the Rockbuilt repo
   (https://github.com/ragarciaga/rockbuilt/blob/main/docs/CLOUD.md); they create the routine in
-  the Claude Code UI with the prompt `Run /rb-cycle.`
+  the Claude Code UI with the prompt `Run /rb-cycle. [rockbuilt:unattended]`
 - The single next step (merge the adopt PR, then the stabilization issue if any).
 
 ## Rules

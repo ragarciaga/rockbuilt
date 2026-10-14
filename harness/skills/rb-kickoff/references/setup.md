@@ -176,7 +176,7 @@ cost; the user decides and upgrades the plan themselves. Without it the gate is 
 Point to `docs/CLOUD.md` in the Rockbuilt repo
 (https://github.com/ragarciaga/rockbuilt/blob/main/docs/CLOUD.md). Summary for the handoff:
 a Claude Code routine on this repo, schedule trigger (default 01:07 local time, minimum interval
-1 hour), prompt exactly `Run /rb-cycle.`, environment setup script `npm ci`, network level
+1 hour), prompt exactly `Run /rb-cycle. [rockbuilt:unattended]`, environment setup script `npm ci`, network level
 Trusted. No secrets in environment variables. Routines cannot answer prompts; anything that needs
 the user becomes an `rb:needs-human` or `rb:needs-local` issue and is listed in the digest on the
 control issue.

@@ -173,7 +173,7 @@ Tell the user, in their language:
 - **Nightly cycle (optional).** Point them to `docs/CLOUD.md` in the Rockbuilt repo
   (https://github.com/ragarciaga/rockbuilt/blob/main/docs/CLOUD.md). They create the routine in
   the Claude Code UI on this repo with a schedule (default 01:07 local time) and the exact
-  prompt `Run /rb-cycle.` You cannot create it for them.
+  prompt `Run /rb-cycle. [rockbuilt:unattended]` You cannot create it for them.
 - **Branch protection (option, their decision).** `rb protect` makes GitHub itself reject merges
   without green CI. It works on public repos; on a private repo it needs GitHub Pro, which costs
   money, so it is tier C: present it as an option with that cost, never enable or buy it on
