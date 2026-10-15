@@ -93,8 +93,11 @@ audited, and merged it in 14 minutes. The verifier sent it back once on the way,
 tests did not catch two of the bugs it planted.
 
 Merges go one at a time, so after each one the next PR is behind `main` and gets updated. If the
-update changed nothing in the task's own diff, a short check confirms that and runs the tests
-again, instead of repeating the whole review. If anything changed, the full review runs again.
+update changed nothing in the task's own files, a short check confirms that and runs the tests
+again, instead of repeating the whole review. If a fix after a review touched only test files, the
+auditor's verdict stands, because the app it judged did not change. Anything else runs the full
+review again. Locally the agents run only the end-to-end tests the task touched; the full suite
+runs in CI.
 
 My computer stays out of it unless a step really needs it, like a local browser or credentials
 that only live on my machine. Those come labelled `rb:needs-local` with the exact commands.
@@ -279,7 +282,7 @@ plugin is only the installer and updater: run `/rockbuilt:install` again to upda
 Deterministic steps live in a small Node CLI: `node tools/rockbuilt/rb.mjs <command>` in a project.
 Commands: `vendor`, `doctor`, `verify-cmds`, `e2e-plan`, `baseline`, `tasks`, `parallel`,
 `worktree`, `timing`, `hours`, `risk`, `review-delta`, `sync`, `gh`, `merge-gate`, `revert`,
-`control`, `lock`, `stop`, `escalate`, `digest`, `protect`, `labels`. Every command accepts
+`control`, `lock`, `stop`, `escalate`, `digest`, `flaky`, `protect`, `labels`. Every command accepts
 `--json`; `help` lists the flags.
 
 `rb doctor` checks the whole setup (contract, CI, permissions, labels, control issue, branch
@@ -315,7 +318,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.5.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.6.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything

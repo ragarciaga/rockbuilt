@@ -282,6 +282,23 @@
           ]
         },
         {
+          "type": "anyOf",
+          "checks": [
+            {
+              "type": "agentsExclude",
+              "agents": [
+                "rb-planner"
+              ]
+            },
+            {
+              "type": "agentsInclude",
+              "agents": [
+                "rb-security-reviewer"
+              ]
+            }
+          ]
+        },
+        {
           "type": "defaultBranchUnchanged"
         },
         {

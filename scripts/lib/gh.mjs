@@ -281,6 +281,17 @@ export const ops = {
     const files = (d.files || []).map((f) => ({ filename: f.filename, status: f.status, previous: f.previous_filename || null, sha: f.sha || null, patch: typeof f.patch === 'string' ? f.patch : null, changes: Number(f.changes) || 0 }));
     return { files, truncated: files.length >= 300 };
   },
+  // Blob sha of a file at a ref, or null when the path does not exist there.
+  blobSha(c, filePath, ref) {
+    try {
+      const f = c.api('GET', `{repo}/contents/${filePath.split('/').map(encodeURIComponent).join('/')}`, { params: { ref } });
+      if (!f || Array.isArray(f) || f.type !== 'file' || !f.sha) throw new CliError(`${filePath} at ${ref} is not a file`);
+      return f.sha;
+    } catch (e) {
+      if (e instanceof GhError && e.status === 404) return null;
+      throw e;
+    }
+  },
   repoInfo(c) {
     const d = c.api('GET', '{repo}') || {};
     return { deleteBranchOnMerge: d.delete_branch_on_merge === true, private: d.private === true, defaultBranch: d.default_branch || null };

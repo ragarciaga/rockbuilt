@@ -61,16 +61,20 @@ No command substitution: run a command, paste its literal output into the next.
 
 1. Clean tree and crash recovery exactly as rb-build Run start step 2 (unattended: never move the
    user's work; escalate on `<ctl>` with the `Dirty tree` template and close the run).
-2. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`, `rb sync --run <run id>`
-   (with the lock held it also clears `rb:in-progress` claims left by a run that died).
-3. **Previous bookkeeping.** If `rb gh pr-list --state open --head-prefix rb/bookkeeping-` shows a
-   PR and merges are on (section 5 conditions): `rb merge-gate <pr> --run <run id> --json`. The
-   gate merges a bookkeeping PR without reviewers when it only touches tasks.md, progress.md and
-   appends to LESSONS.md, with green `rockbuilt-ci`. Merged: `git pull --ff-only`, done. Not
-   merged (or merges off): `git fetch origin <its branch>`, `git diff --output=.rockbuilt/bookkeeping.patch
+2. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`.
+3. **Previous bookkeeping**, before anything edits tasks.md (`git apply --3way` fails with "does
+   not match index" on a file `rb sync` already changed). If `rb gh pr-list --state open
+   --head-prefix rb/bookkeeping-` shows a PR and merges are on (section 5 conditions):
+   `rb merge-gate <pr> --run <run id> --json`. The gate merges a bookkeeping PR without reviewers
+   when it only touches tasks.md, progress.md and appends to LESSONS.md, with green
+   `rockbuilt-ci`. Merged: `git pull --ff-only`, done. Not merged (or merges off): `git fetch
+   origin <its branch>`, `git diff --output=.rockbuilt/bookkeeping.patch
    origin/<default>...origin/<its branch> -- docs/specs docs/progress.md .claude/LESSONS.md`,
-   `git apply --3way .rockbuilt/bookkeeping.patch`, then `git restore --staged` those paths.
-   Apply failure: leave that PR alone and note it for the digest.
+   `git apply --3way .rockbuilt/bookkeeping.patch`, then `git restore --staged` those paths, and
+   remember the branch: this run's bookkeeping goes on top of it (section 6). Apply failure: leave
+   that PR alone and note it for the digest.
+   Then `rb sync --run <run id>` (with the lock held it also clears `rb:in-progress` claims left
+   by a run that died).
 4. Setup commands (`rb verify-cmds Setup`) when `node_modules` or the equivalent is missing.
 5. **Baseline.** `rb baseline --check` on the default branch. A failure outside
    `docs/rockbuilt/known-failures.json`: escalate on `<ctl>` (`Default branch red` template), no
@@ -140,14 +144,18 @@ every merge; the lock is already held.
 ## 6. Close the run
 
 1. `rb timing report --write`. Update `docs/progress.md` (current state, next steps).
-2. **Bookkeeping PR**, when tasks.md, progress.md or LESSONS.md changed: `git checkout -b
-   rb/bookkeeping-<run id>`, `git add` only those paths, `git commit -m "docs: progress
-   (<run id>)"`, `git push -u origin rb/bookkeeping-<run id>`, `rb gh pr-create --head
-   rb/bookkeeping-<run id> --base <default> --title "docs: progress (<run id>)" --body-file <f>`
-   (no tier label; the next run merges it in step 2.3 through the gate, never this run's train,
-   so its CI has time to finish). Never put any other path in it: the gate refuses it. Previous
-   bookkeeping PR (step 2.3) applied: comment "superseded by #<new>" (`rb gh pr-comment`) and
-   close it (`rb gh issue-edit <old> --state closed`). `git checkout <default>`.
+2. **Bookkeeping PR**, one per day, when tasks.md, progress.md or LESSONS.md changed:
+   `git checkout -b rb/bookkeeping-<run id>`, `git add` only those paths, `git commit -m "docs:
+   progress (<run id>)"`. Never put any other path in it: the gate refuses it.
+   - Step 2.3 applied an open bookkeeping PR (its changes are already in this commit): `git merge
+     -s ours --no-edit origin/<its branch>` (keeps this tree, makes its tip an ancestor), `git
+     push origin HEAD:<its branch>`. The same PR now carries this run too; no new PR.
+   - Otherwise: `git push -u origin HEAD:rb/bookkeeping-<YYYY-MM-DD>` and `rb gh pr-create --head
+     rb/bookkeeping-<YYYY-MM-DD> --base <default> --title "docs: progress <YYYY-MM-DD>"
+     --body-file <f>` (no tier label). A branch of that name already exists (a merged PR, or an
+     open one whose patch did not apply in step 2.3): add `-<run id>` to the name.
+   The next run merges it in step 2.3 through the gate, never this run's train, so its CI has
+   time to finish. `git checkout <default>`.
 3. **Digest** from `references/digest-template.md`, in the docs language, written to
    `.rockbuilt/digest-<run id>.md`; `rb digest post --file .rockbuilt/digest-<run id>.md`.
 4. `rb lock release --run <run id>`.

@@ -21,24 +21,50 @@ const DIRECT = new RegExp(String.raw`^${ENV_PREFIX}(?:npx|bunx|pnpm\s+exec|pnpm|
 const SCRIPT = new RegExp(String.raw`^${ENV_PREFIX}(npm\s+run(?:-script)?|pnpm(?:\s+run)?|yarn(?:\s+run)?|bun\s+run)\s+(test:e2e|e2e|test:playwright|playwright)(?:\s|$)`);
 const COMPOUND = /&&|\|\||[;|&]/;
 
-// Appends Playwright's --shard to the suite command(s). Throws when sharding is asked for but no
-// line is a suite command, or a suite command is part of a compound line (the flag would land on
-// the wrong command and every shard would run the whole suite).
-export function shardCommands(commands, index, total) {
-  if (total === 1) return [...commands];
-  const flag = `--shard=${index}/${total}`;
+// Appends arguments to the Playwright suite command(s) (`--` for npm scripts). Throws when no line
+// is a suite command, or a suite command is part of a compound line (the arguments would land on
+// the wrong command).
+export function appendSuiteArgs(commands, args, why = 'E2E') {
   let hits = 0;
+  const extra = args.join(' ');
   const out = commands.map((cmd) => {
     const direct = DIRECT.test(cmd);
     const script = cmd.match(SCRIPT);
     if (!direct && !script) return cmd;
-    if (COMPOUND.test(cmd)) throw new CliError(`cannot shard "${cmd}": put the Playwright command on its own line under ## E2E`);
+    if (COMPOUND.test(cmd)) throw new CliError(`cannot pass ${why} arguments to "${cmd}": put the Playwright command on its own line under ## E2E`);
     hits++;
-    if (script && script[1].startsWith('npm')) return /\s--(\s|$)/.test(cmd) ? `${cmd} ${flag}` : `${cmd} -- ${flag}`;
-    return `${cmd} ${flag}`;
+    if (script && script[1].startsWith('npm')) return /\s--(\s|$)/.test(cmd) ? `${cmd} ${extra}` : `${cmd} -- ${extra}`;
+    return `${cmd} ${extra}`;
   });
-  if (!hits) throw new CliError('E2E shards > 1 but no line under ## E2E runs the suite (npx playwright test, or an npm/pnpm/yarn script named test:e2e, e2e, test:playwright or playwright); set E2E shards: 1');
+  if (!hits) throw new CliError(`${why}: no line under ## E2E runs the suite (npx playwright test, or an npm/pnpm/yarn script named test:e2e, e2e, test:playwright or playwright)`);
   return out;
+}
+
+// Shard i of n of the suite. One shard: the commands unchanged.
+export function shardCommands(commands, index, total) {
+  if (total === 1) return [...commands];
+  try {
+    return appendSuiteArgs(commands, [`--shard=${index}/${total}`], 'E2E shards');
+  } catch (e) {
+    throw new CliError(`${e.message}; set E2E shards: 1`);
+  }
+}
+
+// Only some spec files (and optionally the tests matching a title pattern): the local runs of the
+// implementer, the verifier and the mechanical check. The full suite is CI's job (DESIGN 12).
+const quote = (s) => (/^[\w./@:=-]+$/.test(s) ? s : `"${String(s).replace(/(["\\$`])/g, '\\$1')}"`);
+export function onlyCommands(commands, files, grep) {
+  for (const v of [...files, grep || '']) {
+    if (/[\x00-\x1f]/.test(v)) throw new CliError('--only and --grep take a single line each', 2);
+  }
+  for (const f of files) if (f.startsWith('-')) throw new CliError(`--only takes spec files, not options: ${f}`, 2);
+  // A suite line that already names files or directories would still run them all.
+  const suite = commands.find((cmd) => DIRECT.test(cmd) || SCRIPT.test(cmd));
+  if (suite && /\s(\S+\/|\S+\.(spec|test)\.[cm]?[jt]sx?)(\s|$)/.test(suite)) throw new CliError(`the suite command "${suite}" already selects files; --only would not narrow it. Run npx playwright test <files> instead`, 2);
+  const args = files.map(quote);
+  if (grep) args.push('-g', quote(grep));
+  if (!args.length) throw new CliError('--only needs at least one spec file (or use --grep)', 2);
+  return appendSuiteArgs(commands, args, 'E2E --only');
 }
 
 export function parseShard(value) {

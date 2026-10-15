@@ -29,8 +29,8 @@ touched.
      reports `clean` or `unstable` for a PR that is behind; the gate compares with the base
      itself): `rb gh pr-update-branch <pr>` once per PR per run (never a local merge, never a
      push to that branch from here), then read the new head SHA. Same head: hold, next PR.
-3. **Wait for CI**, bounded. Poll `rb gh checks <head sha>` every 60 s (`sleep 60`), at most 30
-   polls. All completed: go on. Still pending: hold ("CI pending on <sha>", the next run re-reads
+3. **Wait for CI**, bounded, timed (`rb timing start <id> ci` ... `end`). Poll `rb gh checks
+   <head sha>` every 60 s (`sleep 60`), at most 30 polls. All completed: go on. Still pending: hold ("CI pending on <sha>", the next run re-reads
    it), next PR. No `rockbuilt-ci` check at all: not eligible, escalate once (`No CI` template).
    Unattended runs do not sit in this wait while build work remains: evaluate the train after the
    build batch, so most CI runs have finished.
@@ -43,17 +43,25 @@ touched.
      step 2's update-branch (the update added only a base merge): re-review once per PR per run,
      light or full (DESIGN 8.3). In a checkout of the new head (`git fetch origin`, then the PR
      branch at the new head, fast-forward only), run
-     `rb review-delta --reviewed <old reviewed head> --base origin/<default>`.
-     - **Exit 0 (identical):** the task's diff against the new base is byte-identical to the
-       reviewed one. Dispatch only the verifier with `Identity check: <old head>`,
+     `rb review-delta --reviewed <head of the auditor line> --base origin/<default>`, and again for
+     the security line's head when it differs (after a test-only kickback it does). Use those
+     heads, not the verifier's. The verifier line may carry both keys, one per head:
+     `identical-to=<security head> app-identical-to=<auditor head>`.
+     It compares content: every file the task touched then or touches now, at the old and the new
+     head (a stacked base task that was squash-merged meanwhile does not count as a change).
+     - **`identical`:** dispatch only the verifier with `Identity check: <old head>`,
        `Reviewed head: <new head>` and the review-delta output. It confirms the identity itself and
-       runs the full Verification; on pass its line carries `identical-to=<old head>`. Replace only
-       the verifier line in the body; the auditor and security lines keep their old `head=`. The
-       gate re-checks the identity through GitHub and refuses if it does not hold.
-     - **Exit 3 (different), or the light verifier fails:** full re-review. Dispatch the verifier
+       runs the Verification; on pass its line carries `identical-to=<old head>`. Replace only
+       the verifier line in the body; the auditor and security lines keep their old `head=`.
+     - **`test-only`:** only test files differ. Dispatch the verifier with
+       `Previously reviewed commit: <old head>`, `Reviewed head: <new head>` and
+       `Carry: <old head>`; its pass line carries `app-identical-to=<old head>`. The auditor line
+       stays; the security review, when required, runs again (test code runs in CI with secrets).
+     - **`different`, or the short verifier fails:** full re-review. Dispatch the verifier
        with `Previously reviewed commit: <old head>` and `Reviewed head: <new head>` (scope: the
-       base merge), for tier B the auditor again (inputs as in build step 9), security when
+       base merge), for tier B the auditor again (a re-audit, `audit.md`), security when
        required; rewrite every machine line with the new head.
+     The gate re-checks the class through GitHub and refuses a carried line it cannot confirm.
      Then `rb gh issue-edit <pr> --body-file <f>` and run the gate once more.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
@@ -71,6 +79,9 @@ touched.
      is left, then tasks.md `Status: done` and a Decision log line `- <date>: merged as PR #<pr>
      (squash, rb merge-gate).` when `rb sync` did not already write it.
    - Record for the digest: PR, title, tier, `rb revert <pr>`, minutes from PR open to merge.
+   - Minutes that happened after the PR opened (CI waits, re-reviews, the merge): `rb timing line
+     <id> --pr <pr>` adds them to the line already in the body; replace that line with the output
+     (`rb gh issue-edit <pr> --body-file <f>`). Also after a hold, so the next run starts from it.
    - Tasks that depended on this one may now be ready: the caller loops back to the build queue
      when the run budget allows.
 7. The next PR is now behind by construction: step 2 updates it.

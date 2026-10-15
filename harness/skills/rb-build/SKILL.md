@@ -81,8 +81,8 @@ ladder, resume, crash recovery, blocked path, CI fix), `audit.md`, `parallel.md`
 
 Counters per task: kickbacks (max 2, shared by mechanical, verifier, auditor and security
 failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
-`rb timing start|end <id> <stage>` (stages: plan, implement, check, verify, audit, security, pr,
-ci, merge).
+`rb timing start|end <id> <stage>` (plan, implement, check, verify, audit, security, kickback,
+pr, ci, merge): every review and every wait, not only plan and implement; the retro reads them.
 
 ### 1. Claim and stale check
 `rb gh label-add <n> rb:in-progress`; tasks.md `Status: in-progress`. Read the issue
@@ -118,6 +118,14 @@ groundable: escalate it (`rb escalate`, template in `.claude/skills/rb-cycle/ref
 `rb gh label-remove <n> rb:in-progress`, move on. Never guess; never dispatch with an open BLOCKING
 question.
 
+### 3b. Plan security check (tier C, or personal data)
+Before anyone builds or approves a tier C plan, or a plan whose Risks name personal data,
+dispatch `rb-security-reviewer` with `Mode: plan`, the plan and every `RESOLVED` line, the spec
+folder and `.claude/skills/rb-verify/references/security.md` (1 to 2 minutes). It checks each
+`RESOLVED` decision against requirements.md and the plan's data paths against the checklist. A
+blocker or major: revise the plan (re-dispatch the planner with the finding) or turn it into the
+question of the tier C escalation. Catching a wrong decision here is cheaper than a kickback.
+
 ### 4. Tier C approval
 Approved means: the issue carries `rb:approved`, or a trusted comment without a `<!-- rockbuilt:`
 marker (every harness comment carries one; `rb gh` adds it) newer than the latest
@@ -142,7 +150,9 @@ path. Tool-level dispatch failures follow the retry ladder there.
 Run `rb baseline --check` on the branch: no failure outside the known-failures list, no command
 that was green at baseline now red, test counts not lower without a reason in the plan or report.
 **UI-touching tasks** (pages, components, styles, routes, handlers the UI calls) with an `## E2E`
-section also run `rb verify-cmds E2E` (parallel: `PORT` = 3000 + offset, one worktree at a time).
+section also run the specs the diff adds or changes plus those the task's Verify names, never the
+whole suite (CI runs it): `rb verify-cmds E2E --only <spec files> [--grep "<titles from Verify>"]`
+(parallel: `PORT` = 3000 + offset, one worktree at a time). No such spec: skip local E2E.
 A spec that also fails on the default branch is pre-existing: note it, not a kickback. No browser
 in this environment (Playwright reports a missing executable or host dependencies): not a failure;
 record it for the PR and escalate `--kind local` with the exact commands; when the task has
@@ -179,6 +189,7 @@ Record `git rev-parse HEAD` as the reviewed head. `--hard` is denied and never n
 
 Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
 finding from any reviewer: kickback, budget 2 shared, then the blocked path plus an escalation.
+The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 
 ### 10. Push and PR
 Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>`. Body
@@ -228,8 +239,9 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 `docs/specs/*/tasks.md`, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits:
 after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
 and follow you across branches. At run end, when any of them changed and GitHub is reachable,
-always publish them on `rb/bookkeeping-<YYYY-MM-DD>` (`git checkout -b`, commit only those files,
-push, `rb gh pr-create`, `git checkout <default>`) and tell the user in one line: a cloud session
+always publish them as rb-cycle section 6 step 2 does (one bookkeeping PR per day: on top of an
+open one with `git merge -s ours`, or a new `rb/bookkeeping-<YYYY-MM-DD>`), `git checkout
+<default>`, and tell the user in one line: a cloud session
 loses uncommitted files when it ends. `/rb-cycle` merges it through the gate the next night, or
 the user merges it with `/rb-merge`. In tasks.md change only `Status:` lines and add decision-log entries as one line
 each (`- YYYY-MM-DD: ...`, never wrapped): the gate refuses any other edit in a bookkeeping PR.

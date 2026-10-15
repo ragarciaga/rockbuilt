@@ -29,9 +29,16 @@ For kickback k:
 3. Re-run the mechanical check, recompute the tier (`rb risk --base origin/<default>`), collapse
    again, record the new head.
 4. Re-run the verifier with the prior findings verbatim and `Previously reviewed commit: <sha>`
-   (it checks prior findings first, then only the delta). Then, for tier B and C, re-run the
-   auditor on the new head with only its own previous verdict added (it re-judges every
-   criterion). Re-run the security review when it ran before.
+   (it checks prior findings first, then only the delta). Then the auditor and the security
+   review, decided by `rb review-delta --reviewed <head they passed> --base origin/<default>`
+   (DESIGN 8.3), only for reviewers that already passed on an earlier head:
+   - `test-only` (the fix touched only test files, the app the auditor judged is unchanged): keep
+     the auditor's line as it is, and give the verifier `Carry: <head it passed>` so its pass line
+     ends in `app-identical-to=<that head>`. The security review, when it ran, runs again (test
+     code runs in CI with secrets; the gate never carries it on test-only). The gate re-checks.
+   - `different`: re-run the auditor on the new head with its previous verdict (a re-audit, see
+     `audit.md`), and the security review when it ran before.
+   A reviewer that failed, or had not run yet, always runs on the new head.
 
 After kickback 2, any failure: blocked path (section 5) plus an escalation
 (`.claude/skills/rb-cycle/references/escalation-templates.md`, "Blocked task").
@@ -119,7 +126,9 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
 
 1. **Already used?** The PR branch has a commit whose subject ends `(CI, <id>)`: the attempt is
    spent. Escalate (`CI red after fix`) once and move on.
-2. **Classify.** A secret-scan (gitleaks) failure is never auto-fixed: escalate `--kind human`
+2. **Classify.** A test that fails once and passes on a re-run of the same commit is a flaky
+   candidate: `rb flaky record <spec file:line or test id> --pr <n>`, no code change, never a
+   skip; `rb-retro` reads `rb flaky list`. A secret-scan (gitleaks) failure is never auto-fixed: escalate `--kind human`
    (the secret must be rotated). The `Harness files` step only warns (the gate already makes
    those PRs tier C); it never needs a CI fix. A check with the same name also failing on
    the default branch head (`rb gh checks <default sha>`) is unrelated: do not burn the attempt,
@@ -133,10 +142,12 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
    <id>)"` (never amend or collapse the pushed commit: that would need a force push, which is
    denied). This second commit is the only exception to one commit per PR.
 5. Reviews on the new head: verifier with `Previously reviewed commit: <old head>`; for tier B and
-   C the blind auditor again (all criteria, inputs as in build step 9); security when required. A
+   C the auditor and security as in section 1 step 4 (`rb review-delta` decides whether a
+   test-only fix keeps the auditor's line; the security review runs again). A
    failure here takes the blocked path for the fix (the PR stays open, labelled `rb:blocked`).
 6. `git push`. Rewrite the PR body with every machine line carrying the new head (replace, never
-   append) and apply it with `rb gh issue-edit <pr> --body-file <f>` (a PR is an issue for the
+   append; the timing line from `rb timing line <id> --pr <pr>`, which keeps the minutes already
+   in the body) and apply it with `rb gh issue-edit <pr> --body-file <f>` (a PR is an issue for the
    REST API). If the edit fails, escalate: the gate will refuse the stale lines.
 7. CI runs again; the train reads it. Still red: escalate `CI red after fix`, label `rb:blocked`
    on the issue, the PR stays open.

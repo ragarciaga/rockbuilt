@@ -39,6 +39,8 @@ is evidence too: quote it.
 Project:
 
 - `rb timing report` (time per task and phase; flag phases far above the median).
+- `rb flaky list` (tests that failed once and passed on re-run; two or more hits is a project
+  gotcha worth a task).
 - tasks.md decision logs: kickbacks per task and their reasons, tasks that ended blocked and why.
 - `.claude/LESSONS.md` entries added in the scope; test-report.md, evals.md and
   security-report.md in the spec folder.

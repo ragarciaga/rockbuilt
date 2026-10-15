@@ -7,19 +7,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acceptBaseline, checkBaseline, runBaseline } from './lib/baseline.mjs';
 import { COMMAND_SECTIONS, headerField, readContract, sectionCommands } from './lib/contract.mjs';
-import { acquireLock, ensureControl, escalate, lockStatus, postDigest, releaseLock, stopStatus } from './lib/control.mjs';
+import { acquireLock, ensureControl, escalate, listFlaky, lockStatus, postDigest, recordFlaky, releaseLock, stopStatus } from './lib/control.mjs';
 import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
 import { reviewDelta } from './lib/delta.mjs';
-import { e2ePlan, parseShard, shardCommands } from './lib/e2e.mjs';
+import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
 import { syncProject, syncText } from './lib/sync.mjs';
-import { aggregate, appendEvent, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, timingLine, writeProgressBlock } from './lib/timing.mjs';
+import { addRows, aggregate, appendEvent, localRow, markPublished, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, timingLine, writeProgressBlock } from './lib/timing.mjs';
 import { CliError, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, stringFlag } from './lib/util.mjs';
 import { vendorProject, vendorText } from './lib/vendor.mjs';
 import { addWorktree, listWorktrees, removeWorktree } from './lib/worktree.mjs';
@@ -28,14 +28,14 @@ export const COMMANDS = {
   vendor: 'Install or update the harness  [--tools claude,cursor,codex] [--type web,ai,automation] [--lang es] [--from <harness root>]',
   init: 'Alias of vendor',
   doctor: 'Environment, contract, vendored version, CI, protection mode, labels, control issue',
-  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup] [--shard i/n (E2E only)]',
+  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
   'e2e-plan': 'CI: has E2E, shard count and matrix from AGENTS.md (key=value lines for GITHUB_OUTPUT)',
-  'review-delta': 'Is the task diff after an update-branch identical to the reviewed one?  --reviewed <sha> [--base origin/<default>] (exit 3 when not)',
+  'review-delta': 'Task change since the reviewed head, by content: identical | test-only | different  --reviewed <sha> [--base origin/<default>] (exit 3 when different)',
   baseline: 'Run Verification and ratchet against docs/rockbuilt/known-failures.json  [--check] [--accept]',
   tasks: 'Parse tasks.md strictly and check coverage against requirements.md  <spec-dir>',
   parallel: 'Batch ready tasks with disjoint files  <spec-dir> [--ids T4,T6] [--max 3]',
   worktree: 'add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list',
-  timing: 'start|end <task> <phase> | line <task> [--est <hours>] | report [--write]',
+  timing: 'start|end <task> <phase> | line <task> [--est <hours>] [--pr <n>] | report [--write]',
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
@@ -47,6 +47,7 @@ export const COMMANDS = {
   stop: 'status: exit 3 when the stop switch is on',
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
   digest: 'post --file <md>: append the run digest to the control issue',
+  flaky: 'record <test> [--pr <n>] [--note t] | list: flaky candidates on the control issue (a failure that passed on re-run)',
   protect: 'Require the rockbuilt-ci check on the default branch (exit 3 when the plan does not allow it)',
   labels: 'Create or update the rb:* label set (same as gh labels-ensure)',
   help: 'Show this help',
@@ -180,10 +181,15 @@ const handlers = {
     let commands = sectionCommands(text, section);
     if (commands === null) throw new CliError(`section "## ${section}" not found in ${file}`);
     const shard = stringFlag(flags, 'shard');
+    const only = listFlag(flags.only);
+    const grep = stringFlag(flags, 'grep');
+    if ((shard !== undefined || only.length || grep !== undefined) && section !== 'E2E') throw new CliError('--shard, --only and --grep apply to the E2E section only', 2);
+    if (shard !== undefined && (only.length || grep !== undefined)) throw new CliError('--shard is for CI; --only/--grep are for local runs: pick one', 2);
     if (shard !== undefined) {
-      if (section !== 'E2E') throw new CliError('--shard applies to the E2E section only', 2);
       const { index, total } = parseShard(shard);
       commands = shardCommands(commands, index, total);
+    } else if (only.length || grep !== undefined) {
+      commands = onlyCommands(commands, only, grep);
     }
     return { data: { file, section, commands }, text: commands.join('\n'), code: 0 };
   },
@@ -199,7 +205,7 @@ const handlers = {
     const reviewed = stringFlag(flags, 'reviewed', { required: true });
     const base = stringFlag(flags, 'base') || `origin/${defaultBranch(root)}`;
     const r = reviewDelta(root, { base, reviewed });
-    return { data: r, text: `${r.identical ? 'identical' : 'different'}: ${r.detail}`, code: r.identical ? 0 : 3 };
+    return { data: r, text: `${r.class}: ${r.detail}`, code: r.class === 'different' ? 3 : 0 };
   },
 
   baseline({ cwd, flags, io }) {
@@ -296,10 +302,23 @@ const handlers = {
     if (sub === 'line') {
       if (!task) throw new CliError('usage: rb timing line <task>', 2);
       const est = stringFlag(flags, 'est');
-      const estHours = est === undefined ? null : Number(est);
+      let estHours = est === undefined ? null : Number(est);
       if (est !== undefined && !(estHours > 0)) throw new CliError('--est must be a positive number of hours', 2);
-      const line = timingLine(aggregate(readEvents(root)), task, { estHours });
-      if (!line) throw new CliError(`no timing events for ${task} in this checkout`);
+      const pr = stringFlag(flags, 'pr');
+      const local = localRow(readEvents(root), task);
+      let row = local.total;
+      if (pr !== undefined) {
+        // The PR body already holds the minutes published earlier (maybe by another run, in a
+        // checkout that no longer exists); add what happened since here: CI, re-reviews, merge.
+        const body = ops.prView(client(root, flags, io), pr).body;
+        const prior = parseTimingLines(body).filter((t) => t.task === task).pop() || null;
+        if (!prior && !local.total) throw new CliError(`no timing for ${task} in PR #${pr} or in this checkout`);
+        if (estHours === null && prior) estHours = prior.estHours;
+        row = prior ? addRows(prior, local.since) : local.total;
+      }
+      if (!row) throw new CliError(`no timing events for ${task} in this checkout`);
+      const line = timingLine({ tasks: [row], open: [] }, task, { estHours });
+      markPublished(root, task, local.total ? local.total.phases : {});
       return { data: { line }, text: line, code: 0 };
     }
     if (sub === 'report') {
@@ -308,15 +327,33 @@ const handlers = {
       // this checkout's events. A fresher source replaces a task's row.
       let report = { tasks: parseBlock(readText(path.join(root, 'docs', 'progress.md'))), open: [] };
       let github = null;
+      let githubRead = false;
       try {
         const prs = ops.prList(client(root, flags, io), { state: 'all', headPrefix: 'rb/' });
         const rows = prs.slice().reverse().flatMap((p) => parseTimingLines(p.body));
         report = mergeReports(report.tasks, { tasks: rows, open: [] });
         github = `${rows.length} task(s) from PR bodies`;
+        githubRead = true;
       } catch (e) {
         github = `not read (${e.message})`;
       }
-      report = mergeReports(report.tasks, local);
+      // This checkout: a task whose minutes went into a PR line adds only what came after that
+      // line (CI, re-reviews); a task never published here takes its row as it is.
+      const events = readEvents(root);
+      const rows = report.tasks.map((t) => {
+        const l = localRow(events, t.task);
+        // Without GitHub the rows come from progress.md, which an earlier report here already
+        // wrote with these minutes: only the GitHub rows are a clean base.
+        return githubRead && l.since && l.published ? addRows(t, l.since) : t;
+      });
+      const known = new Set(rows.map((t) => t.task));
+      for (const t of local.tasks) {
+        if (known.has(t.task)) {
+          const l = localRow(events, t.task);
+          if (!l.published) { const i = rows.findIndex((x) => x.task === t.task); rows[i] = t; }
+        } else rows.push(t);
+      }
+      report = { tasks: rows, open: local.open };
       const table = renderTable(report);
       const written = flags.write ? writeProgressBlock(root, table) : null;
       const text = `${table}${written ? `\n\nwritten to ${written}` : ''}\n\nGitHub: ${github}`;
@@ -553,6 +590,22 @@ const handlers = {
     if (!positionals[0]) throw new CliError('usage: rb escalate <issue|new> --kind human|local --title <t> --body-file <f>', 2);
     const r = escalate(client(projectRoot(cwd), flags, io), positionals[0], { kind: stringFlag(flags, 'kind', { required: true }), title: stringFlag(flags, 'title', { required: true }), body: bodyFile(cwd, flags) });
     return { data: r, text: `#${r.issue} labelled ${r.label}${r.created ? ' (new issue)' : ''}`, code: 0 };
+  },
+
+  flaky({ cwd, positionals, flags, io }) {
+    const [sub, test] = positionals;
+    const c = client(projectRoot(cwd), flags, io);
+    if (sub === 'record') {
+      const pr = stringFlag(flags, 'pr');
+      const r = recordFlaky(c, { test, pr: pr === undefined ? null : Number(pr), note: stringFlag(flags, 'note') || '' });
+      return { data: r, text: `flaky candidate ${test} recorded on #${r.control}`, code: 0 };
+    }
+    if (sub === 'list') {
+      const rows = listFlaky(c);
+      const text = rows.length ? rows.map((r) => `${r.count}x  ${r.test}  last ${r.last}${r.prs.length ? `  PRs ${r.prs.map((n) => `#${n}`).join(' ')}` : ''}`).join('\n') : 'No flaky candidates recorded.';
+      return { data: { flaky: rows }, text, code: 0 };
+    }
+    throw new CliError('usage: rb flaky record <test> [--pr <n>] [--note <text>] | list', 2);
   },
 
   digest({ cwd, positionals, flags, io }) {

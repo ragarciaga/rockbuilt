@@ -237,7 +237,7 @@ export function handle(s, method, fullPath, body) {
   if ((m = r.match(/^contents\/(.+)$/))) {
     const key = `${q.get('ref')}:${decodeURIComponent(m[1])}`;
     if (!(key in s.contents)) return err(404, 'Not Found');
-    return ok({ type: 'file', encoding: 'base64', content: Buffer.from(s.contents[key]).toString('base64') });
+    return ok({ type: 'file', encoding: 'base64', sha: `blob-${Buffer.from(String(s.contents[key])).toString('hex').slice(0, 16)}`, content: Buffer.from(s.contents[key]).toString('base64') });
   }
   return err(404, `Not Found: ${method} ${r}`);
 }
