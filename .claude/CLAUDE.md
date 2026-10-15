@@ -31,9 +31,12 @@ character anywhere; the selfcheck test fails on it.
      `node evals/run.mjs --arms with` to catch regressions. A scenario that passed before and
      fails now blocks the change.
    - Load the plugin by hand when needed: `claude --plugin-dir .` from a test project.
-6. **Version.** Bump `version` in `.claude-plugin/plugin.json` (semver: patch for fixes, minor for
-   new skills or behavior, major when a project-side file format changes) and add a CHANGELOG
-   entry. Users only receive updates when the version changes.
+6. **Version and user docs.** Bump `version` in `.claude-plugin/plugin.json` (semver: patch for
+   fixes, minor for new skills or behavior, major when a project-side file format changes) and add
+   a CHANGELOG entry. Users only receive updates when the version changes. In the same PR, update
+   what users read for every change they can notice: `README.md` (its `Version x.y.z.` line, and
+   the sections the change touches), `docs/GUIA.md`, and `docs/CLOUD.md` when routines change. A
+   change is not done while the docs still describe the old behavior.
 7. **PR** with the evidence, the eval result table (from `evals/results/<run>/summary.md`), and
    the eval run's estimated cost (API-price estimate; plan usage when run on an account login). The maintainer merges; then create the GitHub release `v<version>`.
 

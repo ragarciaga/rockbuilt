@@ -112,7 +112,8 @@ por ti.
 
 1. El brief (kickoff).
 2. Los requisitos y luego el diseño de cada funcionalidad (spec).
-3. Cada decisión de nivel C, cuando llega.
+3. Cada decisión de nivel C, cuando llega. Antes de que te llegue, el revisor de seguridad lee
+   el plan y coteja cada decisión con los requisitos (también en planes con datos personales).
 4. Los PRs de nivel C y los del harness.
 
 Las tareas que salen de un spec aprobado no piden una segunda aprobación.
@@ -202,9 +203,18 @@ Ten en cuenta que 3 agentes en paralelo consumen el límite del plan 3 veces má
 
 ## Tiempos
 
-Cada tarea registra cuánto tardó en planear, implementar, verificar, auditar y corregir. La tabla
-queda al final de `docs/progress.md` y el resumen nocturno incluye el tiempo por tarea. Ese es
-el tiempo de la máquina, no el tuyo.
+Cada tarea registra cuánto tardó en cada fase: planear, implementar, verificar, auditar,
+seguridad, devoluciones, espera del CI y merge. La línea de tiempos de cada PR se va completando
+aunque el merge pase en otra corrida, la tabla queda al final de `docs/progress.md` y el resumen
+nocturno trae una tabla por fase. Ese es el tiempo de la máquina, no el tuyo.
+
+El auditor tiene un presupuesto de unos 5 minutos por criterio (25 en total). Cuando vuelve a
+auditar después de una devolución, revisa lo que falló y lo que el cambio puede afectar, no todo.
+Si el verificador encuentra un error que solo está en el reporte (una cifra mal contada), lo
+anota para corregir el PR y no devuelve la tarea.
+
+Las notas de progreso y las lecciones van en un solo PR de registro por día
+(`rb/bookkeeping-<fecha>`), que las corridas siguientes actualizan y la próxima fusiona sola.
 
 ## Tus horas (para costear y para el ROI)
 
