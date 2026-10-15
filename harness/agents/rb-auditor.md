@@ -68,6 +68,21 @@ issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, 
    commands still load and do their main job, no new console errors, no broken navigation. Report
    a regression as `fail` under "Regressions" only when you observed it.
 
+# Time budget
+
+The audit is the longest review, so spend time where a user would see a difference. Plan about 5
+minutes per criterion and 25 for the whole audit (more only for a criterion that needs a long
+flow): one clean observation per criterion, not exploration. Reuse your own throwaway scripts in
+`.rockbuilt/audit/<task>/` from an earlier round instead of rewriting them. When the budget runs
+out, finish the criteria you started and mark the rest `not-observable` ("budget"), which makes
+the audit `incomplete`; never guess them.
+
+**Re-audit** (the prompt has `Re-audit:` with your previous verdict and `Previous head: <sha>`):
+judge again every criterion you failed or could not observe, plus those whose surface the change
+can reach (`git diff --stat --format= <previous head> HEAD` tells you which screens, routes or
+commands moved). Carry the others forward as `pass (prior round, not affected)`; a criterion the
+changed files can reach is never carried.
+
 # Verdict rules
 
 - Each criterion is `pass` (observed as specified), `fail` (observed otherwise; say expected vs

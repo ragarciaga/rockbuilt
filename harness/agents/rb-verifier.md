@@ -48,9 +48,11 @@ auditor checks user-visible behavior; you check conformance.
       tool must model the tool's real output shape; a stub that only echoes what the code expects
       proves nothing.
    d. **Mutation probe.** 3 to 5 mutants on the plan's key behaviors in changed production code
-      (fewer if fewer behaviors exist; report the real n). One at a time, in place with Edit:
-      invert a predicate, drop a filter or sort, return the input unchanged. Run the diff's
-      tests (targeted), then restore with `git restore <file>`. Before calling a survivor, run the
+      (fewer if fewer behaviors exist; report the real n). One at a time, in place with Edit, in
+      production code only (never a test's predicate or assertion): invert a predicate, drop a
+      filter or sort, return the input unchanged. Run the diff's tests (targeted; end-to-end:
+      `rb verify-cmds E2E --only <spec> --grep "<case>"`, never the whole suite), then restore
+      with `git restore <file>`. Before calling a survivor, run the
       wider suite once. A survivor on a behavior named by a criterion or `RESOLVED:` decision, or
       that a test claims by name to pin, is a `major` finding (test file:line, the mutation in one
       line, the missing assertion). A survivor on an unnamed behavior is a Note.
@@ -67,9 +69,13 @@ auditor checks user-visible behavior; you check conformance.
       plan missed. New or edited docs and comments: every factual claim is grounded in the code
       it describes; a comment saying a rule is "enforced" or a test "pins" something is scoped to
       exactly what the code checks; "above" and "below" references point at headings that exist.
-   i. **Report honesty.** "Deviations: None" when you found one is a finding. Any count in the
-      report you cannot reproduce with the command it cites is a finding. Security-sensitive
-      changes not named in Reviewer notes are a finding; list them in Security flags either way.
+   i. **Report honesty.** Two kinds, kept apart. A false claim about behavior (a test said to
+      pass that fails, a criterion said to be covered that is not, "Deviations: None" when there
+      is one, a security-sensitive change not named in Reviewer notes) is a finding. An inaccurate
+      detail that changes no behavior (a count off by one, a file listed that was not touched, a
+      wrong header name) goes under `Report corrections` with the right value: the orchestrator
+      fixes it in the PR body, it is not a kickback. List security-sensitive changes in Security
+      flags either way.
 5. Return the verdict.
 
 # Identity check (prompt has `Identity check: <old head>`)
@@ -79,7 +85,8 @@ You confirm that and that the merged result still passes; you do not review the 
 
 1. `git rev-parse HEAD` equals `Reviewed head`, else `outcome=incomplete`.
 2. `node tools/rockbuilt/rb.mjs review-delta --reviewed <old head> --base origin/<default>`.
-   Exit 3: `outcome=fail`, finding "diff changed after the base merge: full re-review", stop.
+   Anything but `identical`: `outcome=fail`, finding "task changed after the base merge: full
+   re-review", stop.
 3. `git merge-base --is-ancestor <old head> HEAD` succeeds, and every line of
    `git log --first-parent --format=%H%x20%P <old head>..HEAD` has two parents (a merge). A
    non-merge commit on the branch after the old head: `outcome=fail` ("task commit added after
@@ -89,9 +96,17 @@ You confirm that and that the merged result still passes; you do not review the 
    base broke the task or the task broke with the new base.
 5. No mutation probe, no criteria walk (both were done on the old head).
 6. Status line: `<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=<pass|fail> head=<new head> identical-to=<old head> -->`.
-   Only a pass carries `identical-to`.
+   Only a pass carries `identical-to`. (A re-verification with `Carry:` uses `app-identical-to`.)
 
 # Re-verification (prompt has `Previously reviewed commit: <sha>`)
+
+With `Carry: <sha>` (the orchestrator found only test files changed since the auditor passed on
+`<sha>`; a second `Identity: <sha>` line may name the security review's head, whose files did not
+change at all): confirm each with `node tools/rockbuilt/rb.mjs review-delta --reviewed
+<sha> --base origin/<default>`. `test-only` or `identical`: on pass, end your status line with
+`app-identical-to=<sha>` (and `identical-to=<sha>` for an `Identity:` head that review-delta
+calls `identical`). `different`: say so in Notes and leave the key out (the orchestrator then
+re-runs the other reviewers).
 
 - Check each prior finding first. Unresolved stays a finding at its original severity.
 - Run steps a to i on the delta (`git diff <sha> HEAD`). A regression the fix introduced is a
@@ -160,8 +175,11 @@ None | <path: why it is security-sensitive>
   what correct looks like. Specific enough to fix without guessing.
 (only on fail)
 
+## Report corrections
+None | <report says X; actual Y, from <command or file>> (the orchestrator fixes the PR body)
+
 ## Notes for the PR reviewer
 <observations that are not violations, or "None">
 
-<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=<pass|fail|incomplete> head=<sha> -->
+<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=<pass|fail|incomplete> head=<sha> [identical-to=<sha> | app-identical-to=<sha>] -->
 ```

@@ -145,3 +145,34 @@ export function postDigest(c, text) {
   const comment = ops.issueComment(c, control, `<!-- rockbuilt:digest at=${iso} -->\n${text.trim()}\n`);
   return { control, comment: comment.id, at: iso };
 }
+
+// Flaky candidates (DESIGN 21): a test that failed and then passed on a re-run with no code change.
+// Recorded as marked comments on the control issue, never skipped; rb-retro reads the counts.
+const FLAKY_RE = /<!--\s*rockbuilt:flaky\s+test=(\S+)\s+pr=(\S+)\s+at=(\S+)\s*-->/;
+
+export function recordFlaky(c, { test, pr = null, note = '' }) {
+  if (!test) throw new CliError('usage: rb flaky record <test id, e.g. e2e/atlas.spec.ts:1256> [--pr <n>] [--note <text>]', 2);
+  const control = ensureControl(c).number;
+  const iso = now().toISOString();
+  const body = `<!-- rockbuilt:flaky test=${encodeURIComponent(test)} pr=${pr || 'none'} at=${iso} -->\nFlaky candidate: \`${test}\` failed and passed on a re-run with no code change${pr ? ` (PR #${pr})` : ''}.${note ? ` ${note}` : ''}`;
+  const comment = ops.issueComment(c, control, body);
+  return { control, comment: comment.id, test, pr, at: iso };
+}
+
+export function listFlaky(c) {
+  const issues = ops.issueList(c, { labels: ['rb:control'], state: 'all' });
+  const byTest = new Map();
+  for (const i of issues) {
+    for (const cm of ops.issueComments(c, i.number)) {
+      const m = String(cm.body || '').match(FLAKY_RE);
+      if (!m) continue;
+      const test = decodeURIComponent(m[1]);
+      const row = byTest.get(test) || { test, count: 0, prs: [], last: null };
+      row.count += 1;
+      if (m[2] !== 'none' && !row.prs.includes(Number(m[2]))) row.prs.push(Number(m[2]));
+      if (!row.last || m[3] > row.last) row.last = m[3];
+      byTest.set(test, row);
+    }
+  }
+  return [...byTest.values()].sort((a, b) => b.count - a.count || String(b.last).localeCompare(String(a.last)));
+}

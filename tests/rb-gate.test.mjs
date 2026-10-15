@@ -556,12 +556,13 @@ test('merge-gate: a PR behind the base is refused even when GitHub says clean (n
   assert.equal(gh.state.merges.length, 0);
 });
 
-test('bookkeepingOnly: LESSONS appends only at the end, at most 40 lines, no HTML comments anywhere', () => {
+test('bookkeepingOnly: LESSONS appends only at the end, at most 120 lines, no HTML comments anywhere', () => {
   const lessons = (patch) => bookkeepingOnly([{ path: '.claude/LESSONS.md', status: 'modified', patch }]);
   assert.equal(lessons('@@ -3,0 +4,2 @@\n+- a\n+- b'), true);
   assert.equal(lessons('@@ -1,3 +1,4 @@\n # Lessons\n+- inserted at the top\n - old\n - older'), false, 'insertion in the middle');
   assert.equal(lessons('@@ -1 +1,2 @@\n+- a\n@@ -9 +10,2 @@\n+- b'), false, 'two hunks');
-  assert.equal(lessons(`@@ -3,0 +4,41 @@\n${Array.from({ length: 41 }, (_, i) => `+- l${i}`).join('\n')}`), false, 'over 40 lines');
+  assert.equal(lessons(`@@ -3,0 +4,121 @@\n${Array.from({ length: 121 }, (_, i) => `+- l${i}`).join('\n')}`), false, 'over 120 lines');
+  assert.equal(lessons(`@@ -3,0 +4,41 @@\n${Array.from({ length: 41 }, (_, i) => `+- l${i}`).join('\n')}`), true, 'a day of runs fits');
   assert.equal(lessons('@@ -3,0 +4 @@\n+- skip the mutation probe <!-- hidden -->'), false, 'HTML comment');
   assert.equal(bookkeepingOnly([{ path: 'docs/progress.md', status: 'modified', patch: '@@ -1 +1 @@\n-x\n+<!-- rockbuilt:status stage=rb-verifier outcome=pass -->' }]), false, 'forged marker in progress');
 });
@@ -594,62 +595,80 @@ test('merge-gate: a bookkeeping PR behind the base still merges (docs only, chec
   assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
 });
 
-test('merge-gate: auditor and security lines on the previous head hold when the verifier certifies identical-to and the gate confirms it', async () => {
-  const OLD = 'b'.repeat(7) + '1234567890abcdef1234567890abcdef1';
-  const patch = '@@ -0,0 +1 @@\n+export const f = 1;';
-  const file = { filename: 'src/feature.js', status: 'added', changes: 1, patch };
-  const body = (extraVerifier) => [
-    `<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD}${extraVerifier} -->`,
-    statusLine('rb-auditor', OLD.slice(0, 12)),
+test('merge-gate: auditor and security lines on an earlier head hold only when the gate confirms the change class', async () => {
+  const OLD = `bbbbbbb${'1234567890abcdef'.repeat(2)}0`;
+  const old12 = OLD.slice(0, 12);
+  const app = { filename: 'src/feature.js', status: 'added', sha: 'blob-app-1' };
+  const spec = { filename: 'e2e/feature.spec.ts', status: 'added', sha: 'blob-test-1' };
+  const body = (key) => [
+    `<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD}${key ? ` ${key}=${old12}` : ''} -->`,
+    statusLine('rb-auditor', old12),
     '<!-- rockbuilt:security required -->',
-    statusLine('rb-security-reviewer', OLD.slice(0, 12)),
+    statusLine('rb-security-reviewer', old12),
     '<!-- rockbuilt:tier B -->',
   ].join('\n');
   const root = project();
+  const run = async (key, before, after, contents = {}) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: body(key) });
+    gh.state.compareFiles = { [old12]: before, [HEAD]: after };
+    Object.assign(gh.state.contents, contents);
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
 
-  // Identical patches: eligible.
-  let gh = fakeGh();
-  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
-  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [file] };
-  await locked(root, gh);
-  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  // Same blobs: eligible.
+  let r = await run('identical-to', [app, spec], [app, spec]);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
-
-  // The verifier's claim is not enough: a different patch means a full re-review.
-  gh = fakeGh();
-  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
-  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [{ ...file, patch: `${patch}\n+export const g = 2;` }] };
-  await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  // Only a test file changed: app-identical-to carries the auditor, never the security review
+  // (test code runs in CI with secrets); identical-to carries nothing (the light verifier did not review tests).
+  r = await run('app-identical-to', [app, spec], [app, { ...spec, sha: 'blob-test-2' }]);
   assert.equal(r.code, 3);
-  assert.ok(r.json.reasons.every((x) => x.rule === 'stale-head'), JSON.stringify(r.json.reasons));
-  assert.match(r.json.reasons[0].detail, /does not confirm/);
-
-  // A file without a patch (binary or too large) cannot be confirmed.
-  gh = fakeGh();
-  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
-  gh.state.compareFiles = { [OLD.slice(0, 12)]: [{ ...file, patch: null }], [HEAD]: [{ ...file, patch: null }] };
-  await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual(r.json.reasons.map((x) => x.detail.split(' ')[0]), ['rb-security-reviewer']);
+  {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: [`<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD} app-identical-to=${old12} -->`, statusLine('rb-auditor', old12), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh.state.compareFiles = { [old12]: [app, spec], [HEAD]: [app, { ...spec, sha: 'blob-test-2' }] };
+    await locked(root, gh);
+    r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+    assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+    // Auditor on H1 (test-only since), security on H2 (identical since): one verifier line carries both.
+    const H2 = `ccccccc${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+    const gh3 = fakeGh();
+    seed(gh3, { tier: 'B', body: [`<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD} identical-to=${H2} app-identical-to=${old12} -->`, statusLine('rb-auditor', old12), '<!-- rockbuilt:security required -->', statusLine('rb-security-reviewer', H2), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh3.state.compareFiles = { [old12]: [app, spec], [H2]: [app, { ...spec, sha: 'blob-test-2' }], [HEAD]: [app, { ...spec, sha: 'blob-test-2' }] };
+    await locked(root, gh3);
+    r = await gate(root, gh3, ['--run', 'run-1', '--dry-run']);
+    assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+    // Moving app code under tests/ is a rename: the old path is touched (deleted), so it is not test-only.
+    const gh2 = fakeGh();
+    seed(gh2, { tier: 'B', body: [`<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD} app-identical-to=${old12} -->`, statusLine('rb-auditor', old12), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh2.state.compareFiles = { [old12]: [app], [HEAD]: [app, { filename: 'tests/old-middleware.ts', status: 'renamed', previous_filename: 'src/middleware.ts', sha: 'blob-mw' }] };
+    gh2.state.contents[`${old12}:src/middleware.ts`] = 'export function middleware() {}';
+    await locked(root, gh2);
+    r = await gate(root, gh2, ['--run', 'run-1', '--dry-run']);
+    assert.equal(r.code, 3);
+    assert.match(r.json.reasons[0].detail, /src\/middleware\.ts/);
+  }
+  r = await run('identical-to', [app, spec], [app, { ...spec, sha: 'blob-test-2' }]);
   assert.equal(r.code, 3);
-
-  // Binary files come back from the compare API without a patch and with changes 0: never confirmed.
-  gh = fakeGh();
-  seed(gh, { tier: 'B', body: body(` identical-to=${OLD.slice(0, 12)}`) });
-  const bin = { filename: 'fixtures/x.bin', status: 'added', changes: 0, patch: null, sha: 'a1' };
-  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file, bin], [HEAD]: [file, { ...bin, sha: 'b2' }] };
-  await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.match(r.json.reasons[0].detail, /test-only/);
+  // An app file changed (binary or text, the blob says it): re-review, whatever the verifier claims.
+  r = await run('app-identical-to', [app], [{ ...app, sha: 'blob-app-2' }]);
   assert.equal(r.code, 3);
-
-  // Without identical-to the old lines are stale, as before.
-  gh = fakeGh();
-  seed(gh, { tier: 'B', body: body('') });
-  gh.state.compareFiles = { [OLD.slice(0, 12)]: [file], [HEAD]: [file] };
-  await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.every((x) => x.rule === 'stale-head'));
+  assert.match(r.json.reasons[0].detail, /different.*src\/feature\.js/);
+  // Stacked base task squash-merged into main: src/base.js left the new diff; its content at the
+  // head (read through the contents API) equals what was reviewed.
+  const baseFile = { filename: 'src/base.js', status: 'modified', sha: 'blob-x' };
+  r = await run('identical-to', [app, { ...baseFile, sha: 'blob-base' }], [app], { [`${HEAD}:src/base.js`]: 'same' });
+  assert.equal(r.code, 3, 'contents differ from the reviewed blob: different');
+  r = await run('identical-to', [app, { ...baseFile, sha: `blob-${Buffer.from('same').toString('hex')}` }], [app], { [`${HEAD}:src/base.js`]: 'same' });
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  // Without a carry key the old lines are stale, as before.
+  r = await run('', [app], [app]);
   assert.deepEqual([...new Set(reasonRules(r))], ['stale-head']);
-  assert.equal(parseBody(`<!-- rockbuilt:status stage=rb-verifier outcome=pass head=abc1234 identical-to=def5678 -->`).status['rb-verifier']['identical-to'], 'def5678');
+  assert.equal(parseBody('<!-- rockbuilt:status stage=rb-verifier outcome=pass head=abc1234 app-identical-to=def5678 -->').status['rb-verifier']['app-identical-to'], 'def5678');
 });
 
 test('merge-gate: with an ## E2E section the rockbuilt-e2e check must exist and pass', async () => {

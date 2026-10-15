@@ -90,10 +90,19 @@ regex, adding `.skip`, `test.fixme`, `test.fail`, raising timeouts to hide slown
 feel, or catching an error to continue. If the healer finds a test that passes without proving the
 criterion (false positive), it is a test fault and the fix makes it stricter.
 
+## Transient states and mutation
+
+A state that appears and goes away (a "saving" label, a spinner, a count that returns to 0) is read
+once, not with an auto-retrying assertion: `toHaveCount(0)` keeps retrying until the state passes
+and a mutant survives. Hold the request in the mock (route handler that waits) so the state stays
+while the test reads it. Mutation probes break production code, never a test's predicate or
+assertion (that proves nothing, and safety classifiers deny it as test removal).
+
 ## Flaky policy
 
 Retry once, only to classify: pass on retry = flaky, recorded as a test or environment fault with
-both outcomes, never counted as a clean pass. Keep `retries: 0` in local config; CI may set 1 but
+both outcomes, never counted as a clean pass, and registered with `rb flaky record <file:line>
+--pr <n>` so the retro sees repeat offenders. Keep `retries: 0` in local config; CI may set 1 but
 the report still lists flaky tests. First suspects for a test that used to pass: an expired
 credential (session cookie, temporary API key), a server that is not up or on another port,
 leftover data from a previous run.

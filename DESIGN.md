@@ -279,33 +279,44 @@ Merges are serial (merge train), one PR at a time:
 `rb revert` opens its PR labelled `rb:tier-c` and `rb:needs-human`: undoing a merge is the
 user's call, and a red default branch already stops the next cycle at the baseline step.
 
-### 8.3 Light re-review after an update-branch
+### 8.3 Carrying reviews forward (update-branch, kickbacks)
 
-After `rb gh pr-update-branch` the head changes, so every review line is stale. A full re-review
-repeats work when the update only merged the base and the task's diff did not move. Rule:
+A new head makes every review line stale. Re-running everything repeats work when the task did not
+change, or when only its tests changed. Rule, by content rather than diff text:
 
-- `rb review-delta --reviewed <old head> --base origin/<default>` compares `git diff
-  <merge-base(base, old head)> <old head>` with `git diff <base> HEAD`, ignoring `index` lines.
-  Identical (exit 0): the verifier runs in identity mode (`Identity check: <old head>`): it
-  re-runs review-delta, checks that every first-parent commit after the old head is a merge, and
-  runs the full Verification (E2E when the task has `[e2e]` criteria). No mutation probe, no
-  criteria walk. Its pass line carries `identical-to=<old head>`. Anything else: full re-review.
-- The gate does not trust the claim: for auditor and security lines whose `head=` is the
-  `identical-to` commit, it compares the patch sets of `base...old head` and `base...head` from the
-  GitHub compare API (filename, status, previous name, blob sha, patch). Any file without a patch
-  (binary, mode-only, too large; GitHub reports some with changes 0) or 300 files means "not
-  confirmed". Not confirmed: `stale-head`, full re-review. review-delta likewise keeps each
-  file's post-image blob and mode, so a binary or mode change after review is "different".
-- The verifier line itself is always on the current head, and CI must be green on it.
+- `rb review-delta --reviewed <old head> --base origin/<default>` takes every path the task touched
+  at the old head (`git diff <merge-base(base, old)> <old>`) or touches now (`git diff <base>
+  HEAD`) and compares the file at both heads (blob and mode). No difference: `identical`. Only
+  test files differ (`**/*.test.*`, `**/*.spec.*`, `tests/`, `test/`, `e2e/`, `__tests__/`;
+  anything else counts as app): `test-only`. Otherwise `different`. A stacked base task that was
+  squash-merged meanwhile leaves the new diff with the same content, so it is not a change
+  (3d_brain #135 was re-reviewed in full for this, about 30 min).
+- `identical` (typical after update-branch): the verifier runs in identity mode (`Identity check:
+  <old head>`: review-delta again, every first-parent commit after the old head is a merge, the
+  Verification; no mutation probe, no criteria walk) and its pass line carries
+  `identical-to=<old head>`.
+- `test-only` (typical after a kickback that fixed a test): the verifier re-verifies the delta
+  (`Previously reviewed commit:`, `Carry:`) and its pass line carries `app-identical-to=<old
+  head>`. The auditor's line carries: it judged the running app, which did not change (3d_brain
+  T10: 20 to 30 min of re-audit for a spec file). The security review never carries on test-only:
+  test code runs in CI with the workflow's secrets. Test paths are `**/*.test.*`, `**/*.spec.*`,
+  `tests/`, `test/`, `e2e/`, `__tests__/`, except inside file-routed directories (`pages/`,
+  `server/`, `api/`, `functions/`), where a `x.test.ts` can be a live route. A rename touches both
+  paths (moving app code under `tests/` is an app change).
+- `different`: full re-review (a re-audit is scoped, see the auditor's time budget).
+- The gate does not trust the verifier: for auditor and security lines on the carried head it
+  repeats the comparison through GitHub (compare API `base...old` and `base...head` with blob
+  shas, contents API for paths only one side lists; 300 files or more than 40 lookups means not
+  confirmed). `identical-to` needs `identical`; `app-identical-to` accepts `identical` or
+  `test-only` for the auditor and `identical` for security. Mode changes are not visible through the API (the local check sees them).
+- The verifier line itself is always on the current head, and CI must be green on it. It may
+  carry both keys when the auditor and the security review sit on different heads (after a
+  test-only kickback the security review ran again): `identical-to=<security head>
+  app-identical-to=<auditor head>`; the gate checks each line against the key that names its head.
 
-Evidence (3d_brain, 2026-10-14, runs cycle-d52a895-vxmo to cycle-026d53f-mxwp): five PRs (#116,
-#119, #124, #126, #128) were re-reviewed in full after update-branch; no re-review found anything,
-several task diffs against main were byte-identical, and the auditor spent 15 to 25 minutes each
-time. Every real finding of the night came from the first round.
-
-If the repo can enforce branch protection (public repo or GitHub Pro), `rb protect` configures
-required status checks on the default branch so GitHub itself rejects a merge without green CI.
-On a free private repo the gate is enforced by `rb` only; `rb doctor` reports which mode applies.
+Evidence: 3d_brain, 2026-10-14 (five full re-reviews after update-branch found nothing, the
+auditor spending 15 to 25 minutes each; every real finding came from the first round), and the
+0.6.0 cases above.
 
 ## 9. Unattended runs: lock, stop, escalation, digest
 
@@ -375,15 +386,21 @@ stop the run, stop switch checked between steps.
    `<!-- rockbuilt:plan base=<sha> tier=<A|B|C> -->`.
 3. **Questions.** ADVISORY: take the default. BLOCKING: answer from spec, ADR or code when
    possible (`RESOLVED (orchestrator-proposed)`); otherwise escalate.
-4. **Tier C:** escalate the plan for approval and move on (unless already approved).
+4. **Tier C:** the security reviewer checks the plan first (`Mode: plan`: every RESOLVED decision
+   against requirements.md; also for plans touching personal data), then escalate the plan for
+   approval and move on (unless already approved).
 5. **Implement** on `rb/<id>-<slug>` (a worktree in parallel mode) with `rb-implementer`.
-6. **Mechanical check** by the orchestrator: Verification commands; UI-touching tasks also run E2E
-   when a browser is available (else `rb:needs-local` note, not a failure); compare against the
+6. **Mechanical check** by the orchestrator: Verification commands; UI-touching tasks also run the
+   E2E specs the diff touches or the task's Verify names, never the whole suite (CI runs it), when a
+   browser is available (else `rb:needs-local` note, not a failure); compare against the
    baseline and the known-failures ratchet; reconcile changed files with the report.
 7. **Recompute tier** with `rb risk` on the real diff; if it rose to C, escalate before review.
 8. **Collapse** to one commit; record the head SHA.
-9. **Verifier** (all tiers). **Blind auditor** (B and C). **Security reviewer** (when flagged).
-   Any finding from any of them is a kickback; budget 2 shared; then `rb:blocked` + escalation.
+9. **Verifier** (all tiers). **Blind auditor** (B and C), never in the directory the verifier
+   mutates. **Security reviewer** (when flagged). Any finding from any of them is a kickback;
+   budget 2 shared; then `rb:blocked` + escalation. Report inaccuracies that change no behavior
+   are `Report corrections`, fixed in the PR body. After a kickback, section 8.3 decides which
+   reviews carry forward; a re-audit judges only failed criteria and those the change can reach.
 10. **Push and PR** via `rb gh pr-create` with the template; labels `rb:tier-<x>`, `rb:pr-open`.
 11. Tier A/B: the PR enters the merge train. Tier C: waits for the human.
 12. Update tasks.md status and decision log, timing, LESSONS for real gotchas.
@@ -621,6 +638,23 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    upstream; sync now deletes only merged-PR tips or branches contained in the default branch,
    never an open PR's); the auditor saw the verifier's mutation probe when both ran in one
    directory (it runs after the verifier, or in its own detached copy).
+16. 2026-10-14, 3d_brain (harness 0.5.0), the project's own write-up: local E2E ran whole spec
+   files nobody touched (10 min in T10; the CI runs the full suite anyway), so implementer,
+   verifier and the mechanical check now run only the touched specs (`rb verify-cmds E2E --only
+   ... --grep ...`); a kickback that changed only an e2e spec re-ran auditor and security, and
+   review-delta called a squashed stacked base "different" (section 8.3, now by content); a
+   wrong RESOLVED decision surfaced in the security review after implementing (about 45 min), so
+   tier C and personal-data plans get a security review in `Mode: plan`; the timing table showed
+   only plan and implement while reviews and CI were the wait (every stage is timed, `rb timing
+   line --pr` adds post-PR minutes to the PR line, the digest shows phases); the auditor took 12
+   to 32 min and re-audited every criterion (time budget, scoped re-audit); a miscounted report
+   cost a kickback (the verifier now lists `Report corrections`, not findings); a mutation of a
+   test predicate was denied by the auto-mode classifier and an auto-retrying assertion let a
+   mutant survive (rules in the agents and the e2e reference); four bookkeeping PRs in one day
+   and a `git apply --3way` "does not match index" (one bookkeeping PR per day; the previous
+   patch is applied before `rb sync` touches tasks.md; the LESSONS append cap of a bookkeeping
+   PR rises from 40 to 120 lines, since one PR now holds a day); the guard missed `git` spelled with
+   spliced quotes (`g''it`); a flaky e2e test passed on re-run (`rb flaky record/list`).
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -636,11 +670,13 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `tasks <spec-dir>` | Parse tasks.md strictly (Spanish synonyms accepted), coverage vs requirements |
 | `parallel <spec-dir> [--ids] [--max]` | Disjoint batches |
 | `worktree add|remove|list` | As in v0.2 |
-| `timing start|end <task> <phase> \| line <task> [--est <hours>] \| report [--write]` | Phase minutes; `line` prints the PR machine line (with the planner's Human estimate as `est=`); `report` merges progress.md, rb/* PR bodies and the local log |
+| `timing start|end <task> <phase> \| line <task> [--est <hours>] [--pr <n>] \| report [--write]` | Phase minutes (`kickback` is stored as `fix`); `line` prints the PR machine line with the minutes since the last printed line (`--pr` adds them to the line already in that PR's body), with the planner's Human estimate as `est=`; `report` merges progress.md, rb/* PR bodies and the local log |
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
 | `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
-| `review-delta --reviewed <sha> [--base <ref>]` | Section 8.3: exit 0 when the task diff against the base is byte-identical (index lines aside) to the reviewed one, 3 otherwise |
+| `review-delta --reviewed <sha> [--base <ref>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched |
+| `verify-cmds E2E --only <specs> [--grep <t>]` | Local runs: the suite command with only those spec files and title pattern (never the whole suite locally; CI runs it) |
+| `flaky record <test> [--pr <n>] [--note t] \| list` | Flaky candidates as marked comments on the control issue; `list` counts them across rotated control issues |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
 | `gh <op> [flags]` | REST GitHub layer, ops below |

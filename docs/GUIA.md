@@ -148,11 +148,16 @@ Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o
 el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
 Los PRs se fusionan uno por uno, y después de cada merge el siguiente se actualiza con `main`.
 
-Después de esa actualización no siempre se repite toda la revisión. Si el diff de la tarea quedó
-idéntico (solo entró lo nuevo de `main`), un verificador corto lo confirma y corre todas las
-pruebas otra vez, sin repetir al auditor. El gate no le cree al verificador: compara él mismo los
-diffs en GitHub antes de aceptar la revisión anterior del auditor. Si cambió cualquier cosa, la
-revisión completa se repite.
+Después de esa actualización no siempre se repite toda la revisión. Si los archivos de la tarea
+quedaron iguales (solo entró lo nuevo de `main`), un verificador corto lo confirma y corre todas
+las pruebas otra vez, sin repetir al auditor. Lo mismo pasa cuando una devolución solo cambió
+archivos de prueba: la app que vio el auditor no cambió, así que su resultado se conserva. El gate
+no le cree al verificador: compara él mismo el contenido en GitHub antes de aceptar la revisión
+anterior. Si cambió cualquier archivo de la app, la revisión completa se repite.
+
+En local, los agentes corren solo las pruebas E2E que la tarea tocó; la suite completa la corre
+el CI. Una prueba que falla y pasa al repetirla queda registrada como posible inestable
+(`rb flaky list`) para la retro, nunca se salta.
 
 Los PRs de nivel C los fusionas tú en GitHub, o le dices a Claude "haz merge del PR 12". Cada
 merge deja en el PR el comando para revertirlo.

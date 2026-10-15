@@ -11,9 +11,13 @@ export function timingFile(root) {
   return path.join(root, '.rockbuilt', 'timing.jsonl');
 }
 
-export function appendEvent(root, event, task, phase, now = new Date()) {
+// `kickback` is the name the skills use for the fix after a failed review; it is stored as `fix`.
+const ALIASES = { kickback: 'fix' };
+
+export function appendEvent(root, event, task, rawPhase, now = new Date()) {
   if (!task) throw new CliError('usage: rb timing start|end <task> <phase>');
-  if (!PHASES.includes(phase)) throw new CliError(`unknown phase "${phase}"; use one of ${PHASES.join(', ')}`);
+  const phase = ALIASES[rawPhase] || rawPhase;
+  if (!PHASES.includes(phase)) throw new CliError(`unknown phase "${rawPhase}"; use one of ${[...PHASES, ...Object.keys(ALIASES)].join(', ')}`);
   const file = timingFile(root);
   mkdirSync(path.dirname(file), { recursive: true });
   const record = { task, phase, event, ts: now.toISOString() };
@@ -38,6 +42,38 @@ export function readEvents(root) {
     }
   }
   return events;
+}
+
+// Records which completed minutes of this checkout went into a PR timing line (a snapshot per
+// phase), so a later `line --pr` or `report` adds only what came after and never counts a phase
+// twice. A phase still open at the mark is not in the snapshot, so it counts in full when it ends.
+export function markPublished(root, task, phases, now = new Date()) {
+  const file = timingFile(root);
+  mkdirSync(path.dirname(file), { recursive: true });
+  appendFileSync(file, `${JSON.stringify({ task, event: 'published', phases: phases || {}, ts: now.toISOString() })}\n`);
+}
+
+// This checkout's completed minutes for a task: { total, since } where `since` subtracts the
+// last published snapshot (null when nothing was published here).
+export function localRow(events, task) {
+  const total = aggregate(events.filter((e) => e && e.task === task && e.event !== 'published')).tasks.find((t) => t.task === task) || null;
+  let snap = null;
+  for (const e of events) if (e && e.task === task && e.event === 'published') snap = e.phases || {};
+  if (!total) return { total: null, since: null, published: snap !== null };
+  const phases = {};
+  for (const [p, ms] of Object.entries(total.phases)) {
+    const d = ms - ((snap && snap[p]) || 0);
+    if (d > 0) phases[p] = d;
+  }
+  const since = Object.keys(phases).length ? { task, phases, totalMs: Object.values(phases).reduce((a, b) => a + b, 0) } : null;
+  return { total, since, published: snap !== null };
+}
+
+// Adds phase minutes of `extra` (a report row) onto `base` (a row parsed from a PR body).
+export function addRows(base, extra) {
+  const phases = { ...((base && base.phases) || {}) };
+  for (const [p, ms] of Object.entries((extra && extra.phases) || {})) phases[p] = (phases[p] || 0) + ms;
+  return { task: (base && base.task) || (extra && extra.task), phases, totalMs: Object.values(phases).reduce((a, b) => a + b, 0), estHours: (base && base.estHours) ?? null };
 }
 
 // Pairs each end with the latest open start of the same task and phase.

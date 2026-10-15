@@ -60,6 +60,7 @@
       "Bash(git rev-parse*)",
       "Bash(git ls-files*)",
       "Bash(git merge-base*)",
+      "Bash(git merge -s ours --no-edit origin/rb/bookkeeping-*)",
       "Bash(git blame*)",
       "Bash(git grep*)",
       "Bash(git add*)",

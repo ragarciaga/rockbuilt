@@ -36,7 +36,7 @@ Acceptance criteria: (verbatim, by ID with tags, from <requirements.md path | is
 the issue: only the ID and text lines of the plan's Acceptance criteria, nothing else)
 Run instructions: (AGENTS.md Setup, Verification, E2E)
 App URL: <http://localhost:<port> | none>
-[Re-audit: your own previous verdict, verbatim. Judge every criterion again.]
+[Re-audit: your own previous verdict, verbatim.  Previous head: <sha it audited>]
 Judge each criterion by observed behavior. Return pass, fail or not-observable per criterion.
 ```
 

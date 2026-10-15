@@ -29,6 +29,13 @@ Duración: <min> min. Harness: <contents of tools/rockbuilt/VERSION>. Modo: <nor
 |---|---|---|---|---|
 | #31 | T3 Login con correo | B | 42 | `node tools/rockbuilt/rb.mjs revert 31` |
 
+### Tiempo por fase (minutos, de `rb timing report`)
+| Tarea | plan | implementar | verificar | auditar | seguridad | devoluciones | CI | total |
+|---|---|---|---|---|---|---|---|---|
+| T3 | 2 | 9 | 6 | 18 | 3 | 7 | 12 | 57 |
+
+Una línea con la fase que más pesó en la corrida y por qué, si se sabe.
+
 ### Esperan tu decisión
 - #34 (T5, nivel C): <una línea: qué decidir>. Acción: <comenta "aprobado" o elige una opción en #<issue>, o di "/rb-merge #34">.
 - #35 bookkeeping (docs: progress): revísalo y fusiónalo con `/rb-merge #35` cuando quieras.

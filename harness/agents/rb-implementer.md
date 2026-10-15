@@ -40,7 +40,10 @@ blind auditor, with fresh context, will check every claim you make.
    and edit files with the Write and Edit tools, never with shell heredocs or redirects (a
    command that mentions git, even inside prose, is denied for your role).
 4. Run every Verification command. Iterate until all pass. When something fails, read the full
-   output, not a summary line or a `head` of it.
+   output, not a summary line or a `head` of it. End-to-end tests: only the specs you add or
+   change and those the task's Verify names, never the whole suite (CI runs it; it takes many
+   minutes): `node tools/rockbuilt/rb.mjs verify-cmds E2E --only <spec files> [--grep "<titles>"]`.
+   On a fix dispatch, only the cases the finding names.
 5. **Evidence pass** (every dispatch; on a fix dispatch, scoped to the fix):
    1. **Claim sweep.** For every behavior your diff changes, grep README, docs, ADRs, comments,
       docstrings and test descriptions for the claim's wording, not the identifier. Fix every
@@ -48,7 +51,9 @@ blind auditor, with fresh context, will check every claim you make.
       list). When you change a number or a total, grep the bare old number and walk every hit.
       When you delete or reshape code, walk every existing test comment that describes it.
    2. **Self-mutation on every new or rewritten test.** Temporarily break the behavior the test
-      pins, in place with the Edit tool, run only that test, confirm it fails, restore by hand
+      pins, in the production code (never the test's own assertion or predicate: that proves
+      nothing and safety classifiers deny it as test removal), in place with the Edit tool, run
+      only that test, confirm it fails, restore by hand
       immediately (you have no git) and confirm the file is back to your version. A test that
       still passes cannot fail and is not done. Vacuous modes to name: data that already
       satisfies the assertion, an already-sorted fixture, a limit the library enforces, an early
@@ -62,7 +67,10 @@ blind auditor, with fresh context, will check every claim you make.
       config-only change, no runnable test command, or the mutant needs a file created or deleted.
    4. **Consequence assertions.** A test whose name describes a consequence asserts on that
       consequence, not on a neighboring field. A criterion about a stream or exit code asserts
-      on that stream or code.
+      on that stream or code. A transient UI state (a spinner, a "saving" label, a count that
+      returns to 0) is read once, not with an auto-retrying assertion (`toHaveCount(0)` retries
+      until the state passes and lets the mutant survive); hold the request in the mock so the
+      state stays put while you read it.
    5. **Claims inside artifacts.** A comment or doc that says a test "pins" something, or that a
       rule is enforced, describes what the code actually checks and the proof you actually ran.
    6. After the last restore, run the Verification commands once more. Every number in the report

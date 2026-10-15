@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.6.0 (2026-10-15)
+
+From the 3d_brain write-up after its 0.5.0 nights (DESIGN 20.16). Mostly time.
+
+- **Local E2E runs only what the task touched.** Implementer, verifier and the mechanical check
+  run the specs the diff adds or changes, or the task's Verify names, through
+  `rb verify-cmds E2E --only <specs> [--grep "<titles>"]`. The full suite is CI's job.
+- **Reviews carry forward by content** (DESIGN 8.3). `rb review-delta` now compares the files the
+  task touched at both heads: `identical`, `test-only` or `different`. A squash-merged stacked base
+  no longer reads as "different". After a kickback that changed only tests, the auditor and
+  security keep their result (`app-identical-to=<sha>` on the verifier line); the gate re-checks
+  the class through GitHub with blob shas.
+- **Security review of the plan** (`Mode: plan`) for tier C and personal-data plans, before
+  implementation: every RESOLVED decision is checked against the requirements.
+- **Every stage is timed**, `kickback` included; `rb timing line <id> --pr <n>` adds CI waits,
+  re-reviews and the merge to the PR's line; the digest has a minutes-per-phase table.
+- **Auditor time budget** (about 5 min per criterion, 25 in all) and scoped re-audits (failed
+  criteria plus those the change can reach).
+- The verifier separates `Report corrections` (a wrong count, fixed in the PR body) from false
+  claims about behavior (still a kickback).
+- Mutation probes break production code, never a test's predicate; transient UI states are read
+  once with the request held in the mock (agents and the e2e reference).
+- One bookkeeping PR per day, updated by later runs; the previous bookkeeping patch is applied
+  before `rb sync` edits tasks.md (the "does not match index" failure).
+- Guard: `git` spelled with spliced quotes or escapes (`g''it`) is denied for write roles.
+- `rb flaky record <test> --pr <n>` / `rb flaky list`: flaky candidates on the control issue for
+  the retro, never skipped.
+
 ## 0.5.0 (2026-10-14)
 
 From the 3d_brain nights of 2026-10-14 (DESIGN 20.15).

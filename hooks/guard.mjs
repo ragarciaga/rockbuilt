@@ -20,7 +20,7 @@ const READONLY_EDITORS = new Set(['verifier']);
 
 // rb subcommands no subagent may run (orchestrator only).
 const PRIVILEGED_RB = new Set([
-  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init',
+  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours',
 ]);
 // rb subcommands a read-only role may run (they only read).
 const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan']);
@@ -841,6 +841,10 @@ function checkCommandString(src, role, ctx, depth = 0) {
         return 'reading .env files through an interpreter is not allowed';
       }
     }
+    // Token-level twin of the GIT_WORD_RE text check: quotes or escapes spliced into the word
+    // (g''it, g\\it) survive the text regex but not the tokenizer (3d_brain T10, 2026-10-14).
+    const gitWord = isWrite ? u.words.find((x) => ['git', 'gh'].includes(commandName(x))) : null;
+    if (gitWord) return `${commandName(gitWord)} is not allowed for ${role} (no git, no gh)`;
     const inner = { words: u.words, redirects: seg.redirects, text: seg.text };
     let reason = everyoneSegmentReason(inner, role, cur);
     if (!reason && isWrite) reason = writeRoleSegmentReason(inner, role, cur);
