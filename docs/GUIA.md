@@ -149,7 +149,13 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
 (`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
 el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
-Los PRs se fusionan uno por uno. Si después de un merge lo único nuevo en `main` es el registro
+Cuando hay dos o más PRs listos, pasan por una **cola de merges**: el harness los fusiona juntos en
+una rama temporal (`rb/queue-...`), el CI corre una sola vez sobre esa combinación y después cada PR
+se fusiona en orden sin actualizarse. El gate confirma en GitHub que lo que entra a `main` es
+exactamente lo que probó el CI; si algo rompe esa cadena (otro merge entró antes, un PR cambió, el
+CI de la cola falló), vuelve al camino de uno por uno.
+
+Fuera de la cola, los PRs se fusionan uno por uno. Si después de un merge lo único nuevo en `main` es el registro
 (estados en tasks.md, progreso, lecciones), el siguiente PR se fusiona tal como está, sin otra
 vuelta de CI. Si `main` trajo código, el PR se actualiza y el CI corre de nuevo.
 

@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SEEDS } from './tools/github-seeds.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -80,14 +81,27 @@ export function setupWorkspace(scenario, arm, stamp) {
     mkdirSync(ws, { recursive: true });
   }
   if (arm === 'with') vendorInto(ws, scenario);
+  // GitHub simulator (evals/tools/fake-github.mjs): `rb` talks to it as if it were `gh api`, and
+  // commits live in the local bare origin the fixture created (setup with --remote).
+  let env = null;
+  if (scenario.github) {
+    const bare = `${ws}.origin.git`;
+    if (!existsSync(bare)) throw new Error(`${scenario.id}: "github" needs --remote in setup`);
+    git(ws, ['push', '-q', 'origin', 'main']);
+    const seed = SEEDS[scenario.github.seed];
+    if (!seed) throw new Error(`${scenario.id}: unknown github seed ${scenario.github.seed}`);
+    const stateFile = path.join(base, 'gh-state.json');
+    writeFileSync(stateFile, JSON.stringify(seed(ws)));
+    env = { RB_GH_BIN: path.join(HERE, 'tools', 'fake-github.mjs'), RB_GH_STATE: stateFile, RB_FAKE_GIT: bare, RB_GH_REPO: 'acme/app', RB_GH_RETRY_MS: '0', RB_GH_LOG: path.join(base, 'gh-log.jsonl') };
+  }
   const startHead = git(ws, ['rev-parse', 'HEAD']);
-  return { ws, startHead: startHead.ok ? startHead.out : null, stamp };
+  return { ws, startHead: startHead.ok ? startHead.out : null, stamp, env };
 }
 
-function runClaude(prompt, ws, timeoutMin) {
+function runClaude(prompt, ws, timeoutMin, extraEnv = null) {
   const args = ['-p', prompt, '--permission-mode', 'bypassPermissions', '--output-format', 'stream-json', '--verbose'];
   return new Promise((resolve) => {
-    const child = spawn('claude', args, { cwd: ws, shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('claude', args, { cwd: ws, shell: process.platform === 'win32', stdio: ['ignore', 'pipe', 'pipe'], env: extraEnv ? { ...process.env, ...extraEnv } : process.env });
     let out = '';
     let err = '';
     child.stdout.on('data', (d) => { out += d; });
@@ -224,6 +238,16 @@ export function runCheck(check, ctx) {
       const counts = branches.map((b) => `${b}=${git(ws, ['rev-list', '--count', `main..${b}`]).out}`);
       return { ok: counts.every((c) => c.endsWith('=1')), detail: counts.join(', ') };
     }
+    case 'ghMerged': {
+      // GitHub simulator: these PRs were merged (through the gate's squash merge).
+      const st = ctx.env ? JSON.parse(readFileSync(ctx.env.RB_GH_STATE, 'utf8')) : { merges: [] };
+      const merged = st.merges.map((x) => x.pr);
+      return { ok: check.prs.every((n) => merged.includes(n)), detail: `merged ${merged.join(', ') || 'none'}` };
+    }
+    case 'ghNoUpdates': {
+      const st = ctx.env ? JSON.parse(readFileSync(ctx.env.RB_GH_STATE, 'utf8')) : {};
+      return { ok: !(st.updates || []).length, detail: `update-branch on ${(st.updates || []).join(', ') || 'none'}` };
+    }
     case 'fileExists':
       return { ok: existsSync(path.join(ws, check.path)), detail: check.path };
     case 'finalMatches': {
@@ -318,11 +342,11 @@ async function main() {
   console.log(`running ${jobs.length} run(s), ${opts.parallel} at a time; results in ${path.relative(ROOT, outDir)}`);
 
   const results = await pool(jobs, opts.parallel, async ({ s, arm }) => {
-    const { ws, startHead } = setupWorkspace(s, arm, stamp);
-    const run = await runClaude(s.prompt, ws, opts.timeoutMin);
+    const { ws, startHead, env } = setupWorkspace(s, arm, stamp);
+    const run = await runClaude(s.prompt, ws, opts.timeoutMin, env);
     writeFileSync(path.join(outDir, `${s.id}-${arm}.jsonl`), run.out);
     const d = digest(run.out);
-    const checks = s.checks.map((c) => ({ ...c, ...runCheck(c, { d, ws, startHead }) }));
+    const checks = s.checks.map((c) => ({ ...c, ...runCheck(c, { d, ws, startHead, env }) }));
     const passed = checks.filter((c) => c.ok).length;
     console.log(`${s.id} [${arm}] ${passed}/${checks.length}  $${d.costUsd.toFixed(2)}  ${d.durationS}s`);
     return { id: s.id, source: s.source, arm, ws, d, checks, passed, exit: run.code };

@@ -63,7 +63,8 @@ function query(params) {
 // Client bound to one repo. `repo` is resolved lazily (flag, then origin remote).
 export function makeGh({ cwd = process.cwd(), repo = null, runner = null } = {}) {
   const exec = runner || defaultRunner(cwd);
-  let slug = repo;
+  // RB_GH_REPO names the repo when origin is not a GitHub URL (the eval GitHub simulator).
+  let slug = repo || process.env.RB_GH_REPO || null;
   const client = {
     get repo() {
       if (!slug) slug = originSlug(cwd);
@@ -284,6 +285,15 @@ export const ops = {
     const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`) || {};
     const files = (d.files || []).map((f) => ({ filename: f.filename, status: f.status, previous: f.previous_filename || null, sha: f.sha || null, patch: typeof f.patch === 'string' ? f.patch : null, changes: Number(f.changes) || 0 }));
     return { files, truncated: files.length >= 300 };
+  },
+  // A commit's sha, tree and parents (any ref GitHub resolves: sha, branch).
+  commitInfo(c, ref) {
+    const d = c.api('GET', `{repo}/commits/${encodeURIComponent(ref)}`) || {};
+    return { sha: d.sha || null, tree: d.commit && d.commit.tree ? d.commit.tree.sha : null, parents: (d.parents || []).map((p) => p.sha) };
+  },
+  refDelete(c, branch) {
+    c.api('DELETE', `{repo}/git/refs/heads/${branch.split('/').map(encodeURIComponent).join('/')}`);
+    return { deleted: branch };
   },
   // Blob sha of a file at a ref, or null when the path does not exist there.
   blobSha(c, filePath, ref) {

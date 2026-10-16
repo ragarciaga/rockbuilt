@@ -9,7 +9,8 @@ on:
     # No labeled/unlabeled: label changes would re-run (and cancel) CI on every rb:* label the harness sets.
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [main, master]
+    # rb/queue-* : the merge queue (rb queue build) tests several PRs merged together once.
+    branches: [main, master, 'rb/queue-*']
 
 permissions:
   contents: read

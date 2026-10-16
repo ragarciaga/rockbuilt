@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0 (2026-10-16)
+
+The merge queue, and evals for the autonomous path (issue #19 item 1; DESIGN 8.4).
+
+- **Merge queue.** With two or more ready PRs, `rb queue build --run <id> --prs a,b,c` merges them
+  onto the default branch tip as `rb/queue-<run>-<k>`; CI runs once on that branch (the project
+  workflow now runs on push to `rb/queue-*`), and `rb merge-gate` merges each in order. A queued PR
+  behind its base is accepted only when GitHub confirms the base is exactly the queue's previous
+  step and the queue head passed, so what lands is what CI tested. A PR updated meanwhile, a merge
+  from outside the queue, or a red queue fall back to the serial train. Before, every merge left
+  the other PRs behind and each paid a full CI run.
+- **Evals with a GitHub simulator.** `evals/tools/fake-github.mjs` answers `rb` as `gh api` does,
+  backed by the workspace's real bare origin for commits, squash merges and update-branch. New
+  scenario `cycle-queue-merge`: a cycle with two ready PRs must queue them and merge both without
+  updating either. The merge train, the queue and the lock no longer depend on a real project's
+  night to be tested.
+- `RB_GH_REPO` names the repo when origin is not a GitHub URL (the simulator).
+- Updating an existing project brings the new workflow trigger with `rb vendor`.
+
 ## 0.8.0 (2026-10-16)
 
 Quality gates that do not depend on the agent following prose, and a quality number beside the

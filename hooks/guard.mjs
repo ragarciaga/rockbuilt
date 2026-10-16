@@ -20,7 +20,7 @@ const READONLY_EDITORS = new Set(['verifier']);
 
 // rb subcommands no subagent may run (orchestrator only).
 const PRIVILEGED_RB = new Set([
-  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours', 'bookkeeping', 'quality',
+  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours', 'bookkeeping', 'quality', 'queue',
 ]);
 // rb subcommands a read-only role may run (they only read).
 const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan']);

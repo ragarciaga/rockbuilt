@@ -7,6 +7,7 @@ import { GhError, ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
 import { readContract } from './contract.mjs';
 import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
+import { parseQueueRecord } from './queue.mjs';
 import { classify, isTestPath } from './delta.mjs';
 import { computeRisk, maxTier, tierRank } from './risk.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
@@ -95,6 +96,43 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
   } catch (e) {
     return { class: 'different', detail: `compare failed: ${e.message}` };
   }
+}
+
+// DESIGN 8.4: a PR behind its base is still current when it sits in a merge queue whose combined
+// head passed CI and the base is exactly the queue's step before this PR. Every link is checked
+// through GitHub, never taken from the record: the step is a merge of (prefix, this PR's head),
+// the base tip has the prefix's tree (earlier queue PRs merged as tested), the queue head contains
+// the step, and CI on the queue head is green (E2E included when the project has it).
+export function queuedBehind(root, c, view, head) {
+  let rec = null;
+  try {
+    const trusted = ops.issueComments(c, view.number).filter((cm) => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(cm.author_association));
+    for (const cm of trusted) { const r = parseQueueRecord(cm.body); if (r) rec = r; }
+  } catch (e) {
+    return { ok: false, detail: `could not read comments: ${e.message}` };
+  }
+  if (!rec) return null;
+  const fail = (detail) => ({ ok: false, record: rec, detail });
+  if (!rec['pr-head'] || !sameSha(rec['pr-head'], head)) return fail('the PR head changed after it was queued');
+  try {
+    const step = ops.commitInfo(c, rec.step);
+    if (step.parents.length !== 2 || !sameSha(step.parents[0], rec.prefix) || !sameSha(step.parents[1], head)) return fail('the queue step is not a merge of its prefix and this PR head');
+    const prefix = ops.commitInfo(c, rec.prefix);
+    const tip = ops.commitInfo(c, view.base.ref);
+    if (!prefix.tree || prefix.tree !== tip.tree) return fail(`${view.base.ref} is not the queue's previous step (something else merged, or an earlier queue PR is not merged yet)`);
+    const cmp = ops.compare(c, rec.step, rec.head);
+    if (cmp.behindBy > 0) return fail('the queue head does not contain this step');
+    const checks = ops.checks(c, rec.head);
+    if (!ciPassed(checks)) return fail(`no successful ${CI_CHECK} on the queue head ${String(rec.head).slice(0, 7)}`);
+    const bad = checks.find((x) => x.status !== 'completed' || !OK_CONCLUSIONS.includes(x.conclusion));
+    if (bad) return fail(`${bad.name} on the queue head is ${bad.status === 'completed' ? bad.conclusion : bad.status}`);
+    const reasons = [];
+    e2eRequired(root, checks, (rule, detail) => reasons.push(detail));
+    if (reasons.length) return fail(`queue head: ${reasons[0]}`);
+  } catch (e) {
+    return fail(e.message);
+  }
+  return { ok: true, record: rec };
 }
 
 // PR kinds that carry no reviewer lines (DESIGN 8.1). Bookkeeping may merge unattended when it only
@@ -194,8 +232,10 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
         const docsOnly = !gained.truncated && !own.truncated && gained.files.length > 0
           && gained.files.every((f) => BOOKKEEPING_FILE.test(f.filename) && f.status === 'modified' && !f.previous)
           && !own.files.some((f) => BOOKKEEPING_FILE.test(f.filename) || (f.previous && BOOKKEEPING_FILE.test(f.previous)));
+        const queued = docsOnly ? null : queuedBehind(root, c, view, head);
         if (docsOnly) behindExempt = { behindBy: cmp.behindBy, files: gained.files.map((f) => f.filename) };
-        else no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref} with code changes: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
+        else if (queued && queued.ok) behindExempt = { behindBy: cmp.behindBy, queue: queued.record };
+        else no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref} with code changes${queued ? ` (merge queue not confirmed: ${queued.detail})` : ''}: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
       }
     } catch (e) {
       no('behind', `could not compare with ${view.base.ref}: ${e.message}`);

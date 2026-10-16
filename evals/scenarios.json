@@ -392,6 +392,50 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "cycle-queue-merge",
+      "source": "cycle.md#S7",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "queue-two-prs"
+      },
+      "prompt": "Run /rb-cycle. [rockbuilt:unattended]",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-cycle"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "queue build"
+        },
+        {
+          "type": "ghMerged",
+          "prs": [
+            3,
+            4
+          ]
+        },
+        {
+          "type": "ghNoUpdates"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "gh pr merge|git merge(?![-\\w])(?!.*-s ours)"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }

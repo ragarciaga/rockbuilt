@@ -230,6 +230,11 @@ export function handle(s, method, fullPath, body) {
     const head = decodeURIComponent(m[2]);
     return ok({ status: 'ahead', files: (s.compareFiles || {})[head] || [], ...((s.compare || {})[head] || { behind_by: 0, ahead_by: 1 }) });
   }
+  if ((m = r.match(/^commits\/([^/]+)$/)) && method === 'GET') {
+    const info = (s.commitInfo || {})[decodeURIComponent(m[1])];
+    return info ? ok({ sha: info.sha, commit: { tree: { sha: info.tree } }, parents: (info.parents || []).map((sha) => ({ sha })) }) : err(404, 'No commit found');
+  }
+  if ((m = r.match(/^git\/refs\/heads\/(.+)$/)) && method === 'DELETE') { s.deletedRefs = [...(s.deletedRefs || []), decodeURIComponent(m[1])]; return ok(undefined, 204); }
   if ((m = r.match(/^commits\/([^/]+)\/check-runs$/))) {
     const runs = (s.checkRuns[m[1]] || []).map((x) => ({ app: { slug: 'github-actions' }, ...x }));
     return ok({ total_count: runs.length, check_runs: page(runs, q) });
