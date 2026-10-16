@@ -18,6 +18,7 @@ The merge queue, and evals for the autonomous path (issue #19 item 1; DESIGN 8.4
   updating either. The merge train, the queue and the lock no longer depend on a real project's
   night to be tested.
 - `RB_GH_REPO` names the repo when origin is not a GitHub URL (the simulator).
+- **Guard:** a shell variable or alias standing for `rb`, `git` or `gh` (`R="node tools/rockbuilt/rb.mjs"; $R ...`) is denied for everyone. The skills already forbade it, and the queue eval showed the orchestrator doing it; unattended permission rules only match literal commands.
 - Updating an existing project brings the new workflow trigger with `rb vendor`.
 
 ## 0.8.0 (2026-10-16)

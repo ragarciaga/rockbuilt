@@ -803,10 +803,16 @@ function everyoneSegmentReason(seg, role, ctx) {
 
 // ---------- shell decision ----------
 
+// A shell variable or alias standing for rb, git or gh hides the real command from the permission
+// rules, which match literal commands in unattended runs (eval cycle-queue-merge, 0.9.0: the
+// orchestrator wrote `R="node tools/rockbuilt/rb.mjs"; $R ...`). Everyone, main session included.
+const ALIAS_RE = /(?:^|[\s;&|(])(?:alias\s+[A-Za-z_][\w-]*|[A-Za-z_]\w*)=(["']?)(?:node\s+\S*rb\.mjs|git|gh)\b/;
+
 function checkCommandString(src, role, ctx, depth = 0) {
   if (depth > 5 || typeof src !== 'string') return null;
   const isWrite = role && WRITE_ROLES.has(role);
   const isRead = role && READONLY_ROLES.has(role);
+  if (depth === 0 && ALIAS_RE.test(src)) return 'write every rb, git or gh command out in full, no shell variable or alias standing for it: unattended runs allow only commands that literally match the permission list';
 
   if (depth === 0 && role) {
     if (isWrite) {

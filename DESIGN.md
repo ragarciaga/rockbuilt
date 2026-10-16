@@ -366,6 +366,11 @@ CI is green on main, `rb/queue-*` and open PR heads, where the project workflow 
 draft found a stacked-PR case where the squash landed a tree CI never ran; the test-merge check
 and the per-step CI replace that draft's tree-chain argument.
 
+The same eval showed the orchestrator calling `rb` through a shell variable (`R="node
+tools/rockbuilt/rb.mjs"; $R ...`), which the skills forbid because unattended permission rules match
+literal commands; the guard now denies a variable or alias standing for `rb`, `git` or `gh` for
+everyone, the main session included.
+
 ## 9. Unattended runs: lock, stop, escalation, digest
 
 All four live in GitHub so they survive a fresh cloud clone.
