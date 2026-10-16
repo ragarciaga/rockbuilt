@@ -264,6 +264,9 @@ test('plugin.json and package.json versions match the top CHANGELOG entry', () =
   assert.ok(top, 'CHANGELOG.md has no "## x.y.z" entry');
   assert.equal(plugin.version, pkg.version, 'plugin.json and package.json versions differ');
   assert.equal(plugin.version, top[1], 'plugin.json version is not the top CHANGELOG entry');
+  const readme = readFileSync(path.join(ROOT, 'README.md'), 'utf8').match(/^Version (\d+\.\d+\.\d+)\./m);
+  assert.ok(readme, 'README.md has no "Version x.y.z." line');
+  assert.equal(readme[1], plugin.version, 'README.md states another version: update the README with every release');
 });
 
 // ---------- style ----------

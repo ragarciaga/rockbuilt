@@ -80,8 +80,10 @@ flowchart TD
 ```
 
 In the morning I get a notification. The `Rockbuilt control` issue on GitHub has the digest of the
-night: what merged (each with a one-line command to revert it), what waits for me, and how many
-minutes each task took.
+night: what merged (each with a one-line command to revert it), what waits for me, and the
+minutes of each task split by phase (plan, build, verify, audit, security, kickbacks, CI), so I
+can see where the night went. Progress notes and lessons travel in one bookkeeping PR per day,
+which the next run merges on its own.
 
 During the day I answer what it asked, with a comment or the `rb:approved` label, usually from the
 phone. Small work I add as a GitHub issue labelled `rb:task` or `rb:bug`. A new feature is a short
@@ -193,7 +195,7 @@ You do not need the command names. These work in any session:
 | "where are we", "what happened last night" | `/rb-status` |
 | "hours report", "how many hours this month" | `/rb-status` (your hours per project, feature and task) |
 | "log 45 minutes of a client call on feature 02" | `/rb-status` (a manual time entry) |
-| "retro" | `/rb-retro` |
+| "retro" | `/rb-retro` (includes tests that failed once and passed on a re-run, `rb flaky list`) |
 
 ## Autonomy tiers
 
@@ -208,6 +210,9 @@ and the higher wins: a model can raise a tier, never lower it.
 
 Tier C cannot be configured away. Anything that can cost money (paid APIs, new services, deploys,
 cloud CLIs, plan upgrades, paid model calls in tests) always comes to you first, with an estimate.
+Before a tier C plan reaches you (or any plan that touches personal data), the security reviewer
+reads it and checks every decision in it against the requirements, so a wrong call shows up in
+two minutes instead of after the code is written.
 `Autonomy: supervised` in `AGENTS.md` makes every PR wait for you.
 
 **Stop everything:** add the `rb:stop` label to any open issue. **Hold one PR:** add `rb:hold`.
@@ -331,7 +336,10 @@ guard did nothing when the project path went through a symlink.
 Now it runs every night on a real project. Its nights decide what changes: in 0.5.0 the
 end-to-end suite stopped fitting in 30 minutes (now it runs in shards), five re-reviews in one
 night found nothing and cost 15 to 25 minutes each (now a short check when the diff did not
-change), and a few small bugs in labels and branch cleanup.
+change), and a few small bugs in labels and branch cleanup. In 0.6.0, from that same project's own
+write-up, mostly time: local end-to-end runs only what the task touched, a fix that only changed
+tests keeps the auditor's verdict, plans get a security read before anyone builds them, the
+auditor has a time budget, and every phase is timed so the retro sees where the hours go.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not
