@@ -10,7 +10,7 @@
 // `carry` is run start: the open bookkeeping PR from an earlier run that did not merge is applied
 // to the checkout, and `save` then pushes on top of that PR (merge -s ours keeps this tree and makes
 // its tip an ancestor), so there is one bookkeeping PR per day.
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ops } from './gh.mjs';
@@ -47,22 +47,12 @@ function baseRef(root) {
   return { d, ref };
 }
 
-// Bookkeeping files in the checkout whose content differs from the default branch (or that it lacks).
-export function changedBookkeeping(root, ref) {
-  const list = (args) => {
-    const r = gitRaw(root, ['ls-files', '-z', ...args, '--', ...PATHS]);
-    return r.ok ? r.stdout.split('\0').filter(Boolean) : [];
-  };
-  const files = [...new Set([...list([]), ...list(['--others', '--exclude-standard'])])].filter((p) => BOOKKEEPING_FILE.test(p)).sort();
-  const out = [];
-  for (const p of files) {
-    if (!exists(path.join(root, p))) continue;
-    const mine = git(root, ['hash-object', '--', p]);
-    const theirs = git(root, ['rev-parse', '--verify', '--quiet', `${ref}:${p}`]);
-    if (!mine.ok) continue;
-    if (!theirs.ok || theirs.stdout !== mine.stdout) out.push(p);
-  }
-  return out;
+// Tracked bookkeeping files the checkout modified against its own HEAD (never untracked or new
+// files: a draft tasks.md is the user's, and the gate refuses an added tasks.md). Diffing against
+// HEAD, not the fetched default branch, keeps a stale checkout from reverting what main gained.
+export function changedBookkeeping(root) {
+  const r = gitRaw(root, ['diff', '--name-only', '-z', '--diff-filter=M', 'HEAD', '--', ...PATHS]);
+  return r.ok ? r.stdout.split('\0').filter(Boolean).filter((p) => BOOKKEEPING_FILE.test(p)).sort() : [];
 }
 
 // The open bookkeeping PR from an earlier run, newest first.
@@ -100,10 +90,17 @@ export function carryBookkeeping(root, c, { run }) {
 
 export function saveBookkeeping(root, c, { run, final = false }) {
   const id = runId(run);
+  // A branch without a PR is never carried by the next run: without GitHub the files stay in the
+  // checkout (degraded mode publishes them its own way).
+  if (!c) return { saved: false, code: 3, files: [], detail: 'GitHub not reachable: bookkeeping stays in the checkout' };
   const { d, ref } = baseRef(root);
-  const files = changedBookkeeping(root, ref);
+  const files = changedBookkeeping(root);
   const st = readState(root);
   if (!files.length) return { saved: false, files, branch: st.branch || null, pr: st.pr || null, detail: 'no bookkeeping changes' };
+  const patch = path.join(root, '.rockbuilt', 'bookkeeping-save.patch');
+  mkdirSync(path.dirname(patch), { recursive: true });
+  const diff = gitRaw(root, ['diff', '--binary', `--output=${patch}`, 'HEAD', '--', ...files]);
+  if (!diff.ok) throw new CliError(`git diff failed: ${diff.stderr}`);
 
   let branch = st.run === id && st.branch ? st.branch : null;
   if (!branch && st.run === id && st.carry) branch = st.carry.branch;
@@ -119,15 +116,15 @@ export function saveBookkeeping(root, c, { run, final = false }) {
   if (!add.ok) throw new CliError(`git worktree add failed: ${add.stderr}`);
   let sha;
   try {
-    for (const p of files) {
-      mkdirSync(path.dirname(path.join(dir, p)), { recursive: true });
-      copyFileSync(path.join(root, p), path.join(dir, p));
-    }
+    // The run's edits (and a carried PR's) as a patch on the current default branch: what main
+    // gained meanwhile stays. A patch that no longer applies is a hold, never a whole-file copy.
+    const apply = git(dir, ['apply', patch]);
+    if (!apply.ok) return { saved: false, code: 3, files, branch, detail: `the bookkeeping edits no longer apply on ${ref} (${apply.stderr.split('\n')[0]}): pull the default branch, then save again` };
     if (!git(dir, ['add', '--', ...files]).ok) throw new CliError('git add failed in the bookkeeping worktree');
     const commit = git(dir, ['commit', '-q', '-m', `docs: progress (${id})`]);
     if (!commit.ok) throw new CliError(`git commit failed: ${commit.stderr || commit.stdout}`);
-    // The earlier tip stays an ancestor; this commit's tree (every bookkeeping file as the checkout
-    // has it, carried PR included) is the PR's content.
+    // The earlier tip stays an ancestor; this commit's tree (default branch plus the run's edits,
+    // carried PR included) is the PR's content.
     if (onRemote) {
       const m = git(dir, ['merge', '-s', 'ours', '--no-edit', `origin/${branch}`]);
       if (!m.ok) throw new CliError(`git merge -s ours failed: ${m.stderr}`);
@@ -140,26 +137,23 @@ export function saveBookkeeping(root, c, { run, final = false }) {
     rmSync(path.dirname(dir), { recursive: true, force: true });
   }
 
-  let pr = st.run === id && st.branch === branch ? st.pr || null : (st.carry && st.carry.branch === branch ? st.carry.pr : null);
+  let pr = null;
   let created = false;
-  if (c) {
-    const open = ops.prList(c, { state: 'open', headPrefix: branch }).find((p) => p.head.ref === branch);
-    if (open) pr = open.number;
-    else {
-      const body = `Bookkeeping (tasks.md status, docs/progress.md, .claude/LESSONS.md) from run ${id}.\n\nThe next run merges it through \`rb merge-gate\`; the gate refuses any other path.\n`;
-      pr = ops.prCreate(c, { head: branch, base: d, title: `docs: progress ${today()}`, body }).number;
-      created = true;
-    }
+  const open = ops.prList(c, { state: 'open', headPrefix: branch }).find((p) => p.head.ref === branch);
+  if (open) pr = open.number;
+  else {
+    const body = `Bookkeeping (tasks.md status, docs/progress.md, .claude/LESSONS.md) from run ${id}.\n\nThe next run merges it through \`rb merge-gate\`; the gate refuses any other path.\n`;
+    pr = ops.prCreate(c, { head: branch, base: d, title: `docs: progress ${today()}`, body }).number;
+    created = true;
   }
-  writeState(root, { run: id, date: today(), carry: st.carry || null, branch, pr, sha });
+  writeState(root, { run: id, date: today(), carry: st.run === id ? st.carry || null : null, branch, pr, sha });
 
-  let restored = [];
+  const restored = [];
   if (final) {
     for (const p of files) {
-      if (git(root, ['cat-file', '-e', `HEAD:${p}`]).ok) git(root, ['checkout', 'HEAD', '--', p]);
-      else unlinkSync(path.join(root, p));
+      git(root, ['checkout', 'HEAD', '--', p]);
       restored.push(p);
     }
   }
-  return { saved: true, files, branch, sha, pr, created, restored, detail: `${files.length} file(s) pushed to ${branch}${pr ? ` (PR #${pr}${created ? ', opened' : ''})` : ''}` };
+  return { saved: true, files, branch, sha, pr, created, restored, detail: `${files.length} file(s) pushed to ${branch} (PR #${pr}${created ? ', opened' : ''})` };
 }

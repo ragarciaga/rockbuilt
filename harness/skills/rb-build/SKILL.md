@@ -67,8 +67,9 @@ ladder, resume, crash recovery, blocked path, CI fix), `audit.md`, `parallel.md`
 2. Clean tree: `git status --porcelain` empty apart from bookkeeping files (Bookkeeping below).
    A dirty `rb/*` branch means a previous run died: Crash recovery in `references/kickback.md`.
    Any other dirt is the user's work: stop and ask (interactive) or escalate (unattended).
-3. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`. `rb sync`. Run id for this
-   run: `build-<short HEAD sha>-<4 random lowercase letters>` (bookkeeping and the merge train use it).
+3. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`. Run id:
+   `build-<short HEAD sha>-<4 random lowercase letters>`. `rb bookkeeping carry --run <run id>`
+   (the day's open bookkeeping PR into the checkout; exit 3: leave it). `rb sync`.
 4. `rb baseline --check`. A failure outside `docs/rockbuilt/known-failures.json` stops the run
    (offer `/rb-fix`). Exception: when the only work is the walking skeleton (`rb:skeleton`) or the
    stabilization issue, the red baseline is why the issue exists; continue, and its mechanical
@@ -165,14 +166,14 @@ changed; an unexplained path is a failure. Any failure is a kickback (`reference
 `rb risk --base origin/<default> --json` on the branch. Final tier = max(plan tier, this). If it
 rose to C and the plan was not approved as C: `git add -A` (minus bookkeeping),
 `git commit --allow-empty -m "wip: escalated: tier C (<id>)"`, `git push -u origin rb/<id>-<slug>`,
-escalate with the `rb risk` reasons and the diff stat, move on. Approved later: the next run
-re-runs step 6, then continues at step 8.
+escalate with the `rb risk` reasons and diff stat, move on. Approved later: step 6, then step 8.
 
-### 8. Collapse (only before the first push)
+### 8. Collapse
 As separate calls: `git merge-base origin/<default> HEAD`; `git reset --soft <sha pasted>`;
 `git restore --staged` on bookkeeping files; `git commit -m "<type>(<scope>): <title> (<id>)"`.
-Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied). A pushed branch is never
-collapsed again: each later fix is one commit on top (the merge squashes; no force push, no new PR).
+On a branch already on origin (escalated, interrupted, or a PR) reset to `origin/<branch>`
+instead: only local commits squash, each fix is one commit on top (no force push, no new PR).
+Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
 - **Verifier** (all tiers): task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the
@@ -214,7 +215,7 @@ tasks.md `Status: in-review` and a Decision log line
 `- <date>: <key decisions incl. RESOLVED>, because <reason>. Tier <x>. Outcome: reviews pass after
 <k> kickbacks, PR #<pr>.` (also in the PR body). A real gotcha becomes a dated 1 to 3 line
 LESSONS.md entry, written as an instruction, included in later dispatches. `rb bookkeeping save
---run <run id>` (Bookkeeping files). Check stop conditions, then the next ready task.
+--run <run id>`. Check stop conditions, then the next ready task.
 
 ## Merge train
 
@@ -225,8 +226,7 @@ no task is ready but some wait on open PRs: `rb control ensure`, `rb lock acquir
 
 ## Stop conditions
 
-No ready task left; the baseline turns red; 3 consecutive tasks blocked; `rb stop status` exits 3
-(checked before each task and each merge); the user says stop.
+No ready task; red baseline; 3 consecutive tasks blocked; `rb stop status` exits 3 (checked before each task and each merge); the user says stop.
 
 ## Run end
 

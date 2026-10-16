@@ -712,7 +712,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
 | `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims older than it |
 | `bookkeeping carry --run <id>` | Run start: apply the open `rb/bookkeeping-*` PR to the checkout (plain `git apply`; exit 3 and untouched when it does not apply) |
-| `bookkeeping save --run <id> [--final]` | Commit tasks.md, progress.md and LESSONS.md as the checkout has them in a temporary worktree at the default branch, `merge -s ours` the day's branch when it exists, push, open the PR when none is open; `--final` restores those files in the checkout |
+| `bookkeeping save --run <id> [--final]` | Needs GitHub (exit 3 without it). The checkout's edits to tracked tasks.md, progress.md and LESSONS.md (a patch against its HEAD, never whole files or untracked files) applied in a temporary worktree at the default branch, `merge -s ours` the day's branch when it exists, push, open the PR when none is open; exit 3 when the patch no longer applies; `--final` restores those files in the checkout |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
 | `merge-gate <pr> --run <id> \| --human-approved [--dry-run]` | Section 8. `--run` must match the lock holder. `--human-approved` allows tier C and human-only kinds only when the human asked in the current conversation |
 | `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-c`, `rb:needs-human` |

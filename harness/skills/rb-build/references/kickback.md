@@ -26,10 +26,10 @@ For kickback k:
    report." The auditor's findings are behavior evidence; passing them to the implementer is fine.
    The reverse never happens: the auditor never sees implementer or verifier text.
 2. Checkpoint `wip: checkpoint kickback <k> (<id>)` (skip if nothing changed). `rb timing end`.
-3. Re-run the mechanical check, recompute the tier (`rb risk --base origin/<default>`). Branch not
-   pushed yet: collapse again (build step 8). Already pushed (a PR exists): never rewrite it; turn
-   the checkpoint into `git commit --amend -m "fix: <what> (kickback <k>, <id>)"` (the checkpoint
-   is local, so amending it is safe) and push after the reviews. Record the new head.
+3. Re-run the mechanical check, recompute the tier (`rb risk --base origin/<default>`), then
+   collapse as build step 8 (on a branch already on origin it squashes only the new local commits
+   onto the pushed tip, as `fix: <what> (kickback <k>, <id>)`; nothing new: no commit). Push after
+   the reviews. Record the new head.
 4. Re-run the verifier with the prior findings verbatim and `Previously reviewed commit: <sha>`
    (it checks prior findings first, then only the delta). Then the auditor and the security
    review, decided by `rb review-delta --reviewed <head they passed> --base origin/<default>`
@@ -99,10 +99,11 @@ Classify by `git log origin/<default>..<branch> --format=%s`:
   and continue at the mechanical check (build step 6), then step 8; if not, skip the task.
 - Only `wip:` commits, newest anything else: **resume**. Check it out, build the resume brief,
   dispatch the implementer with it. Do not re-cut or rebase it.
-- Only harness commits that are not `wip:` (the collapsed commit, then `fix: ... (kickback <k>,
-  <id>)` or `fix: ... (CI, <id>)` commits) and no open PR (`rb gh pr-list --state open
-  --head-prefix rb/<id>-`): the run died before the PR. Check it out and continue from the
-  reviews (build step 9).
+- Newest commit a collapsed harness commit (`<type>(<scope>): <title> (<id>)` or `fix: ...
+  (<id>)`, possibly on top of pushed `wip:` commits), no open PR (`rb gh pr-list --state open
+  --head-prefix rb/<id>-`) and no closed one for that branch (`--state closed`): the run died
+  before the PR. Check it out and continue from the reviews (build step 9). A closed unmerged PR
+  for it means a human closed it: leave the branch, note it, move on.
 - An open PR for it: not a build item. It belongs to the merge train or the CI fix queue. Only
   when the human answered a `merge-conflict` escalation with "reconstruir" / "rebuild": comment
   on the PR, close it (`rb gh issue-edit <pr> --state closed`), and rebuild the task from the
@@ -142,9 +143,9 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
    command to capture the output. Dispatch `rb-implementer` with the plan, its last report, the
    check name, the CI output summary and the local output, and "Fix ONLY this CI failure. Do not
    expand scope. Return your report." Checkpoint `wip: checkpoint ci-fix (<id>)`.
-4. Mechanical check. Then amend the checkpoint into `git commit --amend -m "fix: <what> (CI,
-   <id>)"` (the checkpoint is local; never amend or collapse a pushed commit: that would need a
-   force push, which is denied). The merge squashes, so extra commits cost nothing.
+4. Mechanical check. Then `git reset --soft origin/<branch>` and `git commit -m "fix: <what> (CI,
+   <id>)"`: only local commits are squashed, the pushed ones stay (a force push is denied). The
+   merge squashes, so extra commits cost nothing.
 5. Reviews on the new head: verifier with `Previously reviewed commit: <old head>`; for tier B and
    C the auditor and security as in section 1 step 4 (`rb review-delta` decides whether a
    test-only fix keeps the auditor's line; the security review runs again). A

@@ -8,7 +8,7 @@ after(cleanup);
 const TASKS = '# Tasks\n\n## T1: One\n- Status: todo\n\n### Decision log\n';
 
 function project() {
-  const root = repoWith({ 'AGENTS.md': '# App\n\nDefault branch: main\n', 'docs/specs/01-x/tasks.md': TASKS, 'docs/progress.md': '# Progress\n', '.gitignore': '.rockbuilt/\n' });
+  const root = repoWith({ 'AGENTS.md': '# App\n\nDefault branch: main\n', 'docs/specs/01-x/tasks.md': TASKS, 'docs/progress.md': '# Progress\n', '.claude/LESSONS.md': '# Lessons\n', '.gitignore': '.rockbuilt/\n' });
   const bare = tmp();
   sh(bare, 'git', ['init', '-q', '--bare', '-b', 'main']);
   sh(root, 'git', ['remote', 'add', 'origin', bare]);
@@ -38,6 +38,7 @@ test('bookkeeping save: pushes the day branch from a temporary worktree, opens o
     const before = sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']);
     write(root, 'docs/progress.md', '# Progress\n\n- 2026-10-15: T1 in review.\n');
     write(root, '.claude/LESSONS.md', '# Lessons\n\n- new\n');
+    write(root, 'docs/specs/02-draft/tasks.md', '# Draft\n');
     r = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-a', '--final']), io(gh));
     assert.equal(r.code, 0, r.err);
     assert.equal(r.json.created, false);
@@ -45,8 +46,10 @@ test('bookkeeping save: pushes the day branch from a temporary worktree, opens o
     sh(bare, 'git', ['merge-base', '--is-ancestor', before, 'rb/bookkeeping-2026-10-15']);
     assert.match(sh(bare, 'git', ['show', 'rb/bookkeeping-2026-10-15:.claude/LESSONS.md']), /new/);
     assert.match(sh(bare, 'git', ['show', 'rb/bookkeeping-2026-10-15:docs/specs/01-x/tasks.md']), /in-progress/, 'earlier edits stay');
-    // --final leaves a clean tree (cloud stop hooks ask for one).
-    assert.equal(sh(root, 'git', ['status', '--porcelain']), '');
+    // --final leaves the tracked files clean (cloud stop hooks ask for one); an untracked draft is
+    // the user's: never pushed, never deleted.
+    assert.equal(sh(root, 'git', ['status', '--porcelain']), '?? docs/specs/02-draft/');
+    assert.equal(read(root, 'docs/specs/02-draft/tasks.md'), '# Draft\n');
     // Nothing else entered the branch.
     assert.deepEqual(sh(bare, 'git', ['diff', '--name-only', 'main...rb/bookkeeping-2026-10-15']).split('\n').sort(), ['.claude/LESSONS.md', 'docs/progress.md', 'docs/specs/01-x/tasks.md']);
 
@@ -108,5 +111,29 @@ test('bookkeeping carry: a PR that does not apply is left alone and the run gets
     write(root, 'docs/progress.md', '# Progress rewritten on main\n\n- night three\n');
     const s = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-c']), io(gh));
     assert.equal(s.json.branch, 'rb/bookkeeping-2026-10-16');
+  });
+});
+
+test('bookkeeping save: what main gained during the run stays (the patch is against HEAD, never whole files)', async () => {
+  const { root } = project();
+  const gh = fakeGh();
+  await withEnv({ RB_NOW: '2026-10-15T12:00:00Z' }, async () => {
+    write(root, 'docs/specs/01-x/tasks.md', TASKS.replace('todo', 'in-progress'));
+    // Someone merges a progress line on GitHub; the checkout does not pull.
+    const other = tmp();
+    sh(other, 'git', ['clone', '-q', sh(root, 'git', ['remote', 'get-url', 'origin']), '.']);
+    sh(other, 'git', ['config', 'user.email', 't@example.com']);
+    sh(other, 'git', ['config', 'user.name', 'T']);
+    write(other, 'docs/progress.md', '# Progress\n\n- merged elsewhere\n');
+    commitAll(other, 'elsewhere');
+    sh(other, 'git', ['push', '-q', 'origin', 'main']);
+    const r = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-d']), io(gh));
+    assert.equal(r.code, 0, r.err);
+    const bare = sh(root, 'git', ['remote', 'get-url', 'origin']);
+    assert.match(sh(bare, 'git', ['show', `${r.json.branch}:docs/progress.md`]), /merged elsewhere/, 'not reverted');
+    assert.deepEqual(sh(bare, 'git', ['diff', '--name-only', `main...${r.json.branch}`]).split('\n'), ['docs/specs/01-x/tasks.md']);
+    // Without GitHub nothing is pushed: a branch with no PR would never be carried.
+    const off = await rbJson(root, ['bookkeeping', 'save', '--run', 'cycle-d']);
+    assert.equal(off.code, 3);
   });
 });

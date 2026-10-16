@@ -534,7 +534,7 @@ const handlers = {
     }
     if (op === 'save') {
       const r = saveBookkeeping(root, c, { run: flags.run, final: Boolean(flags.final) });
-      return { data: r, text: r.detail, code: 0 };
+      return { data: r, text: r.detail, code: r.code || 0 };
     }
     throw new CliError('usage: rb bookkeeping carry|save --run <id> [--final]', 2);
   },

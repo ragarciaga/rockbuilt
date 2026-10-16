@@ -192,7 +192,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
         const gained = ops.compareFiles(c, head, view.base.ref);
         const own = ops.compareFiles(c, view.base.ref, head);
         const docsOnly = !gained.truncated && !own.truncated && gained.files.length > 0
-          && gained.files.every((f) => BOOKKEEPING_FILE.test(f.filename) && !f.previous)
+          && gained.files.every((f) => BOOKKEEPING_FILE.test(f.filename) && f.status === 'modified' && !f.previous)
           && !own.files.some((f) => BOOKKEEPING_FILE.test(f.filename) || (f.previous && BOOKKEEPING_FILE.test(f.previous)));
         if (docsOnly) behindExempt = { behindBy: cmp.behindBy, files: gained.files.map((f) => f.filename) };
         else no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref} with code changes: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
