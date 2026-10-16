@@ -114,6 +114,8 @@ por ti.
 2. Los requisitos y luego el diseño de cada funcionalidad (spec).
 3. Cada decisión de nivel C, cuando llega. Antes de que te llegue, el revisor de seguridad lee
    el plan y coteja cada decisión con los requisitos (también en planes con datos personales).
+   Esa lectura ya no depende de que el agente la recuerde: `rb` no deja escalar un plan de nivel C
+   sin ella, y lo que encuentre viene en la misma pregunta.
 4. Los PRs de nivel C y los del harness.
 
 Las tareas que salen de un spec aprobado no piden una segunda aprobación.
@@ -221,6 +223,30 @@ Su veredicto queda como comentario en el issue de la tarea, así que eso funcion
 re-auditoría pase en otra sesión.
 Si el verificador encuentra un error que solo está en el reporte (una cifra mal contada), lo
 anota para corregir el PR y no devuelve la tarea.
+
+## Calidad
+
+El resumen nocturno trae una línea de calidad de los últimos 7 días, y `/rb-retro` la usa para el
+periodo que revise. Sale de `node tools/rockbuilt/rb.mjs quality --since <fecha>`:
+
+- **Devoluciones por revisor.** Cada PR guarda cuántas veces lo devolvió cada uno. Si el auditor
+  devuelve, encontró algo que el verificador dejó pasar; si devuelve el CI, algo que pasó todos
+  los chequeos locales.
+- **Reverts** del periodo.
+- **Bugs que vienen de PRs fusionados.** Cuando `/rb-fix` encuentra que la causa está en código
+  de un PR del harness, lo anota en el issue (`Introduced by #<pr>`).
+
+Si los tiempos mejoran pero esos números suben, el harness está ganando velocidad a costa de la
+calidad, y eso es un hallazgo para la retro.
+
+Al cerrar una funcionalidad, `/rb-verify` termina con el **chequeo del objetivo**. Un auditor que
+no vio las tareas ni el código lee el objetivo del brief y usa la funcionalidad como lo haría ese
+usuario. Si no cumple lo prometido y los requisitos sí lo pedían, se vuelve una tarea; si los
+requisitos no lo cubrían, te llega como pregunta, porque cambiar el spec es decisión tuya.
+
+**Tamaño de las tareas.** `rb tasks` rechaza tareas con más de 8 archivos o más de 4 criterios, y
+una de tamaño L sin la razón por la que no se puede partir. Una tarea que nadie puede revisar
+completa termina con una revisión superficial.
 
 Las notas de progreso y las lecciones van en un solo PR de registro por día
 (`rb/bookkeeping-<fecha>`). La corrida lo sube después de cada tarea, así que si la sesión se cae

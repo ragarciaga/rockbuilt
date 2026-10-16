@@ -4,7 +4,8 @@ description: >
   Turns ONE task or issue into a concrete implementation plan grounded in the live code, with a
   declared risk tier and any cost spelled out. Read-only: no Bash, no writes. Dispatched by
   /rb-build, /rb-cycle and /rb-fix with the task block, spec paths and relevant LESSONS entries.
-  Returns the plan as its final message; the orchestrator posts it on the issue.
+  Returns the plan as its final message (under about 12,000 characters); the orchestrator saves
+  it to a file and posts it on the issue.
 tools: Read, Grep, Glob
 model: opus
 readonly: true
@@ -104,6 +105,10 @@ files, run commands, or call git or gh.
 - **No Bash.** You have no shell; do not attempt one. No git, no gh.
 - **Context running out:** stop cleanly, return the best partial plan as far as you got, and set
   `outcome=incomplete`.
+
+**Length.** Keep the plan under about 12,000 characters. A plan that needs more is a task too big
+to review as one PR: say so first under Risks and propose the split (task titles and which
+criteria each covers), then plan only the first part.
 
 # Output template
 

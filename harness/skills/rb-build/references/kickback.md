@@ -150,9 +150,9 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
    C the auditor and security as in section 1 step 4 (`rb review-delta` decides whether a
    test-only fix keeps the auditor's line; the security review runs again). A
    failure here takes the blocked path for the fix (the PR stays open, labelled `rb:blocked`).
-6. `git push`. Rewrite the PR body with every machine line carrying the new head (replace, never
-   append; the timing line from `rb timing line <id> --pr <pr>`, which keeps the minutes already
-   in the body) and apply it with `rb gh issue-edit <pr> --body-file <f>` (a PR is an issue for the
-   REST API). If the edit fails, escalate: the gate will refuse the stale lines.
+6. `git push`. Replace every machine line that names the old head, the timing line (from `rb timing
+   line <id> --pr <pr>`, which keeps the minutes already in the body) and the kickbacks line (now
+   `ci=1`), each with `rb gh pr-line <pr> --line "<line>"`. If an edit fails, escalate: the gate
+   will refuse the stale lines.
 7. CI runs again; the train reads it. Still red: escalate `CI red after fix`, label `rb:blocked`
    on the issue, the PR stays open.

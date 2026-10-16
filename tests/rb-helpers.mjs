@@ -114,7 +114,7 @@ function issueOut(s, i) {
 function pullOut(s, p) {
   const i = s.issues[p.number];
   return {
-    number: p.number, title: i.title, body: i.body, state: i.state, draft: Boolean(p.draft), merged: Boolean(p.merged_at), merged_at: p.merged_at || null,
+    number: p.number, title: i.title, body: i.body, state: i.state, draft: Boolean(p.draft), merged: Boolean(p.merged_at), merged_at: p.merged_at || null, created_at: i.created_at || null,
     merge_commit_sha: p.merge_commit_sha || null, mergeable: p.mergeable === undefined ? true : p.mergeable, mergeable_state: p.mergeable_state || 'clean',
     base: { ref: p.base, sha: p.baseSha || 'b'.repeat(40) }, head: { ref: p.head, sha: p.headSha }, labels: i.labels.map((name) => ({ name })),
     user: { login: i.author || s.user }, author_association: 'OWNER', html_url: `https://github.com/${REPO}/pull/${p.number}`,

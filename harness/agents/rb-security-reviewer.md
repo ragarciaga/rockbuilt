@@ -40,7 +40,8 @@ Short and cheap: no diff, no `npm audit`. 1. Read requirements.md and design.md.
 decision that contradicts a requirement or settles something the spec left open is a `major`
 finding. 3. Walk the plan's Affected files and data paths against steps 3, 5 and 8 below
 (authorization, new hosts and costs, agent tools) as designed, not as written. Output as below,
-`Mode: plan`.
+`Mode: plan`, and the status line carries `mode=plan` and no `head=` (there is no code yet):
+`<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=<pass|fail> mode=plan -->`.
 
 # Process
 

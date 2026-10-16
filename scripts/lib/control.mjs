@@ -4,6 +4,7 @@ import { CliError, now } from './util.mjs';
 
 export const CONTROL_TITLE = 'Rockbuilt control';
 export const LOCK_STALE_MS = 3 * 60 * 60 * 1000;
+export const LOCK_RENEW_MIN = 30;
 
 const CONTROL_BODY = [
   '<!-- rockbuilt:control -->',
@@ -55,12 +56,18 @@ export function lockState(c, control, at = now()) {
     return { control, held: false, run: null, at: null, ageMinutes: null, stale: false, labelled };
   }
   const age = at.getTime() - last.at;
-  // A run refreshes its lock with more lock comments; `since` is when it first took it.
+  // A run renews its lock with more lock comments (acquire by the same run); `since` is when it
+  // first took it after its own last unlock, even if other runs locked in between, and
+  // `runMinutes` is the run's age for time budgets (`ageMinutes` is the time since the last renewal).
   let first = last.at;
-  for (let k = events.length - 1; k >= 0 && events[k].kind === 'lock' && events[k].run === last.run; k--) first = events[k].at;
+  for (let k = events.length - 1; k >= 0; k--) {
+    if (events[k].run !== last.run) continue;
+    if (events[k].kind === 'unlock') break;
+    first = events[k].at;
+  }
   return {
     control, held: age < LOCK_STALE_MS, run: last.run, at: new Date(last.at).toISOString(), since: new Date(first).toISOString(),
-    ageMinutes: Math.round(age / 60000), stale: age >= LOCK_STALE_MS, labelled,
+    ageMinutes: Math.round(age / 60000), runMinutes: Math.round((at.getTime() - first) / 60000), stale: age >= LOCK_STALE_MS, labelled,
   };
 }
 
@@ -75,7 +82,14 @@ export function acquireLock(c, run) {
   const at = now();
   const st = lockState(c, control, at);
   if (st.held && st.run !== id) return { acquired: false, control, holder: st.run, since: st.at, ageMinutes: st.ageMinutes };
-  if (st.held && st.run === id) return { acquired: true, control, run: id, already: true };
+  // The same run asking again renews the lock once it is 30 minutes old, so a long run never goes
+  // stale while it works (3d_brain cycle-4889aa8-pwzk: merge-gate refused at 189 min).
+  if (st.held && st.run === id && st.ageMinutes < LOCK_RENEW_MIN) return { acquired: true, control, run: id, already: true };
+  if (st.held && st.run === id) {
+    const iso = at.toISOString();
+    ops.issueComment(c, control, `<!-- rockbuilt:lock run=${id} at=${iso} -->\nLock renewed by run \`${id}\` at ${iso}.`);
+    return { acquired: true, control, run: id, already: true, renewed: true };
+  }
   ops.labelAdd(c, control, ['rb:running']);
   const iso = at.toISOString();
   const note = st.stale ? ` (took over a stale lock from run ${st.run}, ${st.ageMinutes} min old)` : '';
@@ -116,13 +130,34 @@ export function stopStatus(c) {
   return { stop: issues.length > 0, issues };
 }
 
-export function holdsLock(c, run) {
+// With renew, a run whose own lock went stale (no other run took it) renews it and still holds it.
+export function holdsLock(c, run, { renew = false } = {}) {
   const control = ensureControl(c, { create: false });
   if (!control) return { held: false, detail: 'no control issue' };
-  const st = lockState(c, control.number);
+  let st = lockState(c, control.number);
+  if (renew && st.run === String(run)) {
+    const a = acquireLock(c, run);
+    if (a.acquired) st = lockState(c, control.number);
+  }
   if (!st.held) return { held: false, detail: st.stale ? `lock is stale (run ${st.run}, ${st.ageMinutes} min)` : 'lock not held' };
   if (st.run !== String(run)) return { held: false, detail: `lock held by run ${st.run}` };
   return { held: true, detail: `held by run ${run}`, since: st.since };
+}
+
+// A tier C plan reaches the human only after the security reviewer read it (rb-build step 3b):
+// the newest trusted plan comment says tier=C, so a `mode=plan` security status line must be newer.
+// Prose alone was skipped (eval build-tier-c-escalates, 0.6.0 and 0.7.0): the orchestrator escalated
+// the planner's open question first and never reached 3b.
+export function requirePlanReview(c, issue) {
+  const comments = ops.issueComments(c, issue);
+  let plan = -1;
+  for (let i = comments.length - 1; i >= 0; i--) {
+    if (/^<!--\s*rockbuilt:plan\b[^>]*\btier=C\b/im.test(comments[i].body)) { plan = i; break; }
+    if (/^<!--\s*rockbuilt:plan\b/im.test(comments[i].body)) return;
+  }
+  if (plan === -1) return;
+  const reviewed = comments.slice(plan + 1).some((cm) => /<!--\s*rockbuilt:status\s+[^>]*stage=rb-security-reviewer[^>]*\bmode=plan\b/.test(cm.body));
+  if (!reviewed) throw new CliError(`#${issue} has a tier C plan without its security read: dispatch rb-security-reviewer with Mode: plan, post its verdict on the issue (rb-build step 3b), then escalate`, 3);
 }
 
 export function escalate(c, issue, { kind, title, body }) {
@@ -136,6 +171,7 @@ export function escalate(c, issue, { kind, title, body }) {
     const i = ops.issueCreate(c, { title, body: text, labels: [label] });
     return { issue: i.number, created: true, label, kind };
   }
+  if (kind === 'human') requirePlanReview(c, number);
   ops.labelAdd(c, number, [label]);
   ops.issueComment(c, number, text);
   number = Number(String(number).replace(/^#/, ''));

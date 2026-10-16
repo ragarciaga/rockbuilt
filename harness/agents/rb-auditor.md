@@ -5,7 +5,8 @@ description: >
   user would (Playwright MCP for UI, CLI or HTTP for APIs), without seeing the plan, the
   implementer report or the verifier verdict. Read-only: verdict per criterion is pass, fail or
   not-observable with evidence; any fail is a kickback. Dispatched by /rb-build and /rb-fix for
-  tier B and C, and by the optional PR audit routine.
+  tier B and C, and by the optional PR audit routine. In `Mode: goal` (from /rb-verify) it judges
+  a finished feature against the product goal instead.
 tools: Read, Grep, Glob, Bash, Write, mcp__playwright__browser_navigate, mcp__playwright__browser_navigate_back, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_fill_form, mcp__playwright__browser_select_option, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_network_requests, mcp__playwright__browser_console_messages, mcp__playwright__browser_tabs, mcp__playwright__browser_close
 model: opus
 ---
@@ -116,6 +117,25 @@ changed files can reach is never carried.
   something is a Note.
 - **Context running out:** return what you have, unaudited criteria as not-observable
   ("not reached"), `outcome=incomplete`.
+
+# Goal mode (prompt has `Mode: goal`)
+
+A finished feature can pass every criterion and still miss why it was built. You receive the
+product goal (the AGENTS.md `## Goal` section and the brief's problem and users, verbatim), the
+feature's requirement statements (the `R<n>` lines, not the criteria detail) and the run
+instructions. You never see tasks, plans, reports or diffs.
+
+1. Restate each goal claim the feature is meant to serve as one observable outcome for a named
+   user ("a family member can see this month's total per category without a spreadsheet").
+2. Do it as that user, end to end, through the real entry points (UI, CLI, API), with realistic
+   data. Not the tests: the path a user would take, starting from how the README says to start.
+3. Verdict per outcome: `delivers`, `partial` (works, but with a gap the user would hit: name it)
+   or `no`, each with evidence (commands and output, or screenshots).
+
+Output: the same template with a `## Goal` table (`Outcome | Verdict | Evidence`) in place of
+`## Criteria`, and the status line `outcome=pass` only when every outcome is `delivers`
+(`fail` otherwise), with `mode=goal` and no task id: `<!-- rockbuilt:status stage=rb-auditor
+feature=<slug> outcome=<pass|fail|incomplete> mode=goal head=<sha> -->`.
 
 # Output template
 

@@ -67,6 +67,7 @@ Show this table in one short block before running anything.
 | Security | Any trigger below matches (requirements, design, feature diff). When in doubt, run it: cheap and read-only |
 | E2E | `Project type` includes `web`, or any criterion is `[e2e]`, or the feature changes UI files |
 | Evals | `Project type` includes `ai`, or any criterion is `[eval]`, or design.md marks a node `llm` |
+| Goal | Always, last: does the finished feature deliver what the product goal promised? |
 
 Security triggers (the sensitive areas of DESIGN.md section 6.1 plus external input): auth or
 sessions, permissions or roles, payments or money, personal data, file upload, external input
@@ -94,7 +95,7 @@ Playwright MCP, evals runner and **budget**. Two v0.3 rules decide most cases:
 
 ## Step 3: Run the gates in order
 
-Order: security (fast, read-only), then E2E, then evals. Wrap each with
+Order: security (fast, read-only), then E2E, then evals, then the goal check. Wrap each with
 `rb timing start <slug> <security|e2e|evals>` and `rb timing end <slug> <phase>`. Pass agents
 file paths, not file contents, plus relevant LESSONS entries, the `Docs language`, and the path
 of the reference they must read.
@@ -153,6 +154,17 @@ If the runner or graders do not exist, create a task for them (Step 4: `Covers` 
 criteria, `Verify: npm run evals exits 0 and prints a score`) and report BLOCKED until it ships.
 Do not write eval code and do not dispatch the implementer from this skill.
 
+### Gate D: Goal
+
+Every criterion can pass while the feature misses why it was built. Dispatch `rb-auditor` with
+`Mode: goal`, `Reviewed head: <default branch sha>`, the AGENTS.md `## Goal` section and the
+brief's problem and users verbatim (docs/brief.md or docs/current-state.md), the requirement
+statements of requirements.md (the `R<n>` lines), the run instructions, `Browser`, `Session`,
+`Docs language`. Nothing about tasks, plans or diffs: it stays blind. Write its table into
+test-report.md under `## Goal`. A `partial` or `no` outcome is a blocker (Step 4) when the
+requirements already cover it (the build missed it), and an escalation `--kind human` when they
+do not (the spec missed it: a spec change is the human's call).
+
 ## Step 4: Blockers become tasks and issues
 
 For each security blocker, E2E app fault, failed eval threshold, missing eval suite or HITL
@@ -185,6 +197,7 @@ Verify: <feature>
 - Security: PASS | FAIL (<n> blocker, <n> major)  -> docs/specs/NN-slug/security-report.md
 - E2E: PASS | FAIL | NEEDS-LOCAL (#<issue>) | SKIPPED (<reason>)  (<passed>/<total>)  -> test-report.md
 - Evals: PASS | FAIL | BLOCKED (budget, #<issue>) | SKIPPED  score <x> vs <t> (baseline <b>, cost <c>)  -> evals.md
+- Goal: PASS | PARTIAL (<outcome>) | FAIL  -> test-report.md#goal
 New tasks: T9 (#41), T10 (#42)
 Next: <one concrete instruction>
 ```

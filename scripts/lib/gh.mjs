@@ -413,6 +413,8 @@ export const GH_OPS = {
   'pr-files': '<n>',
   'pr-comment': '<n> --body-file <f>',
   'pr-update-branch': '<n>',
+  'pr-edit': '<n> --body-file <f>',
+  'pr-line': '<n> --line <machine line>',
   checks: '<sha>',
   whoami: '',
   protection: '[--branch <b>]',
@@ -450,6 +452,35 @@ function checkFlags(op, flags) {
 }
 
 const TIER_MARKER = /<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i;
+
+// rb gh pr-line: replaces one machine line in a PR body without rewriting the rest (3d_brain
+// cycle-4889aa8-pwzk rewrote six bodies by hand after update-branch). A status line replaces the
+// line of the same stage; any other `<!-- rockbuilt:<kind> ... -->` line replaces the one of the
+// same kind. With no match the line goes before the tier marker (or at the end).
+export function replaceMachineLine(body, line) {
+  const l = String(line || '').trim();
+  const m = l.match(/^<!--\s*rockbuilt:([\w-]+)\s+([^>]*?)\s*-->$/);
+  if (!m || /[\r\n]/.test(l)) throw new CliError('--line must be one `<!-- rockbuilt:<kind> ... -->` line', 2);
+  const kind = m[1];
+  const stage = kind === 'status' ? (m[2].match(/\bstage=(\S+)/) || [])[1] : null;
+  if (kind === 'status' && !stage) throw new CliError('a status line needs stage=<agent>', 2);
+  if (kind === 'tier') throw new CliError('the tier line is not replaced this way (relabel the PR instead)', 2);
+  const lines = String(body || '').split('\n');
+  const same = (x) => {
+    const y = x.trim().match(/^<!--\s*rockbuilt:([\w-]+)\s+([^>]*?)\s*-->$/);
+    if (!y || y[1] !== kind) return false;
+    return kind !== 'status' || (y[2].match(/\bstage=(\S+)/) || [])[1] === stage;
+  };
+  const at = lines.findIndex(same);
+  if (at !== -1) {
+    lines[at] = l;
+    return lines.filter((x, i) => i === at || !same(x)).join('\n');
+  }
+  const tier = lines.findIndex((x) => TIER_MARKER.test(x));
+  if (tier !== -1) lines.splice(tier, 0, l);
+  else lines.push(l);
+  return lines.join('\n');
+}
 
 // pr-create labels: the body's `<!-- rockbuilt:tier X -->` adds rb:tier-x when no tier label was
 // given; a given tier label below the declared tier is refused (the gate would refuse it later).
@@ -497,6 +528,13 @@ export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
     case 'pr-files': return ops.prFiles(c, req(a, op));
     case 'pr-comment': return ops.issueComment(c, req(a, op), bodyFrom(flags, cwd));
     case 'pr-update-branch': return ops.prUpdateBranch(c, req(a, op));
+    case 'pr-edit': return ops.issueEdit(c, req(a, op), { body: bodyFrom(flags, cwd) });
+    case 'pr-line': {
+      const n = req(a, op);
+      const body = replaceMachineLine(ops.prView(c, n).body, str('line'));
+      const edited = ops.issueEdit(c, n, { body });
+      return { number: edited.number, line: str('line').trim() };
+    }
     case 'checks': return ops.checks(c, req(a, op));
     case 'whoami': return ops.whoami(c);
     case 'protection': return ops.protection(c, str('branch') || defaultBranch());

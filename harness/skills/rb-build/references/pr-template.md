@@ -57,6 +57,7 @@ issues filed: #a, #b.>
 <!-- rockbuilt:task <id> spec=<docs/specs/NN-slug | none> -->
 <!-- rockbuilt:tier <A|B|C> -->
 <!-- rockbuilt:timing task=<id> plan=<min> implement=<min> ... -->
+<!-- rockbuilt:kickbacks task=<id> mechanical=<n> verifier=<n> auditor=<n> security=<n> ci=<n> -->
 <!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
 <!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->
 <!-- rockbuilt:security required -->
@@ -73,9 +74,13 @@ Rules:
   when an id like T1 exists in several specs.
 - Replace, never append, after a re-review (CI fix, update-branch re-review): the body describes
   the tree the head commit carries. After a light re-review (identical diff) only the verifier line
-  changes; the auditor and security lines keep their `head=`. Apply edits with
-  `rb gh issue-edit <pr> --body-file <f>` (labels: `--add-label` / `--remove-label`, or
-  `rb gh label-add`).
+  changes; the auditor and security lines keep their `head=`. One machine line at a time:
+  `rb gh pr-line <pr> --line "<line>"` (replaces the line of the same stage or kind); a
+  whole body: `rb gh pr-edit <pr> --body-file <f>`. Labels: `rb gh issue-edit <pr> --add-label` /
+  `--remove-label`, or `rb gh label-add`.
+- The kickbacks line counts every kickback by its source (the shared budget of 2, plus the CI
+  fix): `rb quality` reads it. An auditor kickback is a defect the verifier passed; a CI one, a
+  defect every local check passed. Update it with `rb gh pr-line` after a later kickback.
 - `Closes #n` only when the PR completes the task; a deliberate partial PR says `Part of #n`.
 - Numbers come from command output you ran in the mechanical check, never from memory.
 - Bug PRs (rb-fix): Problem is expected vs actual; Criteria start with "the reproduction test

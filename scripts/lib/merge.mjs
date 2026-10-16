@@ -296,7 +296,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   if (!humanApproved) {
     if (!run) no('lock', 'pass --run <id> (lock holder) or --human-approved');
     else {
-      const l = holdsLock(c, run);
+      const l = holdsLock(c, run, { renew: true });
       if (!l.held) no('lock', l.detail);
     }
   }
@@ -335,7 +335,7 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   if (!humanApproved) {
     if (!run) no('lock', 'pass --run <id> (lock holder) or --human-approved');
     else {
-      const l = holdsLock(c, run);
+      const l = holdsLock(c, run, { renew: true });
       if (!l.held) no('lock', l.detail);
     }
   }

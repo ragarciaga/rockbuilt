@@ -39,6 +39,9 @@ is evidence too: quote it.
 Project:
 
 - `rb timing report` (time per task and phase; flag phases far above the median).
+- `rb quality --since <scope start>` (kickbacks by source, reverts, bugs traced to merged PRs).
+  Speed only counts when these hold: a rising escaped-bug or auditor-kickback count is a harness
+  finding even when the times look good.
 - `rb flaky list` (tests that failed once and passed on re-run; two or more hits is a project
   gotcha worth a task).
 - tasks.md decision logs: kickbacks per task and their reasons, tasks that ended blocked and why.

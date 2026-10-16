@@ -65,7 +65,8 @@ touched.
        base merge), for tier B the auditor again (a re-audit, `audit.md`), security when
        required; rewrite every machine line with the new head.
      The gate re-checks the class through GitHub and refuses a carried line it cannot confirm.
-     Then `rb gh issue-edit <pr> --body-file <f>` and run the gate once more.
+     Then apply the new lines with `rb gh pr-line <pr> --line "<line>"` (one call per line) and run
+     the gate once more.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
    - Anything else: hold with the reasons verbatim in the digest; next PR.
@@ -84,7 +85,7 @@ touched.
    - Record for the digest: PR, title, tier, `rb revert <pr>`, minutes from PR open to merge.
    - Minutes that happened after the PR opened (CI waits, re-reviews, the merge): `rb timing line
      <id> --pr <pr>` adds them to the line already in the body; replace that line with the output
-     (`rb gh issue-edit <pr> --body-file <f>`). Also after a hold, so the next run starts from it.
+     (`rb gh pr-line <pr> --line "<timing line>"`). Also after a hold, so the next run starts from it.
    - Tasks that depended on this one may now be ready: the caller loops back to the build queue
      when the run budget allows.
 7. The next PR may now be behind: the gate decides (step 5); a bookkeeping-only gap needs no update.

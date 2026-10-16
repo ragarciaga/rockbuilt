@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.8.0 (2026-10-16)
+
+Quality gates that do not depend on the agent following prose, and a quality number beside the
+speed numbers (issues #17 and #19, eval `build-tier-c-escalates`; DESIGN 20.18).
+
+- **Tier C plans get their security read, checked by `rb`.** The security read now runs before the
+  plan's open questions are escalated, its verdict is posted on the issue with a `mode=plan` line,
+  and `rb escalate --kind human` refuses a tier C plan without it. 0.6.0 and 0.7.0 escalated the
+  question and skipped the read.
+- **`rb quality`**: merged task PRs, kickbacks by source (an auditor kickback is a defect the
+  verifier passed, a CI one a defect every local check passed), reverts, and bugs traced to merged
+  PRs (`Introduced by #<pr>`, which rb-fix now adds). In the digest (7 days) and the retro. PR
+  bodies carry a `rockbuilt:kickbacks` line.
+- **Goal gate in `/rb-verify`.** The blind auditor in `Mode: goal` gets only the product goal, the
+  brief's users and the requirement statements, and walks the finished feature as that user.
+  Every criterion can pass while the feature misses why it was built.
+- **Task size limits** in `rb tasks`: at most 8 files and 4 criteria per task, and `Size: L` only
+  with its reason. The planner keeps plans under about 12,000 characters and proposes a split
+  instead; the orchestrator saves each plan and report to `.rockbuilt/plans/` and
+  `.rockbuilt/reports/` as soon as it returns.
+- **The lock renews.** The same run calling `rb lock acquire` renews it after 30 minutes (the cycle
+  does it before every item), and `merge-gate --run` renews its own lock if it went stale. Time
+  budgets use `runMinutes` (run age), not the age of the last renewal. (3d_brain: stale at 189 min.)
+- **`rb gh pr-line <pr> --line "<line>"`** replaces one machine line (same stage, or same kind) in
+  a PR body, and `rb gh pr-edit <pr> --body-file <f>` replaces the body.
+- The implementer's evidence pass runs a touched entry point exactly as the README or `## Run`
+  documents it (3d_brain: tests green, documented command broken).
+- Not here: PRs behind only on documentation still update and re-run CI. Instead of exempting file
+  types one by one, 0.9.0 adds a merge queue that tests the combination once.
+
 ## 0.7.0 (2026-10-15)
 
 From the 3d_brain run on 0.6.0, the session's own list of where the time went (DESIGN 20.17).
