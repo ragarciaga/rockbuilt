@@ -528,7 +528,7 @@ const handlers = {
     if (positionals[0] === 'build') {
       const r = buildQueue(root, c, { run: flags.run, prs: stringFlag(flags, 'prs', { required: true }) });
       const lines = [r.detail];
-      if (r.built) lines.push(`head=${r.head}`, `branch=${r.branch}`, `order=${r.included.map((x) => x.pr).join(',')}`);
+      if (r.built) lines.push(`order=${r.included.map((x) => x.pr).join(',')}`, ...r.included.map((x) => `#${x.pr} step=${x.step} branch=${x.branch}`));
       for (const x of r.skipped) lines.push(`skipped #${x.pr}: ${x.reason}`);
       return { data: r, text: lines.join('\n'), code: r.built ? 0 : 3 };
     }
@@ -598,7 +598,9 @@ const handlers = {
     else if (r.eligible) lines.push(`#${r.pr} eligible (tier ${r.tier}); dry run, not merged`);
     else lines.push(`#${r.pr} NOT eligible (label ${r.labelTier || '-'}, risk ${r.riskTier || '-'}):`, ...r.reasons.map((x) => `  ${x.rule.padEnd(15)} ${x.detail}`));
     for (const a of r.after || []) if (!a.ok) lines.push(`WARN after-merge ${a.step}: ${a.error}`);
-    return { data: r, text: lines.join('\n'), code: r.eligible ? 0 : 3 };
+    // Exit 1 stops the train: the queued merge landed a tree CI did not run.
+    if (r.treeMismatch) lines.push(`STOP: #${r.pr} landed a tree different from its tested queue step. Run ${r.revert} now and escalate.`);
+    return { data: r, text: lines.join('\n'), code: r.treeMismatch ? 1 : r.eligible ? 0 : 3 };
   },
 
   revert({ cwd, positionals, flags, io }) {

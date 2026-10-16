@@ -331,23 +331,34 @@ run (3d_brain, 0.7.0: 12 PRs in one night, one CI each, 25 min with E2E; issue #
 types (docs, bookkeeping) only moves the problem. Instead, when two or more PRs are ready:
 
 - `rb queue build --run <id> --prs a,b,c` merges their heads onto the default branch tip in that
-  order in a temporary worktree (a PR that conflicts with the ones before it is skipped), pushes
-  `rb/queue-<run>-<k>`, and records on each PR its position: `<!-- rockbuilt:queue run= branch=
-  head=<queue head> base= prefix=<step before> step=<merge of prefix and this PR> pr-head= -->`.
-- `rockbuilt-ci` runs on push to `rb/queue-*`, so the combination is tested once.
+  order in a temporary worktree and pushes **every step** (base plus PRs 1..i) as
+  `rb/queue-<run>-<stamp>-<i>`. `rockbuilt-ci` runs on push to `rb/queue-*`, so all steps test at
+  once: one CI wait instead of one per PR, and wherever the train stops the default branch holds a
+  tested state (the same Actions minutes as the serial train, less wall time). A PR that conflicts
+  with the ones before it is skipped, and so is a PR stacked on a queued one (it shares commits
+  with it beyond the base): its queue merge and GitHub's squash onto the updated base are
+  different three-way merges. Each PR gets a record: `<!-- rockbuilt:queue run= branch= step=
+  prefix= base= pr-head= -->`.
 - `rb merge-gate` accepts a PR that is behind its base only when, through GitHub and never from
-  the record: the PR head is still `pr-head`; `step` is a merge of `prefix` and that head; the base
-  tip has the same tree as `prefix` (the earlier queue PRs merged as tested and nothing else did);
-  the queue head contains `step`; and every check on the queue head passed, `rockbuilt-e2e`
-  included when required. The squash of PR k onto a base equal to step k-1 gives the tree of step
-  k, so what lands on the default branch is what CI ran.
-- Anything that breaks the chain (a PR updated while queued, a merge from outside the queue, a red
-  queue) falls back to the serial train. `rb queue done` deletes the run's queue branches.
+  the record: the PR head is still `pr-head`; `step` is a merge whose second parent is that head;
+  GitHub's own test merge of the PR (`merge_commit_sha`, a merge of the current base tip and the
+  head) has exactly the step's tree, which is what a squash lands; and every check on the step
+  passed, `rockbuilt-e2e` included when required. Comparing with GitHub's test merge, not with a
+  locally computed one, holds against stacked PRs, a merge from outside the queue, merge drivers or
+  versions that differ from GitHub's, and a forged step. A test merge or step CI still in progress
+  is `queue-pending` (retry), not a refusal.
+- After the squash the gate compares the landed tree with the step's tree once more; a mismatch
+  exits 1 with a STOP line: the caller reverts at once and stops the train.
+- Anything that breaks the chain falls back to the serial train. `rb queue done` deletes the run's
+  queue branches.
 
 The evals now include the autonomous path: `evals/tools/fake-github.mjs` answers `rb` as `gh api`
 would, with issues and comments in a JSON state and every commit question (heads, compare, files,
-squash merge, update-branch, trees) answered from the workspace's real bare origin, and CI green
-on request. Scenario `cycle-queue-merge` runs a cycle with two ready PRs against it.
+test merges, squash merge, update-branch, trees) answered from the workspace's real bare origin;
+CI is green on main, `rb/queue-*` and open PR heads, where the project workflow runs. Scenario
+`cycle-queue-merge` runs a cycle with two ready PRs against it. An independent review of the first
+draft found a stacked-PR case where the squash landed a tree CI never ran; the test-merge check
+and the per-step CI replace that draft's tree-chain argument.
 
 ## 9. Unattended runs: lock, stop, escalation, digest
 

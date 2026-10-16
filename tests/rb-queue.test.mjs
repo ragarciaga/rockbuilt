@@ -43,67 +43,88 @@ const info = (bare, ref) => {
   return { sha, tree: sh(bare, 'git', ['rev-parse', `${sha}^{tree}`]), parents };
 };
 
-test('rb queue build merges PRs in order on the base tip, skips a conflicting one, records each position', async () => {
+// GitHub's test merge of a PR head into the base tip, built in the bare repo.
+const testMerge = (bare, base, head) => {
+  const tree = sh(bare, 'git', ['merge-tree', '--write-tree', base, head]).split('\n')[0];
+  return sh(bare, 'git', ['-c', 'user.name=G', '-c', 'user.email=g@x', 'commit-tree', tree, '-p', sh(bare, 'git', ['rev-parse', base]), '-p', head, '-m', 'test merge']);
+};
+
+test('rb queue build merges PRs in order on the base tip, one branch per step, skips conflicts and stacks', async () => {
   const { root, bare, gh, h10, h11 } = project();
   const r = await rbJson(root, ['queue', 'build', '--run', 'cycle-x', '--prs', '10,12,11', '--repo', REPO], { ghRunner: gh.runner });
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(r.json.included.map((x) => x.pr), [10, 11]);
   assert.deepEqual(r.json.skipped, [{ pr: 12, reason: 'conflicts with the PRs before it' }]);
-  assert.match(r.json.branch, /^rb\/queue-cycle-x-/);
-  assert.equal(sh(bare, 'git', ['rev-parse', r.json.branch]), r.json.head);
-  // Each queue step is a merge of the previous step and the PR head.
   const [s1, s2] = r.json.included;
+  assert.match(s1.branch, /^rb\/queue-cycle-x-[0-9a-z]+-1$/);
+  assert.equal(sh(bare, 'git', ['rev-parse', s1.branch]), s1.step, 'every step is pushed for its own CI run');
+  assert.equal(sh(bare, 'git', ['rev-parse', s2.branch]), s2.step);
   assert.deepEqual(info(bare, s1.step).parents, [r.json.base, h10]);
   assert.deepEqual(info(bare, s2.step).parents, [s1.step, h11]);
-  assert.match(gh.state.comments[10][0].body, new RegExp(`rockbuilt:queue run=cycle-x branch=\\S+ head=${r.json.head} base=${r.json.base} prefix=${r.json.base} step=${s1.step} pr-head=${h10}`));
+  assert.match(gh.state.comments[11][0].body, new RegExp(`rockbuilt:queue run=cycle-x branch=${s2.branch} step=${s2.step} prefix=${s1.step} base=${r.json.base} pr-head=${h11}`));
   assert.equal(gh.state.comments[12], undefined, 'no record on a skipped PR');
   assert.equal((await rbJson(root, ['queue', 'build', '--run', 'cycle-x', '--prs', '10', '--repo', REPO], { ghRunner: gh.runner })).code, 2, 'one PR is not a queue');
+  assert.equal((await rbJson(root, ['queue', 'build', '--run', 'a:b', '--prs', '10,11', '--repo', REPO], { ghRunner: gh.runner })).code, 2, 'run ids become branch names');
+
+  // A PR stacked on a queued one is never queued (its queue merge and GitHub's squash differ).
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T4-stacked', 'origin/rb/T1-a']);
+  write(root, 'src/a.js', 'a2-more\n');
+  const h13 = commitAll(root, 'stacked');
+  sh(root, 'git', ['push', '-q', 'origin', 'rb/T4-stacked']);
+  sh(root, 'git', ['checkout', '-q', 'main']);
+  gh.state.issues[13] = { number: 13, title: 'PR 13', body: '', state: 'open', labels: [], isPr: true };
+  gh.state.pulls[13] = { number: 13, head: 'rb/T4-stacked', base: 'main', headSha: h13 };
+  const st = await rbJson(root, ['queue', 'build', '--run', 'cycle-z', '--prs', '10,13,11', '--repo', REPO], { ghRunner: gh.runner });
+  assert.deepEqual(st.json.skipped, [{ pr: 13, reason: 'stacked on #10: merge it serially' }]);
 });
 
-test('the gate accepts a queued PR behind its base only when every link checks out through GitHub', async () => {
+test('the gate accepts a queued PR behind its base only when GitHub would land the tested step', async () => {
   const { root, bare, gh, h11 } = project();
   const q = (await rbJson(root, ['queue', 'build', '--run', 'cycle-y', '--prs', '10,11', '--repo', REPO], { ghRunner: gh.runner })).json;
   const [s1, s2] = q.included;
   const s = gh.state;
   const ci = [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-16T00:00:00Z' }];
-  s.checkRuns[q.head] = ci;
-  s.compare = { [q.head]: { behind_by: 0, ahead_by: 1 } };
-  // PR 10 merged as tested: main now has the tree of the first step.
+  s.checkRuns[s2.step] = ci;
+  // PR 10 merged as tested: squash with the tree of the first step.
+  const squash = sh(bare, 'git', ['-c', 'user.name=G', '-c', 'user.email=g@x', 'commit-tree', `${s1.step}^{tree}`, '-p', q.base, '-m', 'PR 10 (#10)']);
+  sh(bare, 'git', ['update-ref', 'refs/heads/main', squash]);
+  const c = makeGh({ repo: REPO, runner: gh.runner });
+  const at = (tm) => {
+    s.commitInfo = Object.fromEntries([s1.step, s2.step, q.base, 'main', tm].map((ref) => [ref, info(bare, ref)]));
+    return { number: 11, base: { ref: 'main' }, mergeable: true, merge_commit_sha: tm };
+  };
+  let view = at(testMerge(bare, 'main', h11));
+  let r = queuedBehind(root, c, view, h11);
+  assert.equal(r.ok, true, r.detail);
+  assert.equal(r.record.stepTree, info(bare, s2.step).tree);
+
+  s.checkRuns[s2.step] = [{ ...ci[0], conclusion: 'failure' }];
+  assert.equal(queuedBehind(root, c, view, h11).ok, false);
+  s.checkRuns[s2.step] = [{ ...ci[0], status: 'in_progress', conclusion: null }];
+  r = queuedBehind(root, c, view, h11);
+  assert.equal(r.retry, true, 'pending CI on the step is a retry, not a failure');
+  s.checkRuns[s2.step] = ci;
+
+  assert.equal(queuedBehind(root, c, view, 'e'.repeat(40)).ok, false, 'the PR head moved after queueing');
+  assert.equal(queuedBehind(root, c, { ...view, mergeable: null }, h11).retry, true, 'test merge not computed yet');
+
+  // Something else merged into main first: GitHub's test merge no longer has the step's tree.
   const clone = tmp();
   sh(clone, 'git', ['clone', '-q', bare, '.']);
   sh(clone, 'git', ['config', 'user.email', 't@example.com']);
   sh(clone, 'git', ['config', 'user.name', 'T']);
-  sh(clone, 'git', ['merge', '-q', '--squash', 'origin/rb/T1-a']);
-  sh(clone, 'git', ['commit', '-q', '-m', 'PR 10 (#10)']);
-  sh(clone, 'git', ['push', '-q', 'origin', 'main']);
-  const setInfo = () => { s.commitInfo = Object.fromEntries([s1.step, s2.step, q.base, 'main'].map((ref) => [ref, info(bare, ref)])); };
-  setInfo();
-  const c = makeGh({ repo: REPO, runner: gh.runner });
-  const view = { number: 11, base: { ref: 'main' } };
-  let r = queuedBehind(root, c, view, h11);
-  assert.equal(r.ok, true, r.detail);
-
-  s.checkRuns[q.head] = [{ ...ci[0], conclusion: 'failure' }];
-  r = queuedBehind(root, c, view, h11);
-  assert.equal(r.ok, false);
-  s.checkRuns[q.head] = ci;
-
-  assert.equal(queuedBehind(root, c, view, 'e'.repeat(40)).ok, false, 'the PR head moved after queueing');
-
-  // Something else merged into main first: its tree is no longer the queue's previous step.
-  sh(clone, 'git', ['commit', '-q', '--allow-empty', '-m', 'other']);
   write(clone, 'src/c.js', 'c\n');
   commitAll(clone, 'other change');
   sh(clone, 'git', ['push', '-q', 'origin', 'main']);
-  setInfo();
+  view = at(testMerge(bare, 'main', h11));
   r = queuedBehind(root, c, view, h11);
   assert.equal(r.ok, false);
-  assert.match(r.detail, /not the queue's previous step/);
+  assert.match(r.detail, /differs from the tested queue step/);
 
   // A record written by an outside commenter is ignored.
   s.comments[10] = [{ id: 99, body: s.comments[11][0].body, user: { login: 'x' }, author_association: 'NONE' }];
   assert.equal(queuedBehind(root, c, { number: 10, base: { ref: 'main' } }, h11), null);
 
   const done = await rbJson(root, ['queue', 'done', '--run', 'cycle-y', '--repo', REPO], { ghRunner: gh.runner });
-  assert.deepEqual(done.json.deleted, [q.branch]);
+  assert.deepEqual(done.json.deleted.sort(), [s1.branch, s2.branch].sort());
 });

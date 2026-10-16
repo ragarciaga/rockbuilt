@@ -5,12 +5,13 @@
 The merge queue, and evals for the autonomous path (issue #19 item 1; DESIGN 8.4).
 
 - **Merge queue.** With two or more ready PRs, `rb queue build --run <id> --prs a,b,c` merges them
-  onto the default branch tip as `rb/queue-<run>-<k>`; CI runs once on that branch (the project
-  workflow now runs on push to `rb/queue-*`), and `rb merge-gate` merges each in order. A queued PR
-  behind its base is accepted only when GitHub confirms the base is exactly the queue's previous
-  step and the queue head passed, so what lands is what CI tested. A PR updated meanwhile, a merge
-  from outside the queue, or a red queue fall back to the serial train. Before, every merge left
-  the other PRs behind and each paid a full CI run.
+  onto the default branch tip and pushes every step (base plus PRs 1..i) as its own `rb/queue-*`
+  branch, so CI tests all steps at once (the project workflow now runs on push to `rb/queue-*`).
+  `rb merge-gate` merges each in order, and accepts a queued PR behind its base only when GitHub's
+  own test merge of it has exactly the tree of its tested step; after the squash it checks the
+  landed tree again (a mismatch is a STOP: revert). Stacked PRs are not queued. A PR updated
+  meanwhile, a merge from outside the queue, or a red step fall back to the serial train. Before,
+  every merge left the other PRs behind and each paid a full CI run one after another.
 - **Evals with a GitHub simulator.** `evals/tools/fake-github.mjs` answers `rb` as `gh api` does,
   backed by the workspace's real bare origin for commits, squash merges and update-branch. New
   scenario `cycle-queue-merge`: a cycle with two ready PRs must queue them and merge both without

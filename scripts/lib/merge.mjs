@@ -98,11 +98,14 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
   }
 }
 
-// DESIGN 8.4: a PR behind its base is still current when it sits in a merge queue whose combined
-// head passed CI and the base is exactly the queue's step before this PR. Every link is checked
-// through GitHub, never taken from the record: the step is a merge of (prefix, this PR's head),
-// the base tip has the prefix's tree (earlier queue PRs merged as tested), the queue head contains
-// the step, and CI on the queue head is green (E2E included when the project has it).
+// DESIGN 8.4: a PR behind its base is still current when it sits in a merge queue and what the
+// squash will land is exactly what CI ran. Never taken from the record, all through GitHub:
+// - the PR head is still the queued head, and the step is a merge whose second parent is it;
+// - GitHub's own test merge of the PR (merge_commit_sha, recomputed on every base change) is a
+//   merge of the current base tip and this head with exactly the step's tree: a squash lands that
+//   tree. This holds against stacked PRs, a merge from outside the queue, a local git that merges
+//   differently, and a forged step;
+// - every check on the step passed, E2E included when the project has it.
 export function queuedBehind(root, c, view, head) {
   let rec = null;
   try {
@@ -112,27 +115,27 @@ export function queuedBehind(root, c, view, head) {
     return { ok: false, detail: `could not read comments: ${e.message}` };
   }
   if (!rec) return null;
-  const fail = (detail) => ({ ok: false, record: rec, detail });
+  const fail = (detail, retry = false) => ({ ok: false, record: rec, detail, retry });
   if (!rec['pr-head'] || !sameSha(rec['pr-head'], head)) return fail('the PR head changed after it was queued');
   try {
     const step = ops.commitInfo(c, rec.step);
-    if (step.parents.length !== 2 || !sameSha(step.parents[0], rec.prefix) || !sameSha(step.parents[1], head)) return fail('the queue step is not a merge of its prefix and this PR head');
-    const prefix = ops.commitInfo(c, rec.prefix);
+    if (step.parents.length !== 2 || !sameSha(step.parents[1], head)) return fail('the queue step is not a merge of this PR head');
+    if (view.mergeable !== true || !view.merge_commit_sha) return fail('GitHub has not computed the test merge yet; retry', true);
     const tip = ops.commitInfo(c, view.base.ref);
-    if (!prefix.tree || prefix.tree !== tip.tree) return fail(`${view.base.ref} is not the queue's previous step (something else merged, or an earlier queue PR is not merged yet)`);
-    const cmp = ops.compare(c, rec.step, rec.head);
-    if (cmp.behindBy > 0) return fail('the queue head does not contain this step');
-    const checks = ops.checks(c, rec.head);
-    if (!ciPassed(checks)) return fail(`no successful ${CI_CHECK} on the queue head ${String(rec.head).slice(0, 7)}`);
+    const tm = ops.commitInfo(c, view.merge_commit_sha);
+    if (tm.parents.length !== 2 || !sameSha(tm.parents[0], tip.sha) || !sameSha(tm.parents[1], head)) return fail('GitHub\'s test merge is not of the current base tip yet; retry', true);
+    if (!tm.tree || tm.tree !== step.tree) return fail(`the merge GitHub would land differs from the tested queue step (${view.base.ref} gained something else, or the PR is stacked)`);
+    const checks = ops.checks(c, rec.step);
+    if (!ciPassed(checks)) return fail(`no successful ${CI_CHECK} on the queue step ${String(rec.step).slice(0, 7)}`, checks.some((x) => x.status !== 'completed') || !checks.length);
     const bad = checks.find((x) => x.status !== 'completed' || !OK_CONCLUSIONS.includes(x.conclusion));
-    if (bad) return fail(`${bad.name} on the queue head is ${bad.status === 'completed' ? bad.conclusion : bad.status}`);
+    if (bad) return fail(`${bad.name} on the queue step is ${bad.status === 'completed' ? bad.conclusion : bad.status}`, bad.status !== 'completed');
     const reasons = [];
     e2eRequired(root, checks, (rule, detail) => reasons.push(detail));
-    if (reasons.length) return fail(`queue head: ${reasons[0]}`);
+    if (reasons.length) return fail(`queue step: ${reasons[0]}`, true);
+    return { ok: true, record: { ...rec, stepTree: step.tree } };
   } catch (e) {
     return fail(e.message);
   }
-  return { ok: true, record: rec };
 }
 
 // PR kinds that carry no reviewer lines (DESIGN 8.1). Bookkeeping may merge unattended when it only
@@ -235,6 +238,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
         const queued = docsOnly ? null : queuedBehind(root, c, view, head);
         if (docsOnly) behindExempt = { behindBy: cmp.behindBy, files: gained.files.map((f) => f.filename) };
         else if (queued && queued.ok) behindExempt = { behindBy: cmp.behindBy, queue: queued.record };
+        else if (queued && queued.retry) no('queue-pending', `queued, not ready yet: ${queued.detail}`);
         else no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref} with code changes${queued ? ` (merge queue not confirmed: ${queued.detail})` : ''}: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
       }
     } catch (e) {
@@ -398,6 +402,16 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
     throw e;
   }
   const mergeSha = merged && merged.sha ? merged.sha : null;
+  // A queued merge must land the tested tree; anything else is reverted by the caller at once.
+  let treeMismatch = false;
+  if (g.behindExempt && g.behindExempt.queue && mergeSha) {
+    try {
+      const landed = ops.commitInfo(c, mergeSha).tree;
+      treeMismatch = Boolean(landed && landed !== g.behindExempt.queue.stepTree);
+    } catch {
+      treeMismatch = true;
+    }
+  }
   const after = [];
   const step = (what, fn) => {
     try { fn(); after.push({ step: what, ok: true }); } catch (e) { after.push({ step: what, ok: false, error: e.message }); }
@@ -417,7 +431,7 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
     mkdirSync(path.dirname(file), { recursive: true });
     appendFileSync(file, `${JSON.stringify(record)}\n`);
   });
-  return { ...g, merged: true, mergeSha, after };
+  return { ...g, merged: true, mergeSha, after, ...(treeMismatch ? { treeMismatch: true, revert: `node tools/rockbuilt/rb.mjs revert ${g.pr}` } : {}) };
 }
 
 // rb revert <pr>: revert the squash commit on rb/revert-<pr> in a temporary worktree and open a PR.

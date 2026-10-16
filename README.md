@@ -95,10 +95,12 @@ real night it took a bug from an issue, reproduced it with a test, fixed it, had
 audited, and merged it in 14 minutes. The verifier sent it back once on the way, because the
 tests did not catch two of the bugs it planted.
 
-When two or more PRs are ready, they go through a merge queue: the harness merges them together
-on a temporary branch, CI runs once on that combination, and then each PR merges in order without
-being updated, because the gate checks through GitHub that what lands is exactly what CI tested.
-Before 0.9.0 every merge left the others behind and each paid another full CI run. Outside the
+When two or more PRs are ready, they go through a merge queue: the harness stacks them on `main`
+one after another and pushes each step as its own branch, so CI tests every step at the same time,
+and then each PR merges in order without being updated. The gate only accepts it when GitHub's own
+test merge of that PR has exactly the tree CI tested, and checks the landed tree again after the
+merge. Before 0.9.0 every merge left the others behind and each paid another full CI run, one
+after the other. Outside the
 queue, merges go one at a time, so after each one the next PR can be behind `main`. If all `main` gained
 is bookkeeping (task status, progress notes, lessons), the PR merges as it is. If `main` gained
 code, the PR is updated and CI runs again; when the update changed nothing in the task's own files,

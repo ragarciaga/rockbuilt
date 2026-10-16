@@ -52,10 +52,26 @@ function inWorktree(ref, fn) {
   try { return fn(dir); } finally { git(['worktree', 'remove', '--force', dir]); rmSync(path.dirname(dir), { recursive: true, force: true }); }
 }
 
+// Like GitHub: an open PR carries a test merge commit of its head into the current base
+// (merge_commit_sha) and `mergeable` false when that merge conflicts.
 function refresh(s, p) {
   const head = sha(`refs/heads/${p.head}`);
   if (head) p.headSha = head;
   p.baseSha = sha(`refs/heads/${p.base}`) || p.baseSha;
+  const mt = git(['merge-tree', '--write-tree', p.baseSha, p.headSha]);
+  if (!mt.ok) { p.mergeable = false; p.mergeable_state = 'dirty'; p.merge_commit_sha = null; return; }
+  const tree = mt.out.split('\n')[0];
+  const c = git(['commit-tree', tree, '-p', p.baseSha, '-p', p.headSha, '-m', `Merge ${p.headSha} into ${p.baseSha}`]);
+  p.mergeable = true;
+  p.mergeable_state = 'clean';
+  p.merge_commit_sha = c.ok ? c.out : null;
+}
+
+// CI runs where the project workflow runs: pushes to main and rb/queue-*, and open PR heads.
+function ciRuns(s, c) {
+  const refs = git(['for-each-ref', '--format=%(refname:short)', '--points-at', c, 'refs/heads']).out.split('\n').filter(Boolean);
+  const prHeads = new Set(Object.values(s.pulls).filter((x) => !x.merged_at).map((x) => x.headSha));
+  return prHeads.has(c) || refs.some((r) => r === 'main' || r.startsWith('rb/queue-'));
 }
 
 function route(s, method, full, body) {
@@ -95,13 +111,12 @@ function route(s, method, full, body) {
     const x = s.pulls[m[1]];
     refresh(s, x);
     if (body.sha && body.sha !== x.headSha) return err(409, 'Head branch was modified');
-    const res = inWorktree(x.base, (dir) => {
-      const mg = git(['merge', '--squash', x.headSha], dir);
-      if (!mg.ok) return { ok: false, err: mg.err };
-      const c = git(['commit', '-q', '-m', body.commit_title || `#${m[1]}`], dir);
-      return c.ok ? { ok: true, sha: git(['rev-parse', 'HEAD'], dir).out } : { ok: false, err: c.err };
-    });
-    if (!res.ok) return err(405, `Pull Request is not mergeable: ${res.err}`);
+    if (!x.mergeable || !x.merge_commit_sha) return err(405, 'Pull Request is not mergeable');
+    const tree = git(['rev-parse', `${x.merge_commit_sha}^{tree}`]).out;
+    const commit = git(['commit-tree', tree, '-p', x.baseSha, '-m', body.commit_title || `#${m[1]}`]);
+    const upd = commit.ok && git(['update-ref', `refs/heads/${x.base}`, commit.out, x.baseSha]);
+    const res = commit.ok && upd.ok ? { ok: true, sha: commit.out } : { ok: false };
+    if (!res.ok) return err(405, 'Base branch was modified');
     x.merged_at = new Date().toISOString();
     x.merge_commit_sha = res.sha;
     s.issues[m[1]].state = 'closed';
@@ -124,7 +139,7 @@ function route(s, method, full, body) {
   }
   if ((m = r.match(/^commits\/([^/]+)\/check-runs$/)) && s.autoCI) {
     const c = sha(decodeURIComponent(m[1]));
-    const runs = c ? [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', app: { slug: 'github-actions' }, started_at: new Date().toISOString(), completed_at: new Date().toISOString() }] : [];
+    const runs = c && ciRuns(s, c) ? [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', app: { slug: 'github-actions' }, started_at: new Date().toISOString(), completed_at: new Date().toISOString() }] : [];
     return ok({ total_count: runs.length, check_runs: runs });
   }
   if ((m = r.match(/^git\/refs\/heads\/(.+)$/)) && method === 'DELETE') {
