@@ -11,7 +11,8 @@ import { acquireLock, ensureControl, escalate, listFlaky, lockStatus, postDigest
 import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
-import { reviewDelta } from './lib/delta.mjs';
+import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
+import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
 import { planBatches } from './lib/parallel.mjs';
@@ -30,7 +31,7 @@ export const COMMANDS = {
   doctor: 'Environment, contract, vendored version, CI, protection mode, labels, control issue',
   'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
   'e2e-plan': 'CI: has E2E, shard count and matrix from AGENTS.md (key=value lines for GITHUB_OUTPUT)',
-  'review-delta': 'Task change since the reviewed head, by content: identical | test-only | different  --reviewed <sha> [--base origin/<default>] (exit 3 when different)',
+  'review-delta': 'Task change since the reviewed head, by content: identical | test-only | different  --reviewed <sha> [--base origin/<default>] [--line --task <id>: print the verifier identity line, exit 3 unless identical after merges only] (exit 3 when different)',
   baseline: 'Run Verification and ratchet against docs/rockbuilt/known-failures.json  [--check] [--accept]',
   tasks: 'Parse tasks.md strictly and check coverage against requirements.md  <spec-dir>',
   parallel: 'Batch ready tasks with disjoint files  <spec-dir> [--ids T4,T6] [--max 3]',
@@ -38,6 +39,7 @@ export const COMMANDS = {
   timing: 'start|end <task> <phase> | line <task> [--est <hours>] [--pr <n>] | report [--write]',
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
+  bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
   'merge-gate': 'Merge a PR only if every gate condition holds  <pr> --run <id> | --human-approved [--dry-run]',
@@ -204,6 +206,10 @@ const handlers = {
     const root = requireRepoRoot(cwd);
     const reviewed = stringFlag(flags, 'reviewed', { required: true });
     const base = stringFlag(flags, 'base') || `origin/${defaultBranch(root)}`;
+    if (flags.line) {
+      const r = identityLine(root, { base, reviewed, task: stringFlag(flags, 'task') });
+      return { data: r, text: r.ok ? r.line : `${r.class}: ${r.detail} (no identity line: re-review)`, code: r.ok ? 0 : 3 };
+    }
     const r = reviewDelta(root, { base, reviewed });
     return { data: r, text: `${r.class}: ${r.detail}`, code: r.class === 'different' ? 3 : 0 };
   },
@@ -510,6 +516,27 @@ const handlers = {
     const pr = stringFlag(flags, 'pr');
     const r = computeRisk(root, { files, pr, base: stringFlag(flags, 'base'), gh: pr ? client(root, flags, io) : null });
     return { data: r, text: riskText(r), code: 0 };
+  },
+
+  bookkeeping({ cwd, positionals, flags, io }) {
+    const root = requireRepoRoot(cwd);
+    const [op] = positionals;
+    let c = null;
+    try {
+      c = client(root, flags, io);
+      void c.repo;
+    } catch {
+      c = null;
+    }
+    if (op === 'carry') {
+      const r = carryBookkeeping(root, c, { run: flags.run });
+      return { data: r, text: r.detail, code: r.code || 0 };
+    }
+    if (op === 'save') {
+      const r = saveBookkeeping(root, c, { run: flags.run, final: Boolean(flags.final) });
+      return { data: r, text: r.detail, code: 0 };
+    }
+    throw new CliError('usage: rb bookkeeping carry|save --run <id> [--final]', 2);
   },
 
   sync({ cwd, flags, io }) {

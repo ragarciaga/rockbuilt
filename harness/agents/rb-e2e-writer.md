@@ -43,7 +43,9 @@ Rockbuilt guard hook enforces the git/gh ban and the protected paths.
    prove the outcome (for a login: the session cookie or storage entry exists and a protected page
    loads, not just that some page renders).
 4. Ensure the Playwright config has `trace: 'retain-on-failure'`, `screenshot: 'only-on-failure'`,
-   `retries: 0` and a `webServer` that starts the app. If the `test:e2e` script or the
+   `retries: 0`, `use.launchOptions.executablePath: process.env.PW_CHROMIUM_PATH || undefined`
+   (lets a cloud run use its preinstalled Chromium when the versions differ) and a `webServer`
+   that starts the app. If the `test:e2e` script or the
    .gitignore lines for `e2e/.auth/`, `e2e/.explore/`, `test-results/`, `playwright-report/` are
    missing, do not add them: list them under Needs.
 5. Prove each test can fail: for at least the happy path of each flow, point one assertion at a

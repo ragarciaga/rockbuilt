@@ -99,8 +99,19 @@ rutina o en la configuración de entornos de claude.ai/code:
   ver. Las pruebas usan mocks para servicios pagos, y lo que necesita credenciales reales queda
   como `rb:needs-local` para que lo corras en tu computador.
 
-Si Chromium no se puede instalar en la nube, no pasa nada grave. Las tareas que tocan pantallas
-quedan marcadas `rb:needs-local` con los comandos exactos para correr las pruebas en tu máquina.
+Si Chromium no se puede instalar en la nube, no pasa nada grave. Antes de pedirte tu computador,
+la corrida intenta tres cosas, una vez cada una:
+
+- El Chromium que ya trae la nube, con `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (sirve cuando
+  la versión de Playwright del proyecto no coincide con la instalada). La configuración de
+  Playwright que escribe el harness lee esa variable; si tu proyecto ya tenía la suya, agrega
+  `launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH || undefined }` en `use`.
+- Instalar con pip o npm, sin sudo, una herramienta que el proyecto nombra en `AGENTS.md` (por
+  ejemplo `bpy` para Blender).
+- Bajar archivos de `raw.githubusercontent.com` cuando el proxy bloquea `github.com/.../raw/`.
+
+Si nada de eso funciona, las tareas que tocan pantallas quedan marcadas `rb:needs-local` con los
+comandos exactos para correr las pruebas en tu máquina.
 
 ## Paso 4: crear la rutina nocturna
 

@@ -188,6 +188,8 @@ const CASES = [
 
   // Every subagent: privileged rb subcommands.
   ['implementer rb merge-gate', bash('node tools/rockbuilt/rb.mjs merge-gate 12', IMPL), true],
+  ['implementer rb bookkeeping save', bash('node tools/rockbuilt/rb.mjs bookkeeping save --run r1', IMPL), true],
+  ['main: rb bookkeeping save', bash('node tools/rockbuilt/rb.mjs bookkeeping save --run r1'), false],
   ['implementer rb gh', bash('node tools/rockbuilt/rb.mjs gh pr-create --head x', IMPL), true],
   ['verifier rb lock', bash('node tools/rockbuilt/rb.mjs lock release --run r', VER), true],
   ['scout rb control', bash('node tools/rockbuilt/rb.mjs control ensure', 'rb-scout'), true],

@@ -45,6 +45,15 @@ verifier verdict, the diff, diff stat or changed-file list, commit messages, the
 findings from other reviewers. (The auditor may run `git diff --stat` itself to find which
 screens or commands to exercise; it never sees why they changed.)
 
+## Keep the verdict
+
+Every verdict, pass or fail, goes on the task issue at once, verbatim, as one comment whose first
+line is `<!-- rockbuilt:audit task=<id> head=<sha> -->` (`rb gh issue-comment <n> --body-file
+<f>`); without GitHub (an `L<n>` bug, degraded mode) in `.rockbuilt/audits/<id>-<short sha>.md`.
+A re-audit takes the newest one for the task (3d_brain, 2026-10-15: two re-audits redid every
+criterion because the earlier verdict lived only in a dead session's transcript). It is the
+auditor's own text about behavior, so it never breaks blindness; it never goes to the verifier.
+
 ## Reading the verdict
 
 - `pass` with `head=<reviewed head>`: goes into the PR body as is.

@@ -239,7 +239,11 @@ holds, evaluated by code:
 
 1. PR open, not draft, base is the default branch, mergeable, and not behind the base: the PR
    head contains the current base tip (GitHub compare API; GitHub only reports `behind` when branch
-   protection requires up-to-date branches, which a free private repo cannot enable).
+   protection requires up-to-date branches, which a free private repo cannot enable). Exception:
+   a task PR behind only on bookkeeping files (everything the base gained since the merge base is
+   an in-place edit of tasks.md, progress.md or LESSONS.md, and the PR touches none of them)
+   merges as it is: no code it runs with changed, so its CI and reviews still describe the squash
+   result. Behind on any other file: update the branch.
 2. Labels: carries `rb:tier-a` or `rb:tier-b`; carries none of `rb:needs-human`, `rb:blocked`,
    `rb:tier-c`, `rb:hold`.
 3. `rb risk --pr <n>` on the live diff returns a tier no higher than the label.
@@ -261,9 +265,10 @@ Exit codes: 0 merged, 3 not eligible (reasons in JSON), 1 error.
 
 Merges are serial (merge train), one PR at a time:
 
-- A PR is updated with the base (`rb gh pr-update-branch`) only when it is behind (the gate's
-  `behind` reason, or `mergeable_state` `behind`); an update re-runs its checks, so the gate
-  waits for them on the next pass instead of merging stale results.
+- A PR is updated with the base (`rb gh pr-update-branch`) only when the gate refuses it as
+  `behind` (the base gained code); an update re-runs its checks, so the gate waits for them on the
+  next pass instead of merging stale results. Branch protection that requires up-to-date branches
+  turns the bookkeeping exception back into an ordinary `behind` hold.
 - After each merge the orchestrator runs Verification on the updated default branch. If it turns
   red (a failure not in the known-failures list), it runs `rb revert <pr>`, escalates on the
   control issue, and stops the train for this run.
@@ -291,10 +296,11 @@ change, or when only its tests changed. Rule, by content rather than diff text:
   anything else counts as app): `test-only`. Otherwise `different`. A stacked base task that was
   squash-merged meanwhile leaves the new diff with the same content, so it is not a change
   (3d_brain #135 was re-reviewed in full for this, about 30 min).
-- `identical` (typical after update-branch): the verifier runs in identity mode (`Identity check:
-  <old head>`: review-delta again, every first-parent commit after the old head is a merge, the
-  Verification; no mutation probe, no criteria walk) and its pass line carries
-  `identical-to=<old head>`.
+- `identical` (typical after update-branch): no agent. `rb review-delta --line` checks the
+  content and that every first-parent commit after the old head is a merge, and prints the
+  verifier line `identical-to=<old head> by=rb-review-delta` for the new head. CI on the new head
+  runs the Verification and E2E, so the merged result is still tested; the gate confirms
+  `identical-to` through GitHub even when no other line sits on that head (tier A).
 - `test-only` (typical after a kickback that fixed a test): the verifier re-verifies the delta
   (`Previously reviewed commit:`, `Carry:`) and its pass line carries `app-identical-to=<old
   head>`. The auditor's line carries: it judged the running app, which did not change (3d_brain
@@ -356,11 +362,18 @@ All four live in GitHub so they survive a fresh cloud clone.
   never relies on an ask rule in unattended mode.
 - `docs/CLOUD.md` (Spanish) is the step-by-step setup guide.
 
+Before an `rb:needs-local` escalation a cloud run tries, once each: the preinstalled Chromium
+(`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`, read by configs from `rb-e2e-writer`), installing a
+tool the project names from a package registry without sudo, and `raw.githubusercontent.com` for
+a download the proxy blocks on `github.com/.../raw/` (rb-verify preconditions, "Before needs-local").
+
 ## 11. The cycle (rb-cycle, one bounded pass)
 
 1. `rb control ensure`; stop switch check; `rb lock acquire`. If locked, post nothing and exit.
 2. `rb sync`: tasks whose PR merged become `done`; closed issues; merged branches cleaned;
-   stale `rb:in-progress` labels repaired.
+   stale `rb:in-progress` labels repaired. A claim is stale only when its label is older than the
+   lock this run holds (issue events API); the run's own claims, and claims it cannot date, stay.
+   The open bookkeeping PR of an earlier run is applied to the checkout (`rb bookkeeping carry`).
 3. Baseline: run Verification on the default branch; compare with `docs/rockbuilt/known-failures.json`
    (ratchet). New failures stop the cycle and escalate; known failures do not.
 4. Answers: issues where the human answered (`rb:approved`, or `rb:needs-human` removed with a
@@ -371,8 +384,10 @@ All four live in GitHub so they survive a fresh cloud clone.
    has no test report yet (its PR is human-only). Issues carrying a spec task marker are built
    only from the approved tasks.md, never as standalone issues. Up to `Max tasks per run`.
 6. For each task: the build loop (section 12). Parallel batches when `rb parallel` allows.
-7. Merge train over eligible PRs (section 8).
-8. `rb digest post`; `rb lock release`.
+7. Merge train over eligible PRs (section 8). After every item, `rb bookkeeping save` pushes
+   tasks.md, progress.md and LESSONS.md to the day's `rb/bookkeeping-<date>` PR from a temporary
+   worktree: they never enter a task commit, and a session that dies keeps them.
+8. `rb bookkeeping save --final` (also leaves the checkout clean); `rb digest post`; `rb lock release`.
 
 Hard limits per run: `Max tasks per run`, kickback budget 2 per task, 3 consecutive blocked tasks
 stop the run, stop switch checked between steps.
@@ -395,12 +410,14 @@ stop the run, stop switch checked between steps.
    browser is available (else `rb:needs-local` note, not a failure); compare against the
    baseline and the known-failures ratchet; reconcile changed files with the report.
 7. **Recompute tier** with `rb risk` on the real diff; if it rose to C, escalate before review.
-8. **Collapse** to one commit; record the head SHA.
+8. **Collapse** to one commit before the first push; record the head SHA. A pushed branch is never
+   rewritten: each later fix (kickback, CI fix) is one commit on top, since the merge squashes.
 9. **Verifier** (all tiers). **Blind auditor** (B and C), never in the directory the verifier
    mutates. **Security reviewer** (when flagged). Any finding from any of them is a kickback;
    budget 2 shared; then `rb:blocked` + escalation. Report inaccuracies that change no behavior
    are `Report corrections`, fixed in the PR body. After a kickback, section 8.3 decides which
-   reviews carry forward; a re-audit judges only failed criteria and those the change can reach.
+   reviews carry forward; a re-audit judges only failed criteria and those the change can reach,
+   starting from the auditor's previous verdict, kept on the task issue (`rockbuilt:audit`).
 10. **Push and PR** via `rb gh pr-create` with the template; labels `rb:tier-<x>`, `rb:pr-open`.
 11. Tier A/B: the PR enters the merge train. Tier C: waits for the human.
 12. Update tasks.md status and decision log, timing, LESSONS for real gotchas.
@@ -655,6 +672,21 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    patch is applied before `rb sync` touches tasks.md; the LESSONS append cap of a bookkeeping
    PR rises from 40 to 120 lines, since one PR now holds a day); the guard missed `git` spelled with
    spliced quotes (`g''it`); a flaky e2e test passed on re-run (`rb flaky record/list`).
+17. 2026-10-15, 3d_brain run on harness 0.6.0, the session's own list, by time lost: serial
+   merges left every other PR behind; #165 was updated because a bookkeeping PR merged, #167
+   twice, each time a 15 min CI and a verifier dispatch only to confirm nothing changed (about
+   45 min). Now the gate accepts a PR behind only on bookkeeping, and the identity confirmation
+   is `rb review-delta --line`, no agent (section 8.3). `rb sync --run` cleared the run's own
+   `rb:in-progress` on #149, #162 and #163 (now only claims older than the lock). "One commit
+   per PR" without force push forced a new branch and PR for #150 (pushed branches now take fix
+   commits on top; a proposed `comments-only` class was rejected: `gitleaks:allow`,
+   `eslint-disable` or `@ts-ignore` change what is checked). The cloud stop hook demanded a
+   commit while bookkeeping sat uncommitted (`rb bookkeeping save` after each item). Re-audits
+   redid every criterion because the earlier verdict lived only in a dead session's transcript
+   (the verdict is kept on the task issue). Two `needs-local` escalations ran in the cloud once
+   tried: `bpy` installed with pip, and Playwright needed `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`
+   (a ladder before needs-local; Blender itself stays project knowledge, not harness). Writing the
+   planner's plan to a file was deferred until a second project reports it.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -674,11 +706,13 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
 | `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
-| `review-delta --reviewed <sha> [--base <ref>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched |
+| `review-delta --reviewed <sha> [--base <ref>] [--line --task <id>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched. `--line` prints the verifier identity line when identical and only merges follow the old head (exit 3 otherwise) |
 | `verify-cmds E2E --only <specs> [--grep <t>]` | Local runs: the suite command with only those spec files and title pattern (never the whole suite locally; CI runs it) |
 | `flaky record <test> [--pr <n>] [--note t] \| list` | Flaky candidates as marked comments on the control issue; `list` counts them across rotated control issues |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
-| `sync` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels |
+| `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims older than it |
+| `bookkeeping carry --run <id>` | Run start: apply the open `rb/bookkeeping-*` PR to the checkout (plain `git apply`; exit 3 and untouched when it does not apply) |
+| `bookkeeping save --run <id> [--final]` | Commit tasks.md, progress.md and LESSONS.md as the checkout has them in a temporary worktree at the default branch, `merge -s ours` the day's branch when it exists, push, open the PR when none is open; `--final` restores those files in the checkout |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
 | `merge-gate <pr> --run <id> \| --human-approved [--dry-run]` | Section 8. `--run` must match the lock holder. `--human-approved` allows tier C and human-only kinds only when the human asked in the current conversation |
 | `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-c`, `rb:needs-human` |

@@ -150,11 +150,23 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
         }
       }
       // A run that holds the lock is the only one working: rb:in-progress left on an open issue
-      // without an open PR is a claim from a run that died (timeout, exhausted context).
-      if (run && holdsLock(c, run).held) {
+      // without an open PR is a claim from a run that died (timeout, exhausted context). A claim
+      // labelled after this run took the lock is its own (3d_brain, 2026-10-15: a mid-run sync
+      // cleared the run's own claims on #149, #162 and #163), and so is one we cannot date.
+      const lock = run ? holdsLock(c, run) : { held: false };
+      if (lock.held) {
+        const since = Date.parse(lock.since) || 0;
         const prOpen = new Set(ops.issueList(c, { labels: ['rb:pr-open'], state: 'open' }).map((i) => i.number));
         for (const i of ops.issueList(c, { labels: ['rb:in-progress'], state: 'open' })) {
           if (prOpen.has(i.number)) continue;
+          let claimed = null;
+          try {
+            const ev = ops.issueEvents(c, i.number).filter((e) => e.event === 'labeled' && e.label === 'rb:in-progress');
+            claimed = ev.length ? Date.parse(ev[ev.length - 1].created_at) || null : 0;
+          } catch {
+            claimed = null;
+          }
+          if (claimed === null || claimed >= since) { result.labels.push({ issue: i.number, kept: 'rb:in-progress', reason: claimed === null ? 'claim time unknown' : 'claimed by this run' }); continue; }
           ops.labelRemove(c, i.number, 'rb:in-progress');
           result.labels.push({ issue: i.number, removed: 'rb:in-progress', reason: 'stale claim' });
         }
@@ -172,7 +184,10 @@ export function syncText(r) {
   for (const a of r.ambiguous) lines.push(`ambiguous: PR #${a.pr} ${a.task} matches ${a.specs.join(', ')}`);
   lines.push(r.branches.deleted.length ? `branches deleted: ${r.branches.deleted.map((b) => b.branch).join(', ')}` : 'branches: none deleted');
   if (r.branches.kept.length) lines.push(`branches kept: ${r.branches.kept.map((b) => `${b.branch} (${b.reason})`).join(', ')}`);
-  if (r.labels.length) lines.push(`labels repaired: ${r.labels.map((l) => `#${l.issue} -${l.removed}`).join(', ')}`);
+  const fixed = r.labels.filter((l) => l.removed);
+  if (fixed.length) lines.push(`labels repaired: ${fixed.map((l) => `#${l.issue} -${l.removed}`).join(', ')}`);
+  const kept = r.labels.filter((l) => l.kept);
+  if (kept.length) lines.push(`claims kept: ${kept.map((l) => `#${l.issue} (${l.reason})`).join(', ')}`);
   lines.push(`github: ${r.github}`);
   return lines.join('\n');
 }

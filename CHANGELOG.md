@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.7.0 (2026-10-15)
+
+From the 3d_brain run on 0.6.0, the session's own list of where the time went (DESIGN 20.17).
+
+- **The gate no longer sends a PR back for bookkeeping.** A task PR behind `main` only because a
+  bookkeeping PR merged (tasks.md status, progress.md, LESSONS.md, none of them in the PR) merges
+  as it is. Behind on code: update the branch, as before. In 3d_brain this was about 45 minutes in
+  one run.
+- **Identity confirmation without an agent.** After an update that changed nothing in the task,
+  `rb review-delta --reviewed <sha> --line --task <id>` prints the verifier line; no verifier is
+  dispatched. CI on the new head still runs the tests, and the gate now checks `identical-to`
+  through GitHub even on tier A.
+- **`rb sync` keeps the run's own claims.** With the lock held it only clears `rb:in-progress`
+  labelled before this run took the lock (it was clearing claims the same run had just made).
+- **No more "one commit per PR".** The branch is collapsed before the first push; after that each
+  fix is one commit on top (the merge squashes). A fix never needs a force push or a new PR.
+- **Bookkeeping is saved as the run goes.** `rb bookkeeping save` pushes tasks.md, progress.md and
+  LESSONS.md to the day's `rb/bookkeeping-<date>` PR from a temporary worktree after every item;
+  `--final` at run end also leaves the checkout clean. `rb bookkeeping carry` replaces the manual
+  patch of the previous day's PR. A session that dies, or a cloud stop hook asking for a commit,
+  no longer puts them at risk.
+- **The auditor's verdict is kept** on the task issue (`<!-- rockbuilt:audit task=<id> head=<sha>
+  -->`), so a re-audit in a later session starts from it instead of redoing every criterion.
+- **Tries before `needs-local`.** The cloud's preinstalled Chromium
+  (`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`, which E2E configs written by the harness now
+  read), installing a tool the project names from pip or npm without sudo, and
+  `raw.githubusercontent.com` when the proxy blocks `github.com/.../raw/`.
+- Removed: the verifier's identity mode and the `git merge -s ours` allow rule (both now inside
+  `rb`).
+- Not done, on purpose: a `comments-only` class in review-delta (`gitleaks:allow`,
+  `eslint-disable` or `@ts-ignore` change what is checked), force push on `rb/*` branches, and
+  merging a PR behind on code (the squash would put an untested combination on `main`).
+
 ## 0.6.0 (2026-10-15)
 
 From the 3d_brain write-up after its 0.5.0 nights (DESIGN 20.16). Mostly time.
