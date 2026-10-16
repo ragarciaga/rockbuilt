@@ -6,15 +6,16 @@
 //   an auditor kickback is a defect the verifier passed, a CI one a defect every local check passed;
 // - reverts: `rb/revert-*` PRs opened in the period;
 // - bugs reported in the period (`rb:bug` issues), and the escaped ones: those whose body names a
-//   merged harness PR (`#<n>` or `Introduced by #<n>`).
+//   merged harness PR as `Introduced by #<n>` (rb-fix writes it when it traces the cause).
 import { ops } from './gh.mjs';
 import { prKind } from './merge.mjs';
 
 const SOURCES = ['mechanical', 'verifier', 'auditor', 'security', 'ci'];
 
 export function parseKickbacks(body) {
-  const m = String(body || '').match(/<!--\s*rockbuilt:kickbacks\s+([^>]*?)\s*-->/);
-  if (!m) return null;
+  const all = [...String(body || '').matchAll(/<!--\s*rockbuilt:kickbacks\s+([^>]*?)\s*-->/g)];
+  if (!all.length) return null;
+  const m = all[all.length - 1];
   const kv = Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\d+)/g)].map((x) => [x[1], Number(x[2])]));
   return Object.fromEntries(SOURCES.map((s) => [s, kv[s] || 0]));
 }
@@ -39,11 +40,11 @@ export function qualityReport(c, { since = null, until = null } = {}) {
   }
   const bugs = ops.issueList(c, { labels: ['rb:bug'], state: 'all', maxPages: 50 }).filter((i) => inWindow(i.created_at, since, until));
   const escaped = bugs.map((i) => {
-    const refs = [...String(i.body || '').matchAll(/#(\d+)\b/g)].map((m) => Number(m[1])).filter((n) => mergedAll.has(n));
+    const refs = [...String(i.body || '').matchAll(/\bintroduced (?:by|in) #(\d+)\b/gi)].map((m) => Number(m[1])).filter((n) => mergedAll.has(n));
     return refs.length ? { issue: i.number, title: i.title, prs: [...new Set(refs)] } : null;
   }).filter(Boolean);
   const n = merged.length;
-  const rate = (x) => (n ? Math.round((x / n) * 100) / 100 : null);
+  const rate = (x, d = n) => (d ? Math.round((x / d) * 100) / 100 : null);
   return {
     since: since == null ? null : new Date(since).toISOString(),
     until: until == null ? null : new Date(until).toISOString(),
@@ -53,7 +54,7 @@ export function qualityReport(c, { since = null, until = null } = {}) {
     reverts: reverts.map((p) => ({ pr: p.number, title: p.title, merged: Boolean(p.merged_at) })),
     bugs: bugs.length,
     escaped,
-    rates: { escapedPerMerged: rate(escaped.length), revertsPerMerged: rate(reverts.length), kickbacksPerMerged: rate(SOURCES.reduce((a, s) => a + kick[s], 0)) },
+    rates: { escapedPerMerged: rate(escaped.length), revertsPerMerged: rate(reverts.length), kickbacksPerMerged: rate(SOURCES.reduce((a, s) => a + kick[s], 0), withLine) },
   };
 }
 

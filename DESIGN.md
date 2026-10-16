@@ -406,7 +406,8 @@ stop the run, stop switch checked between steps.
 3. **Security read, then questions.** Tier C plans and plans touching personal data first get the
    security reviewer in `Mode: plan` (every RESOLVED decision against requirements.md), its
    verdict posted on the issue with a `mode=plan` status line; `rb escalate --kind human` refuses a
-   tier C plan without it. Then the questions: ADVISORY take the default; BLOCKING answer from
+   tier C plan without it (only the plan's first escalation, from trusted authors; an issue already
+   approved, built or blocked is never held by it). Then the questions: ADVISORY take the default; BLOCKING answer from
    spec, ADR or code when possible (`RESOLVED (orchestrator-proposed)`), otherwise escalate, with
    the security findings in the question. The planner's message is saved to
    `.rockbuilt/plans/<id>.md` at once and every later step reads that file; the planner keeps it
@@ -507,8 +508,8 @@ Unchanged from v0.2 except:
 - **tasks.md**: blocks `## T<n>: title` with `Purpose`, `Covers`, `Size`, `Depends on`, `Files`,
   `Verify`, `Issue`, `Status`, `### Decision log`. `rb tasks` is strict: unknown keys or statuses
   are errors (it accepts Spanish synonyms: Estado, Cubre, Tamaño, Depende de, Archivos, Verificar,
-  and statuses hecho, pendiente, en progreso, en revisión, bloqueado). Size limits, also errors: at
-  most 8 `Files` and 4 `Covers` per task, and `Size: L` only with its reason
+  and statuses hecho, pendiente, en progreso, en revisión, bloqueado). Size limits, also errors, for tasks
+  still `todo`: at most 8 `Files` and 4 `Covers` per task, and `Size: L` only with its reason
   (`Size: L (<why it cannot be split>)`). A task no reviewer can hold in mind gets a shallow
   review, in any project.
 - **Plan** (issue comment): marker `<!-- rockbuilt:plan base=<sha> tier=<x> -->`; sections

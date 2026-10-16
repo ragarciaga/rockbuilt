@@ -117,8 +117,9 @@ No command substitution: run a command, paste its literal output into the next.
 
 Before each item: `rb stop status` (exit 3, or exit 1 because it could not be read: stop
 dispatching, go to section 5 without merges; an unreadable stop switch counts as on),
-`rb lock acquire --run <run id>` (exit 3: another run holds it, stop at once, no further
-mutation, digest; for the same run it renews the lock, so a long run never goes stale), and the
+`rb lock acquire --run <run id>` (it renews this run's lock, so a long run never goes stale;
+exit 3, or output that is not `already held` or `renewed`, means the lock was lost or taken:
+stop at once, no further mutation, digest), and the
 time budget (`rb lock status --json`, its `runMinutes` 150 or more: no new item). Then:
 
 - CI-fix item: `kickback.md` section 6.

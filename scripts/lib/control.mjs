@@ -57,14 +57,10 @@ export function lockState(c, control, at = now()) {
   }
   const age = at.getTime() - last.at;
   // A run renews its lock with more lock comments (acquire by the same run); `since` is when it
-  // first took it after its own last unlock, even if other runs locked in between, and
+  // took it (the oldest of its consecutive lock comments; another run's event in between ends it), and
   // `runMinutes` is the run's age for time budgets (`ageMinutes` is the time since the last renewal).
   let first = last.at;
-  for (let k = events.length - 1; k >= 0; k--) {
-    if (events[k].run !== last.run) continue;
-    if (events[k].kind === 'unlock') break;
-    first = events[k].at;
-  }
+  for (let k = events.length - 1; k >= 0 && events[k].kind === 'lock' && events[k].run === last.run; k--) first = events[k].at;
   return {
     control, held: age < LOCK_STALE_MS, run: last.run, at: new Date(last.at).toISOString(), since: new Date(first).toISOString(),
     ageMinutes: Math.round(age / 60000), runMinutes: Math.round((at.getTime() - first) / 60000), stale: age >= LOCK_STALE_MS, labelled,
@@ -148,15 +144,24 @@ export function holdsLock(c, run, { renew = false } = {}) {
 // the newest trusted plan comment says tier=C, so a `mode=plan` security status line must be newer.
 // Prose alone was skipped (eval build-tier-c-escalates, 0.6.0 and 0.7.0): the orchestrator escalated
 // the planner's open question first and never reached 3b.
+const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+
 export function requirePlanReview(c, issue) {
-  const comments = ops.issueComments(c, issue);
+  const view = ops.issueView(c, issue);
+  // Only the first escalation of a plan that is not yet approved or built: later escalations on
+  // the same issue (blocked task, CI red, merge conflict) and plans from before 0.8.0 that were
+  // already approved never stall on it.
+  if (['rb:approved', 'rb:pr-open', 'rb:blocked'].some((l) => view.labels.includes(l))) return;
+  const comments = view.comments.filter((cm) => TRUSTED.has(cm.author_association));
   let plan = -1;
   for (let i = comments.length - 1; i >= 0; i--) {
     if (/^<!--\s*rockbuilt:plan\b[^>]*\btier=C\b/im.test(comments[i].body)) { plan = i; break; }
     if (/^<!--\s*rockbuilt:plan\b/im.test(comments[i].body)) return;
   }
   if (plan === -1) return;
-  const reviewed = comments.slice(plan + 1).some((cm) => /<!--\s*rockbuilt:status\s+[^>]*stage=rb-security-reviewer[^>]*\bmode=plan\b/.test(cm.body));
+  const after = comments.slice(plan);
+  if (after.slice(1).some((cm) => /<!--\s*rockbuilt:escalation\b/.test(cm.body) || /<!--\s*rockbuilt:status\s+[^>]*stage=rb-verifier/.test(cm.body))) return;
+  const reviewed = after.some((cm) => /<!--\s*rockbuilt:status\s+[^>]*stage=rb-security-reviewer[^>]*\bmode=plan\b/.test(cm.body));
   if (!reviewed) throw new CliError(`#${issue} has a tier C plan without its security read: dispatch rb-security-reviewer with Mode: plan, post its verdict on the issue (rb-build step 3b), then escalate`, 3);
 }
 

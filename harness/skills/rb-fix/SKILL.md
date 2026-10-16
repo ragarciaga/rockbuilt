@@ -102,7 +102,9 @@ path and output (or the manual script and evidence), the AGENTS.md pointer, LESS
 criteria must include "the reproduction passes" and "no other test changes outcome"; the plan must
 include `Risk and cost`. Tier: **B**, raised to C when the planner declares C or
 `rb risk --files <affected> --json` says C (never A). Post the plan with first line
-`<!-- rockbuilt:plan base=<origin/default sha> tier=<B|C> -->`. Open questions as build step 3.
+`<!-- rockbuilt:plan base=<origin/default sha> tier=<B|C> -->`. Tier C, or personal data: the
+security read of build step 3 first (`Mode: plan` with the bug report and the plan, no spec;
+`rb escalate` refuses a tier C plan without it). Open questions as build step 3.
 Tier C not yet approved: escalate (`tier-c-plan`, options, recommendation, cost), keep the
 reproduction branch pushed (`git push -u origin rb/B<n>-<slug>`), move on. `rb timing end`.
 

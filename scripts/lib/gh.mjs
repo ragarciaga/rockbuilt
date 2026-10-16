@@ -466,17 +466,26 @@ export function replaceMachineLine(body, line) {
   if (kind === 'status' && !stage) throw new CliError('a status line needs stage=<agent>', 2);
   if (kind === 'tier') throw new CliError('the tier line is not replaced this way (relabel the PR instead)', 2);
   const lines = String(body || '').split('\n');
+  // Lines inside code fences are examples, never the PR's own machine lines.
+  const fenced = new Set();
+  let fence = null;
+  lines.forEach((x, i) => {
+    const f = x.match(/^\s*(```|~~~)/);
+    if (f && (!fence || f[1] === fence)) { fence = fence ? null : f[1]; fenced.add(i); return; }
+    if (fence) fenced.add(i);
+  });
+  const sameAt = (x, i) => !fenced.has(i) && same(x);
   const same = (x) => {
     const y = x.trim().match(/^<!--\s*rockbuilt:([\w-]+)\s+([^>]*?)\s*-->$/);
     if (!y || y[1] !== kind) return false;
     return kind !== 'status' || (y[2].match(/\bstage=(\S+)/) || [])[1] === stage;
   };
-  const at = lines.findIndex(same);
+  const at = lines.findIndex(sameAt);
   if (at !== -1) {
     lines[at] = l;
-    return lines.filter((x, i) => i === at || !same(x)).join('\n');
+    return lines.filter((x, i) => i === at || !sameAt(x, i)).join('\n');
   }
-  const tier = lines.findIndex((x) => TIER_MARKER.test(x));
+  const tier = lines.findIndex((x, i) => !fenced.has(i) && TIER_MARKER.test(x));
   if (tier !== -1) lines.splice(tier, 0, l);
   else lines.push(l);
   return lines.join('\n');

@@ -156,14 +156,18 @@ Do not write eval code and do not dispatch the implementer from this skill.
 
 ### Gate D: Goal
 
-Every criterion can pass while the feature misses why it was built. Dispatch `rb-auditor` with
-`Mode: goal`, `Reviewed head: <default branch sha>`, the AGENTS.md `## Goal` section and the
+Every criterion can pass while the feature misses why it was built. Start the app first as
+`.claude/skills/rb-build/references/audit.md` says ("Start the app first"; the auditor cannot
+start servers), then dispatch `rb-auditor` with `Mode: goal`, `Feature: <slug>`, `App URL`,
+`Reviewed head: <default branch sha>`, the AGENTS.md `## Goal` section and the
 brief's problem and users verbatim (docs/brief.md or docs/current-state.md), the requirement
 statements of requirements.md (the `R<n>` lines), the run instructions, `Browser`, `Session`,
 `Docs language`. Nothing about tasks, plans or diffs: it stays blind. Write its table into
 test-report.md under `## Goal`. A `partial` or `no` outcome is a blocker (Step 4) when the
 requirements already cover it (the build missed it), and an escalation `--kind human` when they
-do not (the spec missed it: a spec change is the human's call).
+do not (the spec missed it: a spec change is the human's call). `needs-local`: NEEDS-LOCAL with
+its steps, as for E2E. `incomplete` (app not reachable): fix the start and dispatch once more,
+then BLOCKED.
 
 ## Step 4: Blockers become tasks and issues
 

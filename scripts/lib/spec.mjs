@@ -183,6 +183,7 @@ export function taskProblems(tasks, errors = []) {
     if (t.verify.length === 0) problems.push(`${t.id} has no Verify check`);
     // One reviewable PR: a task no reviewer can hold in mind gets a shallow review (3d_brain plans of
     // 30k to 44k characters). L needs the reason it cannot be split on the Size line.
+    if (t.status !== 'todo') continue; // limits apply to work not started; done tasks stay as they are
     if (t.size === 'L' && !t.sizeNote) problems.push(`${t.id} is size L without a reason: split it, or write "Size: L (<why it cannot be split>)"`);
     if (t.files.length > MAX_TASK_FILES) problems.push(`${t.id} lists ${t.files.length} files (max ${MAX_TASK_FILES}): split it`);
     if (t.covers.length > MAX_TASK_CRITERIA) problems.push(`${t.id} covers ${t.covers.length} criteria (max ${MAX_TASK_CRITERIA}): split it`);

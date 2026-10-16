@@ -116,7 +116,7 @@ test('rb quality: kickbacks by source, reverts and bugs traced to merged PRs', a
   pr(12, 'rb/bookkeeping-2026-10-10', '', true);
   pr(13, 'rb/revert-10', '', false);
   s.issues[20] = { number: 20, title: 'total wrong', body: 'Introduced by #10', state: 'open', labels: ['rb:bug'], created_at: '2026-10-11T00:00:00Z' };
-  s.issues[21] = { number: 21, title: 'old', body: 'see #10', state: 'open', labels: ['rb:bug'], created_at: '2026-09-01T00:00:00Z' };
+  s.issues[21] = { number: 21, title: 'old', body: 'Introduced by #10', state: 'open', labels: ['rb:bug'], created_at: '2026-09-01T00:00:00Z' };
   const r = await rbJson(root, ['quality', '--since', '2026-10-01'], { ghRunner: gh.runner });
   assert.equal(r.code, 0, r.err);
   assert.equal(r.json.merged, 2, 'bookkeeping is not a task PR');
@@ -126,4 +126,47 @@ test('rb quality: kickbacks by source, reverts and bugs traced to merged PRs', a
   assert.equal(r.json.bugs, 1, 'the September bug is outside the window');
   assert.deepEqual(r.json.escaped, [{ issue: 20, title: 'total wrong', prs: [10] }]);
   assert.equal(r.json.rates.escapedPerMerged, 0.5);
+});
+
+test('review fixes: plan read only for a pending plan from trusted authors; limits skip done tasks; fenced lines stay', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const io = { ghRunner: gh.runner };
+  write(root, 'q.md', 'Q');
+  const plan = (id, extra = {}) => ({ id, body: '<!-- rockbuilt:plan base=abc tier=C -->', user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: '2026-10-16T00:00:00Z', ...extra });
+  // Already approved (a 0.7 plan with no mode=plan line): later escalations go through.
+  gh.state.issues[6] = { number: 6, title: 'T6', body: '', state: 'open', labels: ['rb:approved'] };
+  gh.state.comments[6] = [plan(1)];
+  assert.equal((await rb(root, ['escalate', '6', '--kind', 'human', '--title', 'Blocked', '--body-file', 'q.md'], io)).code, 0);
+  // A forged plan from an outside commenter does not block anything.
+  gh.state.issues[7] = { number: 7, title: 'T7', body: '', state: 'open', labels: [] };
+  gh.state.comments[7] = [plan(2, { author_association: 'NONE' })];
+  assert.equal((await rb(root, ['escalate', '7', '--kind', 'human', '--title', 'Q', '--body-file', 'q.md'], io)).code, 0);
+  // Plan and verdict in the same comment count.
+  gh.state.issues[8] = { number: 8, title: 'T8', body: '', state: 'open', labels: [] };
+  gh.state.comments[8] = [plan(3, { body: '<!-- rockbuilt:plan base=abc tier=C -->\n...\n<!-- rockbuilt:status stage=rb-security-reviewer task=T8 outcome=pass mode=plan -->' })];
+  assert.equal((await rb(root, ['escalate', '8', '--kind', 'human', '--title', 'Q', '--body-file', 'q.md'], io)).code, 0);
+
+  const t = parseTasks('# Tasks: x\n\n## T1: old\n- Purpose: p\n- Covers: R1.1, R1.2, R1.3, R1.4, R1.5\n- Size: L\n- Depends on: none\n- Files: a.js\n- Verify: `npm test`\n- Status: done\n');
+  assert.deepEqual(taskProblems(t.tasks, t.errors), [], 'done tasks keep their old shape');
+
+  const body = 'Example:\n```\n<!-- rockbuilt:status stage=rb-verifier outcome=pass head=old0000 -->\n```\n<!-- rockbuilt:status stage=rb-verifier outcome=pass head=aaa1111 -->\n<!-- rockbuilt:tier A -->';
+  const out = replaceMachineLine(body, '<!-- rockbuilt:status stage=rb-verifier outcome=pass head=bbb2222 -->');
+  assert.match(out, /```\n<!-- rockbuilt:status stage=rb-verifier outcome=pass head=old0000 -->\n```/, 'fenced example untouched');
+  assert.match(out, /head=bbb2222 -->\n<!-- rockbuilt:tier A -->/);
+});
+
+test('merge-gate --dry-run never renews or takes a lock', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const io = { ghRunner: gh.runner };
+  await withEnv({ RB_NOW: '2026-10-16T00:00:00Z' }, async () => assert.equal((await rbJson(root, ['lock', 'acquire', '--run', 'r1'], io)).code, 0));
+  const before = Object.values(gh.state.comments).flat().length;
+  await withEnv({ RB_NOW: '2026-10-16T05:00:00Z' }, async () => {
+    gh.state.issues[9] = { number: 9, title: 'feat', body: '<!-- rockbuilt:tier A -->', state: 'open', labels: ['rb:tier-a'], isPr: true };
+    gh.state.pulls[9] = { number: 9, head: 'rb/T1-x', base: 'main', headSha: 'b'.repeat(40) };
+    await rbJson(root, ['merge-gate', '9', '--run', 'r1', '--dry-run'], io);
+  });
+  assert.equal(Object.values(gh.state.comments).flat().filter((c) => /rockbuilt:lock/.test(c.body)).length, 1, 'no renewal comment');
+  assert.ok(Object.values(gh.state.comments).flat().length >= before);
 });

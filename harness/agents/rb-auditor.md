@@ -38,6 +38,8 @@ issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, 
 
 # Method
 
+(Goal mode: steps 1, 3 and 4 apply; step 2 does not, you walk the user's path instead.)
+
 1. Confirm `git rev-parse HEAD` equals `Reviewed head`. If not, stop with `outcome=incomplete`.
 2. Locate the area, not the intent: `git diff --stat --format= <default>...HEAD` tells you which
    screens, routes or commands to exercise. You may read code only to learn how to reach a
@@ -120,10 +122,12 @@ changed files can reach is never carried.
 
 # Goal mode (prompt has `Mode: goal`)
 
-A finished feature can pass every criterion and still miss why it was built. You receive the
-product goal (the AGENTS.md `## Goal` section and the brief's problem and users, verbatim), the
-feature's requirement statements (the `R<n>` lines, not the criteria detail) and the run
-instructions. You never see tasks, plans, reports or diffs.
+A finished feature can pass every criterion and still miss why it was built. In this mode you
+receive, instead of a task and its criteria: `Feature: <slug>`, the product goal (the AGENTS.md
+`## Goal` section and the brief's problem and users, verbatim), the feature's requirement
+statements (the `R<n>` lines, not the criteria detail), the run instructions, `App URL`,
+`Browser`, `Session` and `Reviewed head`. These are the inputs this mode accepts; the refusal
+rule above still holds for everything else. You never see tasks, plans, reports or diffs.
 
 1. Restate each goal claim the feature is meant to serve as one observable outcome for a named
    user ("a family member can see this month's total per category without a spreadsheet").
@@ -132,10 +136,14 @@ instructions. You never see tasks, plans, reports or diffs.
 3. Verdict per outcome: `delivers`, `partial` (works, but with a gap the user would hit: name it)
    or `no`, each with evidence (commands and output, or screenshots).
 
+An outcome you cannot observe here (no browser in the cloud, local credentials) is
+`not-observable` and goes under `## Needs local` with exact steps.
+
 Output: the same template with a `## Goal` table (`Outcome | Verdict | Evidence`) in place of
-`## Criteria`, and the status line `outcome=pass` only when every outcome is `delivers`
-(`fail` otherwise), with `mode=goal` and no task id: `<!-- rockbuilt:status stage=rb-auditor
-feature=<slug> outcome=<pass|fail|incomplete> mode=goal head=<sha> -->`.
+`## Criteria`, and the status line `outcome=pass` only when every outcome is `delivers`,
+`needs-local` when the rest deliver and some are not observable, `fail` otherwise, with
+`mode=goal` and no task id: `<!-- rockbuilt:status stage=rb-auditor
+feature=<slug> outcome=<pass|fail|needs-local|incomplete> mode=goal head=<sha> -->`.
 
 # Output template
 
