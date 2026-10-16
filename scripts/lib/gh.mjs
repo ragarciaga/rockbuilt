@@ -223,6 +223,10 @@ export const ops = {
     const i = shapeIssue(c.api('GET', `{repo}/issues/${num(n)}`));
     return { ...i, comments: ops.issueComments(c, n) };
   },
+  // Label events of an issue, oldest first: { event, label, created_at }.
+  issueEvents(c, n) {
+    return c.paged(`{repo}/issues/${num(n)}/events`).map((e) => ({ event: e.event, label: e.label ? e.label.name : null, created_at: e.created_at || null }));
+  },
   issueList(c, { labels = [], state = 'open', maxPages = 20 } = {}) {
     const params = { state };
     if (labels.length) params.labels = labels.join(',');

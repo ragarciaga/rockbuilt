@@ -69,6 +69,27 @@ test('review-delta: identical after a clean base merge, different when the merge
   assert.match(r.json.detail, /does not contain/);
 });
 
+test('review-delta --line: the verifier identity line comes from rb when only base merges followed', async () => {
+  const root = repoWith({ 'src/a.js': 'a\n', 'src/b.js': 'b\n' });
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T1-x']);
+  write(root, 'src/a.js', 'task\n');
+  const reviewed = commitAll(root, 'task');
+  sh(root, 'git', ['checkout', '-q', 'main']);
+  write(root, 'src/b.js', 'b2\n');
+  commitAll(root, 'main moves');
+  sh(root, 'git', ['checkout', '-q', 'rb/T1-x']);
+  sh(root, 'git', ['merge', '-q', '--no-edit', 'main']);
+  const head = sh(root, 'git', ['rev-parse', 'HEAD']);
+  let r = await rb(root, ['review-delta', '--reviewed', reviewed, '--base', 'main', '--line', '--task', 'T1']);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(r.out, `<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${head} identical-to=${reviewed} by=rb-review-delta -->`);
+  // A non-merge commit after the review, even an empty one, needs a real review.
+  sh(root, 'git', ['commit', '-q', '--allow-empty', '-m', 'sneaky']);
+  r = await rbJson(root, ['review-delta', '--reviewed', reviewed, '--base', 'main', '--line']);
+  assert.equal(r.code, 3);
+  assert.match(r.json.detail, /not a merge/);
+});
+
 test('rb gh: issue-edit --add-label works, unknown flags fail loudly, pr-create labels the tier from the body', async () => {
   const root = repoWith({ 'README.md': '# x\n' });
   sh(root, 'git', ['remote', 'add', 'origin', `https://github.com/${REPO}.git`]);

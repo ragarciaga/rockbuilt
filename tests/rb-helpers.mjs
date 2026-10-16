@@ -180,7 +180,12 @@ export function handle(s, method, fullPath, body) {
   }
   if ((m = r.match(/^issues\/(\d+)\/labels$/)) && method === 'POST') {
     const i = s.issues[m[1]];
-    for (const l of body.labels) if (!i.labels.includes(l)) i.labels.push(l);
+    s.events = s.events || {};
+    s.events[m[1]] = s.events[m[1]] || [];
+    for (const l of body.labels) {
+      if (!i.labels.includes(l)) i.labels.push(l);
+      s.events[m[1]].push({ event: 'labeled', label: { name: l }, created_at: (process.env.RB_NOW ? new Date(process.env.RB_NOW) : new Date()).toISOString() });
+    }
     return ok(i.labels.map((name) => ({ name })));
   }
   if ((m = r.match(/^issues\/(\d+)\/labels\/(.+)$/)) && method === 'DELETE') {
@@ -190,6 +195,7 @@ export function handle(s, method, fullPath, body) {
     i.labels = i.labels.filter((l) => l !== name);
     return ok(i.labels.map((n) => ({ name: n })));
   }
+  if ((m = r.match(/^issues\/(\d+)\/events$/)) && method === 'GET') return ok(page((s.events || {})[m[1]] || [], q));
   if (r === 'labels' && method === 'GET') return ok(page(Object.values(s.labels), q));
   if (r === 'labels' && method === 'POST') { s.labels[body.name] = body; return ok(body, 201); }
   if ((m = r.match(/^labels\/(.+)$/)) && method === 'PATCH') { Object.assign(s.labels[decodeURIComponent(m[1])], body); return ok(s.labels[decodeURIComponent(m[1])]); }
@@ -211,6 +217,7 @@ export function handle(s, method, fullPath, body) {
   if ((m = r.match(/^pulls\/(\d+)\/files$/))) return ok(page(s.files[m[1]] || [], q));
   if ((m = r.match(/^pulls\/(\d+)\/merge$/)) && method === 'PUT') {
     const pp = s.pulls[m[1]];
+    if (s.mergeError) return err(s.mergeError.status, s.mergeError.message);
     if (body.sha && body.sha !== pp.headSha) return err(409, 'Head branch was modified');
     pp.merged_at = new Date().toISOString();
     pp.merge_commit_sha = 'c'.repeat(40);

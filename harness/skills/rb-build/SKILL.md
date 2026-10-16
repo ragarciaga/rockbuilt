@@ -3,7 +3,7 @@ name: rb-build
 description: >
   Runs the build loop per task: stale check, plan (rb-planner) with risk tier, implement
   (rb-implementer), mechanical check against the baseline ratchet, blind review (rb-verifier,
-  rb-auditor for tier B and C, rb-security-reviewer when flagged), one-commit PR, then the merge
+  rb-auditor for tier B and C, rb-security-reviewer when flagged), PR, then the merge
   train for tier A and B through rb merge-gate. Tier C escalates and the run moves on. Use when the
   user says "build", "implement the tasks", "build issue #12", "retry issue 12", "one by one",
   "in parallel", "no merges this run", "construye", "implementa las tareas", "implementa el issue",
@@ -67,7 +67,9 @@ ladder, resume, crash recovery, blocked path, CI fix), `audit.md`, `parallel.md`
 2. Clean tree: `git status --porcelain` empty apart from bookkeeping files (Bookkeeping below).
    A dirty `rb/*` branch means a previous run died: Crash recovery in `references/kickback.md`.
    Any other dirt is the user's work: stop and ask (interactive) or escalate (unattended).
-3. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`. `rb sync`.
+3. `git fetch origin`, `git checkout <default>`, `git pull --ff-only`. Run id:
+   `build-<short HEAD sha>-<4 random lowercase letters>`. `rb bookkeeping carry --run <run id>`
+   (the day's open bookkeeping PR into the checkout; exit 3: leave it). `rb sync`.
 4. `rb baseline --check`. A failure outside `docs/rockbuilt/known-failures.json` stops the run
    (offer `/rb-fix`). Exception: when the only work is the walking skeleton (`rb:skeleton`) or the
    stabilization issue, the red baseline is why the issue exists; continue, and its mechanical
@@ -154,23 +156,24 @@ section also run the specs the diff adds or changes plus those the task's Verify
 whole suite (CI runs it): `rb verify-cmds E2E --only <spec files> [--grep "<titles from Verify>"]`
 (parallel: `PORT` = 3000 + offset, one worktree at a time). No such spec: skip local E2E.
 A spec that also fails on the default branch is pre-existing: note it, not a kickback. No browser
-in this environment (Playwright reports a missing executable or host dependencies): not a failure;
-record it for the PR and escalate `--kind local` with the exact commands; when the task has
-`[e2e]` criteria and CI does not run E2E, the PR also gets `rb:hold`. Reconcile
-`git diff origin/<default>...HEAD --name-only` with the report's Files changed; an unexplained
-path is a failure. Any failure is a kickback (`references/kickback.md`).
+(Playwright reports a missing executable or host dependencies) after the ladder in
+`rb-verify/references/preconditions.md` "Before needs-local": not a failure; record it for the
+PR and escalate `--kind local` with the exact commands; `[e2e]` criteria with no E2E in CI also
+get `rb:hold`. Reconcile `git diff origin/<default>...HEAD --name-only` with the report's Files
+changed; an unexplained path is a failure. Any failure is a kickback (`references/kickback.md`).
 
 ### 7. Recompute the tier
 `rb risk --base origin/<default> --json` on the branch. Final tier = max(plan tier, this). If it
 rose to C and the plan was not approved as C: `git add -A` (minus bookkeeping),
 `git commit --allow-empty -m "wip: escalated: tier C (<id>)"`, `git push -u origin rb/<id>-<slug>`,
-escalate with the `rb risk` reasons and the diff stat, move on. Approved later: the next run
-re-runs step 6, then continues at step 8.
+escalate with the `rb risk` reasons and diff stat, move on. Approved later: step 6, then step 8.
 
-### 8. Collapse to one commit
+### 8. Collapse
 As separate calls: `git merge-base origin/<default> HEAD`; `git reset --soft <sha pasted>`;
 `git restore --staged` on bookkeeping files; `git commit -m "<type>(<scope>): <title> (<id>)"`.
-Record `git rev-parse HEAD` as the reviewed head. `--hard` is denied and never needed.
+On a branch already on origin (escalated, interrupted, or a PR) reset to `origin/<branch>`
+instead: only local commits squash, each fix is one commit on top (no force push, no new PR).
+Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
 - **Verifier** (all tiers): task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the
@@ -180,7 +183,7 @@ Record `git rev-parse HEAD` as the reviewed head. `--hard` is denied and never n
   (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
   files the auditor would observe. To overlap them, give the auditor its own copy
-  (`audit.md`, "Own copy").
+  (`audit.md`, "Own copy"). Keep every verdict (`audit.md`, "Keep the verdict").
 - **Security reviewer** when the plan's Risk and cost or Risks flag auth, permissions, payments,
   personal data, secrets, file upload or external input, or the verifier lists security flags:
   `Mode: task`, task id, spec folder (or `none`), diff range `origin/<default>...HEAD`, the
@@ -211,21 +214,19 @@ CI is read in the train, not here; a red CI caused by the PR gets the one bounde
 tasks.md `Status: in-review` and a Decision log line
 `- <date>: <key decisions incl. RESOLVED>, because <reason>. Tier <x>. Outcome: reviews pass after
 <k> kickbacks, PR #<pr>.` (also in the PR body). A real gotcha becomes a dated 1 to 3 line
-LESSONS.md entry, written as an instruction, included in later dispatches. Check stop conditions,
-then the next ready task.
+LESSONS.md entry, written as an instruction, included in later dispatches. `rb bookkeeping save
+--run <run id>`. Check stop conditions, then the next ready task.
 
 ## Merge train
 
 Unless merges are off (override, `Autonomy: supervised`, degraded mode), after the batch or when
 no task is ready but some wait on open PRs: `rb control ensure`, `rb lock acquire --run <run id>`
-(run id `build-<short HEAD sha>-<4 random letters>`; exit 3: skip merges, a cycle holds the
-lock), follow `references/merge-train.md`, then `rb lock release --run <run id>`. Merged
-dependencies can make tasks ready: loop back. Inside `/rb-cycle` the cycle's lock is used.
+(exit 3: skip merges, a cycle holds the lock), `references/merge-train.md`, `rb lock release
+--run <run id>`. Merged dependencies can make tasks ready: loop back. `/rb-cycle` uses its lock.
 
 ## Stop conditions
 
-No ready task left; the baseline turns red; 3 consecutive tasks blocked; `rb stop status` exits 3
-(checked before each task and each merge); the user says stop.
+No ready task; red baseline; 3 consecutive tasks blocked; `rb stop status` exits 3 (checked before each task and each merge); the user says stop.
 
 ## Run end
 
@@ -238,13 +239,13 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 
 `docs/specs/*/tasks.md`, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits:
 after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
-and follow you across branches. At run end, when any of them changed and GitHub is reachable,
-always publish them as rb-cycle section 6 step 2 does (one bookkeeping PR per day: on top of an
-open one with `git merge -s ours`, or a new `rb/bookkeeping-<YYYY-MM-DD>`), `git checkout
-<default>`, and tell the user in one line: a cloud session
-loses uncommitted files when it ends. `/rb-cycle` merges it through the gate the next night, or
-the user merges it with `/rb-merge`. In tasks.md change only `Status:` lines and add decision-log entries as one line
-each (`- YYYY-MM-DD: ...`, never wrapped): the gate refuses any other edit in a bookkeeping PR.
+and follow you across branches. With GitHub reachable, `rb bookkeeping save --run <run id>` after
+each task pushes them to the day's `rb/bookkeeping-<YYYY-MM-DD>` PR from a temporary worktree (a
+session that ends early loses nothing; a stop hook asking to commit them gets this, never a task
+commit). At run end `--final` also restores them in the checkout; tell the user in one line.
+`/rb-cycle` merges that PR through the gate, or the user with `/rb-merge`. In tasks.md change only
+`Status:` lines and add one-line decision-log entries (`- YYYY-MM-DD: ...`): the gate refuses
+any other edit in a bookkeeping PR.
 
 ## Hard rules
 

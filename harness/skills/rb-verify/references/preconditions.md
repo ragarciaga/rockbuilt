@@ -8,11 +8,31 @@ explicit message; other gates continue. A gate that could not run is BLOCKED, ne
 Decide first whether this session can run a browser and local services:
 
 - **Local session** (the user's machine): Docker, Playwright browsers and `.env.local` may exist.
-- **Cloud session or routine** (fresh clone, no display, no Docker, no `.env*`): try
-  `npx playwright install chromium` (it often works with network level Trusted) and then the
-  smoke spec. If the browser cannot be installed or launched, or the gate needs Docker,
+- **Cloud session or routine** (fresh clone, no display, no Docker, no `.env*`): run the ladder
+  below before deciding. If the browser still cannot launch, or the gate needs Docker,
   local-only credentials or a service the environment cannot reach, the gate becomes
   `rb:needs-local` (below). That is not a failure of the feature and not a pass.
+
+## Before needs-local
+
+An escalation costs the human a day; these tries cost minutes (3d_brain, 2026-10-15: two
+`needs-local` items, one waiting two days, ran in the cloud once tried). Each at most once per run,
+none of them a change to the project's dependencies:
+
+1. **Browser.** Playwright reports a missing executable (often a version mismatch with the
+   preinstalled browsers): when `/opt/pw-browsers/chromium` exists (Claude Code cloud), re-run with
+   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (configs from `rb-e2e-writer` read it; for one
+   that does not, list the one-line config change under the escalation). Then `npx playwright
+   install chromium`. Missing host libraries with no sudo: needs-local.
+2. **A tool the project names** (in AGENTS.md Stack, Setup or Run, or the task's Verify) that is
+   missing and installs from a package registry without sudo (`pip install --user
+   --break-system-packages <pkg>`, `npx <cli>`, `npm i -g` into the user prefix): install it once,
+   within 5 minutes, and say so in the PR or the report. A tool nobody named is never installed.
+3. **Downloads.** The cloud proxy blocks `github.com/<owner>/<repo>/raw/...` but allows
+   `raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`: retry a fixture or model download
+   there before calling it unreachable.
+
+Still blocked: needs-local, naming what was tried.
 
 ## 1. App can start (E2E; evals that call the running app)
 

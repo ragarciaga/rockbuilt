@@ -147,14 +147,18 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
 (`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
 el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
-Los PRs se fusionan uno por uno, y después de cada merge el siguiente se actualiza con `main`.
+Los PRs se fusionan uno por uno. Si después de un merge lo único nuevo en `main` es el registro
+(estados en tasks.md, progreso, lecciones), el siguiente PR se fusiona tal como está, sin otra
+vuelta de CI. Si `main` trajo código, el PR se actualiza y el CI corre de nuevo.
 
 Después de esa actualización no siempre se repite toda la revisión. Si los archivos de la tarea
-quedaron iguales (solo entró lo nuevo de `main`), un verificador corto lo confirma y corre todas
-las pruebas otra vez, sin repetir al auditor. Lo mismo pasa cuando una devolución solo cambió
+quedaron iguales (solo entró lo nuevo de `main`), `rb` lo confirma sin despachar ningún agente y
+el CI vuelve a correr las pruebas, sin repetir al auditor. Lo mismo pasa cuando una devolución solo cambió
 archivos de prueba: la app que vio el auditor no cambió, así que su resultado se conserva. El gate
 no le cree al verificador: compara él mismo el contenido en GitHub antes de aceptar la revisión
-anterior. Si cambió cualquier archivo de la app, la revisión completa se repite.
+anterior. Si cambió cualquier archivo de la app, la revisión completa se repite. Una corrección
+después de abierto el PR entra como un commit más encima (el merge los junta en uno), nunca como
+un PR nuevo.
 
 En local, los agentes corren solo las pruebas E2E que la tarea tocó; la suite completa la corre
 el CI. Una prueba que falla y pasa al repetirla queda registrada como posible inestable
@@ -178,8 +182,11 @@ Después de que el esqueleto instale las dependencias:
 2. Aprueba el servidor `playwright` cuando lo pregunte.
 3. Escribe `/mcp` y confirma que aparece conectado.
 
-Cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR. En la nube, si no hay
-navegador, esa tarea queda con `rb:needs-local` y los comandos para correrlas en tu computador.
+Cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR. En la nube, si el
+navegador no arranca, primero intenta con el Chromium que ya trae la nube
+(`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`; la configuración que escribe el harness lo lee).
+Si tampoco arranca, la tarea queda con `rb:needs-local` y los comandos para correrlas en tu
+computador.
 
 **Cuando la suite crece.** El CI le da 30 minutos a cada corrida de E2E. Si tu suite pasa de unos
 15 minutos, agrega en la cabecera de `AGENTS.md` la línea `E2E shards: 2` (o 3, hasta 8). El CI la
@@ -210,11 +217,14 @@ nocturno trae una tabla por fase. Ese es el tiempo de la máquina, no el tuyo.
 
 El auditor tiene un presupuesto de unos 5 minutos por criterio (25 en total). Cuando vuelve a
 auditar después de una devolución, revisa lo que falló y lo que el cambio puede afectar, no todo.
+Su veredicto queda como comentario en el issue de la tarea, así que eso funciona aunque la
+re-auditoría pase en otra sesión.
 Si el verificador encuentra un error que solo está en el reporte (una cifra mal contada), lo
 anota para corregir el PR y no devuelve la tarea.
 
 Las notas de progreso y las lecciones van en un solo PR de registro por día
-(`rb/bookkeeping-<fecha>`), que las corridas siguientes actualizan y la próxima fusiona sola.
+(`rb/bookkeeping-<fecha>`). La corrida lo sube después de cada tarea, así que si la sesión se cae
+no se pierde nada; las corridas siguientes lo actualizan y la próxima lo fusiona sola.
 
 ## Tus horas (para costear y para el ROI)
 

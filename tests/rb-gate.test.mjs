@@ -556,6 +556,57 @@ test('merge-gate: a PR behind the base is refused even when GitHub says clean (n
   assert.equal(gh.state.merges.length, 0);
 });
 
+test('merge-gate: a task PR behind only on bookkeeping merges without an update (3d_brain #165, #167)', async () => {
+  const bk = [{ filename: 'docs/progress.md', status: 'modified' }, { filename: 'docs/specs/01-x/tasks.md', status: 'modified' }, { filename: '.claude/LESSONS.md', status: 'modified' }];
+  const run = async (gained, own, extra = {}) => {
+    const root = project();
+    const gh = fakeGh();
+    seed(gh);
+    gh.state.compare = { [HEAD]: { behind_by: 2, ahead_by: 1 } };
+    gh.state.compareFiles = { main: gained, [HEAD]: own };
+    Object.assign(gh.state, extra);
+    await locked(root, gh);
+    return { r: await gate(root, gh, ['--run', 'run-1']), gh };
+  };
+  const ownFiles = [{ filename: 'src/budget.js', status: 'modified' }];
+  let { r, gh } = await run(bk, ownFiles);
+  assert.equal(r.code, 0, JSON.stringify(r.json && r.json.reasons));
+  assert.deepEqual(r.json.behindExempt.files.sort(), bk.map((f) => f.filename).sort());
+  assert.equal(gh.state.merges.length, 1);
+
+  ({ r, gh } = await run([...bk, { filename: 'src/other.js', status: 'modified' }], ownFiles));
+  assert.equal(r.code, 3, 'code on the base side: update the branch');
+  assert.ok(r.json.reasons.some((x) => x.rule === 'behind' && /code changes/.test(x.detail)));
+
+  ({ r } = await run(bk, [...ownFiles, { filename: 'docs/progress.md', status: 'modified' }]));
+  assert.equal(r.code, 3, 'the PR itself touches a bookkeeping file');
+
+  ({ r } = await run([{ filename: 'docs/progress.md', status: 'renamed', previous_filename: 'docs/old.md' }], ownFiles));
+  assert.equal(r.code, 3, 'a rename on the base side is not bookkeeping');
+
+  ({ r, gh } = await run(bk, ownFiles, { mergeError: { status: 405, message: 'Head branch is out of date' } }));
+  assert.equal(r.code, 3, 'strict branch protection: an ordinary behind hold, not a merge-halting error');
+  assert.ok(r.json.reasons.some((x) => x.rule === 'behind' && /up-to-date/.test(x.detail)));
+});
+
+test('merge-gate: a verifier identical-to line is confirmed even when no other line sits on that head (tier A)', async () => {
+  const OLD = `ddddddd${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const body = `Closes #3\n<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD} identical-to=${OLD} by=rb-review-delta -->\n<!-- rockbuilt:tier A -->\n`;
+  const app = { filename: 'src/app.test.js', status: 'added', sha: 'blob-1' };
+  const run = async (after) => {
+    const root = project();
+    const gh = fakeGh();
+    seed(gh, { body });
+    gh.state.compareFiles = { [OLD]: [app], [HEAD]: after };
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  assert.equal((await run([app])).code, 0);
+  const r = await run([{ ...app, sha: 'blob-2' }]);
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'stale-head' && /identical to/.test(x.detail)));
+});
+
 test('bookkeepingOnly: LESSONS appends only at the end, at most 120 lines, no HTML comments anywhere', () => {
   const lessons = (patch) => bookkeepingOnly([{ path: '.claude/LESSONS.md', status: 'modified', patch }]);
   assert.equal(lessons('@@ -3,0 +4,2 @@\n+- a\n+- b'), true);

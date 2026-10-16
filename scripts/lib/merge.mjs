@@ -3,9 +3,10 @@ import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { holdsLock, stopStatus } from './control.mjs';
-import { ops } from './gh.mjs';
+import { GhError, ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
 import { readContract } from './contract.mjs';
+import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
 import { classify, isTestPath } from './delta.mjs';
 import { computeRisk, maxTier, tierRank } from './risk.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
@@ -100,7 +101,6 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
 // touches bookkeeping files and LESSONS.md only grows; the rest need the human.
 const BOOKKEEPING_PREFIX = 'rb/bookkeeping-';
 const HUMAN_ONLY_PREFIXES = ['rb/revert-', 'rb/spec-', 'rb/verify-', 'rb/kickoff', 'rb/adopt', 'rb/retro-', 'chore/rockbuilt-'];
-const BOOKKEEPING_FILE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
 
 export function prKind(headRef) {
   const ref = String(headRef || '');
@@ -180,10 +180,23 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   // protection GitHub reports "clean" or "unstable" for a PR that is behind (seen live), so compare.
   // Bookkeeping PRs are exempt: they only touch docs the gate inspects line by line, so a CI run on
   // an older base proves the same thing (and the cycle opens them at night's end, behind by design).
+  // A task PR is also exempt when everything the base gained since the PR's merge base is
+  // bookkeeping (tasks.md status, progress.md, LESSONS.md) and the PR touches none of it: no code
+  // the PR runs with changed, so its CI and reviews still describe the squash result (3d_brain,
+  // 2026-10-15: #165 and #167 re-ran CI and a verifier only because a bookkeeping PR merged first).
+  let behindExempt = null;
   if (view.base && head && prKind(view.head && view.head.ref) !== 'bookkeeping') {
     try {
       const cmp = ops.compare(c, view.base.ref, head);
-      if (cmp.behindBy > 0) no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref}: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
+      if (cmp.behindBy > 0) {
+        const gained = ops.compareFiles(c, head, view.base.ref);
+        const own = ops.compareFiles(c, view.base.ref, head);
+        const docsOnly = !gained.truncated && !own.truncated && gained.files.length > 0
+          && gained.files.every((f) => BOOKKEEPING_FILE.test(f.filename) && f.status === 'modified' && !f.previous)
+          && !own.files.some((f) => BOOKKEEPING_FILE.test(f.filename) || (f.previous && BOOKKEEPING_FILE.test(f.previous)));
+        if (docsOnly) behindExempt = { behindBy: cmp.behindBy, files: gained.files.map((f) => f.filename) };
+        else no('behind', `PR is ${cmp.behindBy} commit(s) behind ${view.base.ref} with code changes: update the branch (rb gh pr-update-branch), let CI re-run, re-review the new head`);
+      }
     } catch (e) {
       no('behind', `could not compare with ${view.base.ref}: ${e.message}`);
     }
@@ -238,6 +251,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
     return null;
   };
   const identity = new Map();
+  // An `identical-to` verifier line (written by the verifier's identity check or by
+  // `rb review-delta --line`) is checked even when no other line sits on that head (tier A).
+  if (verOk && ver['identical-to']) {
+    const id = reviewedChange(c, view.base.ref, ver['identical-to'], head);
+    identity.set(ver['identical-to'], id);
+    if (id.class !== 'identical') no('stale-head', `the verifier line says identical to ${ver['identical-to']}, but the gate finds the change ${id.class} (${id.detail}): re-review`);
+  }
   for (const stage of need) {
     const s = body.status[stage];
     if (!s) no('status-line', `missing ${stage} line`);
@@ -281,7 +301,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
     }
   }
 
-  return { pr: view.number, title: view.title, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks };
+  return { pr: view.number, title: view.title, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
@@ -326,7 +346,17 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
 export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApproved = false } = {}) {
   const g = evaluateGate(root, c, pr, { run, humanApproved });
   if (!g.eligible || dryRun) return { ...g, merged: false, dryRun };
-  const merged = c.api('PUT', `{repo}/pulls/${g.pr}/merge`, { body: { merge_method: 'squash', sha: g.head, commit_title: `${g.title} (#${g.pr})` } });
+  let merged;
+  try {
+    merged = c.api('PUT', `{repo}/pulls/${g.pr}/merge`, { body: { merge_method: 'squash', sha: g.head, commit_title: `${g.title} (#${g.pr})` } });
+  } catch (e) {
+    // Branch protection that requires an up-to-date branch refuses a PR behind on bookkeeping only:
+    // that is the ordinary `behind` hold, not a merge-halting error.
+    if (g.behindExempt && e instanceof GhError && e.status === 405) {
+      return { ...g, eligible: false, merged: false, reasons: [{ rule: 'behind', detail: `GitHub requires an up-to-date branch (${e.message}): update the branch (rb gh pr-update-branch)` }] };
+    }
+    throw e;
+  }
   const mergeSha = merged && merged.sha ? merged.sha : null;
   const after = [];
   const step = (what, fn) => {

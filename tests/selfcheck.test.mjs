@@ -290,3 +290,22 @@ test('cloud front doors in .claude/skills point to the real skill and copy its f
     assert.match(readFileSync(path.join(ROOT, `.claude/skills/${name}/SKILL.md`), 'utf8'), new RegExp(`harness/skills/${name}/SKILL\\.md`));
   }
 });
+
+// 0.7.0: steps that moved into rb must not come back as prose (3d_brain, 2026-10-15).
+test('skills use the mechanical bookkeeping and identity steps, not the old manual ones', () => {
+  const harness = walk(path.join(ROOT, 'harness')).filter((f) => f.endsWith('.md'));
+  const text = (f) => readFileSync(f, 'utf8');
+  const gone = [
+    [/bookkeeping\.patch/, 'manual bookkeeping patch (rb bookkeeping carry)'],
+    [/Identity check:/, 'verifier identity dispatch (rb review-delta --line)'],
+    [/one-commit PR|only exception to one commit per PR/, 'one commit per PR (fixes are commits on top)'],
+  ];
+  const hits = [];
+  for (const f of harness) for (const [re, why] of gone) if (re.test(text(f))) hits.push(`${rel(f)}: ${why}`);
+  assert.deepEqual(hits, []);
+  const cycle = text(path.join(ROOT, 'harness/skills/rb-cycle/SKILL.md'));
+  assert.match(cycle, /rb bookkeeping\s+carry/);
+  assert.match(cycle, /rb bookkeeping save --run\s+<run id> --final/);
+  assert.match(text(path.join(ROOT, 'harness/skills/rb-build/references/merge-train.md')), /--line --task <id>/);
+  assert.match(text(path.join(ROOT, 'harness/skills/rb-build/references/audit.md')), /rockbuilt:audit task=<id> head=<sha>/);
+});

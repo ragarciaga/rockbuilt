@@ -74,3 +74,21 @@ export function reviewDelta(root, { base, reviewed, head = 'HEAD' }) {
   if (cls === 'test-only') return { identical: false, class: cls, detail: `only test files changed: ${differing.slice(0, 5).join(', ')}`, ...base_ };
   return { identical: false, class: cls, detail: `app files changed: ${differing.filter((p) => !isTestPath(p)).slice(0, 5).join(', ')}`, ...base_ };
 }
+
+// The mechanical identity check (DESIGN 8.3, 3d_brain 2026-10-15): after `rb gh pr-update-branch`
+// added only base merges, the verifier line for the new head comes from here, not from an agent.
+// It holds when the task content is identical and every first-parent commit after the reviewed
+// head is a merge. CI on the new head runs the Verification (and E2E) the merged result needs, and
+// the gate re-checks identity through GitHub before it trusts the line.
+export function identityLine(root, { base, reviewed, task, head = 'HEAD' }) {
+  const d = reviewDelta(root, { base, reviewed, head });
+  if (d.class !== 'identical') return { ok: false, ...d };
+  if (!git(root, ['merge-base', '--is-ancestor', d.reviewed, d.head]).ok) return { ok: false, ...d, class: 'different', detail: `${reviewed} is not an ancestor of ${head}: the branch was rebuilt` };
+  const log = git(root, ['log', '--first-parent', '--format=%H %P', `${d.reviewed}..${d.head}`]);
+  if (!log.ok) return { ok: false, ...d, class: 'different', detail: 'git log failed' };
+  const single = log.stdout.split(/\r?\n/).filter(Boolean).filter((l) => l.trim().split(/\s+/).length < 3);
+  if (single.length) return { ok: false, ...d, class: 'different', detail: `commit ${single[0].slice(0, 7)} after the reviewed head is not a merge: review it` };
+  const id = /^[A-Za-z0-9_-]+$/.test(String(task || '')) ? String(task) : null;
+  const line = `<!-- rockbuilt:status stage=rb-verifier${id ? ` task=${id}` : ''} outcome=pass head=${d.head} identical-to=${d.reviewed} by=rb-review-delta -->`;
+  return { ok: true, ...d, line };
+}

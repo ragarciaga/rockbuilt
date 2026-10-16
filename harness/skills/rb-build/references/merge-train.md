@@ -25,10 +25,11 @@ touched.
 2. **Read it.** `rb gh pr-view <pr>`: head SHA, `mergeable_state`.
    - `dirty` (conflict): not eligible. Escalate on the task issue with the `Merge conflict`
      template (recommendation: rebuild from the current default branch) and continue.
-   - `behind`, or the gate (step 5) refuses with `behind` (without branch protection GitHub
-     reports `clean` or `unstable` for a PR that is behind; the gate compares with the base
-     itself): `rb gh pr-update-branch <pr>` once per PR per run (never a local merge, never a
-     push to that branch from here), then read the new head SHA. Same head: hold, next PR.
+   - The gate (step 5) refuses with `behind`: the base gained code since the PR's merge base
+     (a PR behind only on bookkeeping files merges as it is, so `mergeable_state: behind` alone
+     is not a reason to update). `rb gh pr-update-branch <pr>` once per PR per run (never a
+     local merge, never a push to that branch from here), then read the new head SHA. Same
+     head: hold, next PR.
 3. **Wait for CI**, bounded, timed (`rb timing start <id> ci` ... `end`). Poll `rb gh checks
    <head sha>` every 60 s (`sleep 60`), at most 30 polls. All completed: go on. Still pending: hold ("CI pending on <sha>", the next run re-reads
    it), next PR. No `rockbuilt-ci` check at all: not eligible, escalate once (`No CI` template).
@@ -49,10 +50,12 @@ touched.
      `identical-to=<security head> app-identical-to=<auditor head>`.
      It compares content: every file the task touched then or touches now, at the old and the new
      head (a stacked base task that was squash-merged meanwhile does not count as a change).
-     - **`identical`:** dispatch only the verifier with `Identity check: <old head>`,
-       `Reviewed head: <new head>` and the review-delta output. It confirms the identity itself and
-       runs the Verification; on pass its line carries `identical-to=<old head>`. Replace only
-       the verifier line in the body; the auditor and security lines keep their old `head=`.
+     - **`identical`:** no agent. `rb review-delta --reviewed <old head> --base
+       origin/<default> --line --task <id>` prints the verifier line for the new head with
+       `identical-to=<old head>` (it also checks that only merges follow the old head). Replace
+       only the verifier line in the body; the auditor and security lines keep their old
+       `head=`. CI on the new head runs the Verification and E2E; the gate re-checks identity
+       through GitHub. Exit 3: treat as `different`.
      - **`test-only`:** only test files differ. Dispatch the verifier with
        `Previously reviewed commit: <old head>`, `Reviewed head: <new head>` and
        `Carry: <old head>`; its pass line carries `app-identical-to=<old head>`. The auditor line
@@ -84,7 +87,7 @@ touched.
      (`rb gh issue-edit <pr> --body-file <f>`). Also after a hold, so the next run starts from it.
    - Tasks that depended on this one may now be ready: the caller loops back to the build queue
      when the run budget allows.
-7. The next PR is now behind by construction: step 2 updates it.
+7. The next PR may now be behind: the gate decides (step 5); a bookkeeping-only gap needs no update.
 
 ## 3. Outcome classes
 

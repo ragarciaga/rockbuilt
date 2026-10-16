@@ -123,8 +123,8 @@ approved: `wip: escalated: tier C (B<n>)`, push, escalate (`tier-c-diff`), move 
 
 ## 6. Collapse and review
 
-Collapse as build step 8 with the message `fix(<scope>): <symptom> (B<n>)`; record the reviewed
-head. Then, serially:
+Collapse as build step 8 with the message `fix(<scope>): <symptom> (B<n>)` (only before the first
+push; later fixes are commits on top); record the reviewed head. Then, serially:
 
 - `rb-verifier`: task id, `Reviewed head: <sha>`, `Reproduction commit: <reproduce sha>` (the
   `wip: reproduce` checkpoint recorded in step 3; it survives the collapse as a reachable object,
@@ -137,12 +137,13 @@ head. Then, serially:
   script when the repro is manual), how to run the app from AGENTS.md. Never the plan, the
   reports, the verifier verdict or the diff. After the verifier, or in its own copy
   (rb-build `references/audit.md`, "Own copy"): never in the directory the verifier is mutating.
+  Keep its verdict as `audit.md` "Keep the verdict" says.
 - `rb-security-reviewer` when the plan flags auth, permissions, payments, personal data, secrets,
   file upload or external input: `Mode: task`, spec folder `none`, the bug report, diff range
   `origin/<default>...HEAD`, the triggers, `.claude/skills/rb-verify/references/security.md`,
   `Reviewed head: <sha>`.
 
-Any finding: kickback (budget 2 shared, re-collapse and re-review), then the blocked path plus a
+Any finding: kickback (budget 2 shared, `kickback.md` section 1, then re-review), then the blocked path plus a
 `blocked-task` escalation.
 
 ## 7. PR and merge

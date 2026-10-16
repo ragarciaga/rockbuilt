@@ -150,6 +150,16 @@ test('rb sync: marks tasks done from merged PRs, deletes merged branches, repair
   await rbJson(root, ['sync', '--run', 'r1'], { ghRunner: gh.runner });
   assert.deepEqual(s.issues[4].labels, [], 'stale claim cleared');
   assert.deepEqual(s.issues[5].labels, ['rb:in-progress', 'rb:pr-open'], 'claim with an open PR kept');
+
+  // A claim made by this run after it took the lock survives a mid-run sync (3d_brain #149, #162).
+  s.issues[6] = { number: 6, title: 'T6', body: '', state: 'open', labels: [] };
+  s.issues[7] = { number: 7, title: 'T7', body: '', state: 'open', labels: ['rb:in-progress'] };
+  s.events = { ...(s.events || {}), 7: [{ event: 'labeled', label: { name: 'rb:in-progress' }, created_at: '2020-01-01T00:00:00Z' }] };
+  assert.equal((await rbJson(root, ['gh', 'label-add', '6', 'rb:in-progress'], { ghRunner: gh.runner })).code, 0);
+  const mid = await rbJson(root, ['sync', '--run', 'r1'], { ghRunner: gh.runner });
+  assert.deepEqual(s.issues[6].labels, ['rb:in-progress'], 'own claim kept');
+  assert.deepEqual(s.issues[7].labels, [], 'claim from before the lock cleared');
+  assert.ok(mid.json.labels.some((l) => l.issue === 6 && l.kept && /this run/.test(l.reason)));
 });
 
 test('rb sync without GitHub degrades: local branches only, github skipped', async () => {

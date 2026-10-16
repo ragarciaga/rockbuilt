@@ -55,8 +55,11 @@ export function lockState(c, control, at = now()) {
     return { control, held: false, run: null, at: null, ageMinutes: null, stale: false, labelled };
   }
   const age = at.getTime() - last.at;
+  // A run refreshes its lock with more lock comments; `since` is when it first took it.
+  let first = last.at;
+  for (let k = events.length - 1; k >= 0 && events[k].kind === 'lock' && events[k].run === last.run; k--) first = events[k].at;
   return {
-    control, held: age < LOCK_STALE_MS, run: last.run, at: new Date(last.at).toISOString(),
+    control, held: age < LOCK_STALE_MS, run: last.run, at: new Date(last.at).toISOString(), since: new Date(first).toISOString(),
     ageMinutes: Math.round(age / 60000), stale: age >= LOCK_STALE_MS, labelled,
   };
 }
@@ -119,7 +122,7 @@ export function holdsLock(c, run) {
   const st = lockState(c, control.number);
   if (!st.held) return { held: false, detail: st.stale ? `lock is stale (run ${st.run}, ${st.ageMinutes} min)` : 'lock not held' };
   if (st.run !== String(run)) return { held: false, detail: `lock held by run ${st.run}` };
-  return { held: true, detail: `held by run ${run}` };
+  return { held: true, detail: `held by run ${run}`, since: st.since };
 }
 
 export function escalate(c, issue, { kind, title, body }) {

@@ -67,12 +67,9 @@ No command substitution: run a command, paste its literal output into the next.
    --head-prefix rb/bookkeeping-` shows a PR and merges are on (section 5 conditions):
    `rb merge-gate <pr> --run <run id> --json`. The gate merges a bookkeeping PR without reviewers
    when it only touches tasks.md, progress.md and appends to LESSONS.md, with green
-   `rockbuilt-ci`. Merged: `git pull --ff-only`, done. Not merged (or merges off): `git fetch
-   origin <its branch>`, `git diff --output=.rockbuilt/bookkeeping.patch
-   origin/<default>...origin/<its branch> -- docs/specs docs/progress.md .claude/LESSONS.md`,
-   `git apply --3way .rockbuilt/bookkeeping.patch`, then `git restore --staged` those paths, and
-   remember the branch: this run's bookkeeping goes on top of it (section 6). Apply failure: leave
-   that PR alone and note it for the digest.
+   `rockbuilt-ci`. Merged: `git pull --ff-only`, done. Not merged (or merges off): `rb bookkeeping
+   carry --run <run id>` applies it to the checkout, and this run's saves land on that same PR.
+   Exit 3 (it does not apply): that PR is left alone, note it for the digest.
    Then `rb sync --run <run id>` (with the lock held it also clears `rb:in-progress` claims left
    by a run that died).
 4. Setup commands (`rb verify-cmds Setup`) when `node_modules` or the equivalent is missing.
@@ -80,7 +77,8 @@ No command substitution: run a command, paste its literal output into the next.
    `docs/rockbuilt/known-failures.json`: escalate on `<ctl>` (`Default branch red` template), no
    builds and no merges; go to section 6.
 6. **Browser probe** (projects with `## E2E`): run `rb verify-cmds E2E` on the default branch
-   once. Output naming a missing browser executable, `browserType.launch` or missing host
+   once, with the browser ladder of `.claude/skills/rb-verify/references/preconditions.md`
+   ("Before needs-local") when it fails to launch. Still failing, output naming a missing browser executable, `browserType.launch` or missing host
    dependencies means `browser: none` for this run (E2E and the auditor's Playwright become
    `rb:needs-local` notes, never failures). A real E2E failure on the default branch is recorded
    as pre-existing for this run's comparisons and goes in the digest.
@@ -129,7 +127,8 @@ digest), and the time budget (its `ageMinutes` 150 or more: no new item). Then:
 - Parallel: when `Parallel` allows and `rb parallel <spec-dir> --max <Max parallel> --json`
   returns 2 or more ready tasks of the same spec, run them as a batch per `parallel.md`.
 
-Record per item: id, kind, tier, outcome (PR #, merged, waiting for human, escalated, blocked,
+After each item: `rb bookkeeping save --run <run id>` (a session that ends early, or a stop hook
+that demands a commit, loses nothing). Record per item: id, kind, tier, outcome (PR #, merged, waiting for human, escalated, blocked,
 skipped with reason), kickbacks, resumes, minutes (`rb timing`). Three consecutive blocked items
 stop the dispatch. Escalated and waiting items are not "blocked".
 
@@ -144,18 +143,12 @@ every merge; the lock is already held.
 ## 6. Close the run
 
 1. `rb timing report --write`. Update `docs/progress.md` (current state, next steps).
-2. **Bookkeeping PR**, one per day, when tasks.md, progress.md or LESSONS.md changed:
-   `git checkout -b rb/bookkeeping-<run id>`, `git add` only those paths, `git commit -m "docs:
-   progress (<run id>)"`. Never put any other path in it: the gate refuses it.
-   - Step 2.3 applied an open bookkeeping PR (its changes are already in this commit): `git merge
-     -s ours --no-edit origin/<its branch>` (keeps this tree, makes its tip an ancestor), `git
-     push origin HEAD:<its branch>`. The same PR now carries this run too; no new PR.
-   - Otherwise: `git push -u origin HEAD:rb/bookkeeping-<YYYY-MM-DD>` and `rb gh pr-create --head
-     rb/bookkeeping-<YYYY-MM-DD> --base <default> --title "docs: progress <YYYY-MM-DD>"
-     --body-file <f>` (no tier label). A branch of that name already exists (a merged PR, or an
-     open one whose patch did not apply in step 2.3): add `-<run id>` to the name.
-   The next run merges it in step 2.3 through the gate, never this run's train, so its CI has
-   time to finish. `git checkout <default>`.
+2. **Bookkeeping PR**, one per day: `git checkout <default>`, then `rb bookkeeping save --run
+   <run id> --final`. It commits only tasks.md, progress.md and LESSONS.md in a temporary
+   worktree and pushes them to the day's `rb/bookkeeping-<YYYY-MM-DD>` (on top of the PR carried in
+   step 2.3, or a new one, `-<run id>` added when that name is taken), opens the PR when there is
+   none, and restores those files so the checkout is clean. The next run merges it in step 2.3
+   through the gate, never this run's train, so its CI has time to finish.
 3. **Digest** from `references/digest-template.md`, in the docs language, written to
    `.rockbuilt/digest-<run id>.md`; `rb digest post --file .rockbuilt/digest-<run id>.md`.
 4. `rb lock release --run <run id>`.

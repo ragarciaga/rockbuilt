@@ -83,7 +83,8 @@ In the morning I get a notification. The `Rockbuilt control` issue on GitHub has
 night: what merged (each with a one-line command to revert it), what waits for me, and the
 minutes of each task split by phase (plan, build, verify, audit, security, kickbacks, CI), so I
 can see where the night went. Progress notes and lessons travel in one bookkeeping PR per day,
-which the next run merges on its own.
+pushed after every task (so a session that dies loses nothing), and the next run merges it on its
+own.
 
 During the day I answer what it asked, with a comment or the `rb:approved` label, usually from the
 phone. Small work I add as a GitHub issue labelled `rb:task` or `rb:bug`. A new feature is a short
@@ -94,15 +95,20 @@ real night it took a bug from an issue, reproduced it with a test, fixed it, had
 audited, and merged it in 14 minutes. The verifier sent it back once on the way, because the
 tests did not catch two of the bugs it planted.
 
-Merges go one at a time, so after each one the next PR is behind `main` and gets updated. If the
-update changed nothing in the task's own files, a short check confirms that and runs the tests
-again, instead of repeating the whole review. If a fix after a review touched only test files, the
+Merges go one at a time, so after each one the next PR can be behind `main`. If all `main` gained
+is bookkeeping (task status, progress notes, lessons), the PR merges as it is. If `main` gained
+code, the PR is updated and CI runs again; when the update changed nothing in the task's own files,
+`rb` confirms it mechanically, with no agent, instead of repeating the whole review. If a fix after a review touched only test files, the
 auditor's verdict stands, because the app it judged did not change. Anything else runs the full
-review again. Locally the agents run only the end-to-end tests the task touched; the full suite
+review again, and a fix after the PR exists goes on top as one more commit (the merge squashes),
+never a new PR. The auditor's verdict stays on the task issue, so a re-audit in another session
+checks only what failed or could have changed. Locally the agents run only the end-to-end tests the task touched; the full suite
 runs in CI.
 
 My computer stays out of it unless a step really needs it, like a local browser or credentials
-that only live on my machine. Those come labelled `rb:needs-local` with the exact commands.
+that only live on my machine. Those come labelled `rb:needs-local` with the exact commands. Before
+escalating, a cloud run tries the cloud's own Chromium and installs a tool the project names when
+pip or npm has it, since each escalation costs me a day.
 
 ## What you need
 
@@ -323,7 +329,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.6.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.7.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
@@ -339,7 +345,12 @@ night found nothing and cost 15 to 25 minutes each (now a short check when the d
 change), and a few small bugs in labels and branch cleanup. In 0.6.0, from that same project's own
 write-up, mostly time: local end-to-end runs only what the task touched, a fix that only changed
 tests keeps the auditor's verdict, plans get a security read before anyone builds them, the
-auditor has a time budget, and every phase is timed so the retro sees where the hours go.
+auditor has a time budget, and every phase is timed so the retro sees where the hours go. In
+0.7.0, from the next run's list of where time went: a PR behind only on bookkeeping merges without
+another CI round (about 45 minutes in one run), the identity check after an update is `rb`, not an
+agent, `rb sync` stopped clearing the run's own claims, fixes after a PR go on top instead of a new
+PR, bookkeeping is pushed after every task, the auditor's verdict survives the session, and a cloud
+run tries its own browser and installable tools before asking for my machine.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not
