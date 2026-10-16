@@ -260,7 +260,8 @@ es público), `rb protect` configura el check obligatorio.
 - **La rutina dice que no conoce `/rb-cycle`.** El harness no está en la rama principal. Revisa
   que el PR del paso 2 esté fusionado.
 - **El resumen dice que el candado está tomado.** Otra corrida está activa, o una anterior se
-  cayó. El candado vence a las 3 horas; puedes verlo con `node tools/rockbuilt/rb.mjs lock status`.
+  cayó. Una corrida activa renueva el candado mientras trabaja; el de una corrida caída vence 3
+  horas después de su última renovación. Puedes verlo con `node tools/rockbuilt/rb.mjs lock status`.
 - **Errores que mencionan GraphQL.** En la nube GitHub GraphQL está bloqueado y `rb` usa solo
   REST. Si aparece ese error, algo llamó a `gh` directamente: repórtalo con `/rb-retro`.
 - **La corrida no fusionó nada.** Mira el resumen: lo normal es que falte CI en verde, que el PR

@@ -12,6 +12,7 @@ import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
 import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
+import { qualityReport, qualityText } from './lib/quality.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
@@ -40,6 +41,7 @@ export const COMMANDS = {
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
+  quality: 'What escaped the reviews: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs  [--since d] [--until d]',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
   'merge-gate': 'Merge a PR only if every gate condition holds  <pr> --run <id> | --human-approved [--dry-run]',
@@ -518,6 +520,12 @@ const handlers = {
     return { data: r, text: riskText(r), code: 0 };
   },
 
+  quality({ cwd, flags, io }) {
+    const root = requireRepoRoot(cwd);
+    const r = qualityReport(client(root, flags, io), { since: parseWindow(stringFlag(flags, 'since'), 'since'), until: parseWindow(stringFlag(flags, 'until'), 'until') });
+    return { data: r, text: qualityText(r), code: 0 };
+  },
+
   bookkeeping({ cwd, positionals, flags, io }) {
     const root = requireRepoRoot(cwd);
     const [op] = positionals;
@@ -592,7 +600,7 @@ const handlers = {
     const sub = positionals[0];
     if (sub === 'acquire') {
       const r = acquireLock(c, stringFlag(flags, 'run'));
-      const text = r.acquired ? `lock acquired by ${r.run} on #${r.control}${r.tookOverStale ? ` (stale lock of ${r.previous} taken over)` : ''}` : `lock held by ${r.holder} since ${r.since}${r.race ? ' (lost a race)' : ''}`;
+      const text = r.acquired ? `lock ${r.renewed ? 'renewed' : r.already ? 'already held' : 'acquired'} by ${r.run} on #${r.control}${r.tookOverStale ? ` (stale lock of ${r.previous} taken over)` : ''}` : `lock held by ${r.holder} since ${r.since}${r.race ? ' (lost a race)' : ''}`;
       return { data: r, text, code: r.acquired ? 0 : 3 };
     }
     if (sub === 'release') {
@@ -601,7 +609,7 @@ const handlers = {
     }
     if (sub === 'status') {
       const r = lockStatus(c);
-      const text = r.held ? `held by ${r.run} since ${r.at} (${r.ageMinutes} min)` : r.stale ? `free (stale lock of ${r.run}, ${r.ageMinutes} min)` : 'free';
+      const text = r.held ? `held by ${r.run} since ${r.since} (run ${r.runMinutes} min, renewed ${r.ageMinutes} min ago)` : r.stale ? `free (stale lock of ${r.run}, ${r.ageMinutes} min)` : 'free';
       return { data: r, text, code: 0 };
     }
     throw new CliError('usage: rb lock acquire --run <id> | release --run <id> | status', 2);

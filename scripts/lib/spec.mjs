@@ -74,7 +74,7 @@ function applyField(task, key, value) {
   switch (key) {
     case 'purpose': task.purpose = value.trim(); break;
     case 'covers': task.covers = value.match(CRITERION_ID) || []; break;
-    case 'size': task.size = (value.trim().match(/^[SML]\b/i) || [null])[0]?.toUpperCase() ?? null; break;
+    case 'size': task.size = (value.trim().match(/^[SML]\b/i) || [null])[0]?.toUpperCase() ?? null; { const note = value.trim().replace(/^[SML]\b[\s:.,(-]*/i, '').replace(/\)$/, '').trim(); if (note) task.sizeNote = note; } break;
     case 'depends on': task.depends = value.match(TASK_ID) || []; break;
     case 'files': task.files = parseFiles(value); break;
     case 'verify': task.verify = parseVerify(value); break;
@@ -170,6 +170,9 @@ export function coverage(criteria, tasks) {
   };
 }
 
+export const MAX_TASK_FILES = 8;
+export const MAX_TASK_CRITERIA = 4;
+
 export function taskProblems(tasks, errors = []) {
   const ids = new Set(tasks.map((t) => t.id));
   const problems = [...errors];
@@ -178,6 +181,12 @@ export function taskProblems(tasks, errors = []) {
   for (const t of tasks) {
     for (const d of t.depends) if (!ids.has(d)) problems.push(`${t.id} depends on unknown ${d}`);
     if (t.verify.length === 0) problems.push(`${t.id} has no Verify check`);
+    // One reviewable PR: a task no reviewer can hold in mind gets a shallow review (3d_brain plans of
+    // 30k to 44k characters). L needs the reason it cannot be split on the Size line.
+    if (t.status !== 'todo') continue; // limits apply to work not started; done tasks stay as they are
+    if (t.size === 'L' && !t.sizeNote) problems.push(`${t.id} is size L without a reason: split it, or write "Size: L (<why it cannot be split>)"`);
+    if (t.files.length > MAX_TASK_FILES) problems.push(`${t.id} lists ${t.files.length} files (max ${MAX_TASK_FILES}): split it`);
+    if (t.covers.length > MAX_TASK_CRITERIA) problems.push(`${t.id} covers ${t.covers.length} criteria (max ${MAX_TASK_CRITERIA}): split it`);
   }
   return problems;
 }

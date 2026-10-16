@@ -105,6 +105,12 @@ never a new PR. The auditor's verdict stays on the task issue, so a re-audit in 
 checks only what failed or could have changed. Locally the agents run only the end-to-end tests the task touched; the full suite
 runs in CI.
 
+The digest also shows quality for the last 7 days: kickbacks by reviewer (an auditor kickback is
+something the verifier let through), reverts, and bugs that came from merged PRs. That is how I
+check that the speed is not costing quality, instead of taking the harness's word for it. And when
+a feature is finished, `/rb-verify` ends with a goal check: an auditor who never saw the tasks uses
+the feature as the user in the brief would, and says whether it delivers what the goal promised.
+
 My computer stays out of it unless a step really needs it, like a local browser or credentials
 that only live on my machine. Those come labelled `rb:needs-local` with the exact commands. Before
 escalating, a cloud run tries the cloud's own Chromium and installs a tool the project names when
@@ -329,7 +335,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.7.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.8.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
@@ -351,6 +357,13 @@ another CI round (about 45 minutes in one run), the identity check after an upda
 agent, `rb sync` stopped clearing the run's own claims, fixes after a PR go on top instead of a new
 PR, bookkeeping is pushed after every task, the auditor's verdict survives the session, and a cloud
 run tries its own browser and installable tools before asking for my machine.
+
+0.8.0 is about quality, not time. The eval suite showed that a rule written only in a skill gets
+skipped: tier C plans reached me without their security read. That step is now checked by `rb`,
+and the same principle applies to anything an eval shows skipped. Speed also has a quality number
+beside it now (`rb quality`, in the digest): kickbacks by reviewer, reverts, and bugs traced back
+to merged PRs. Each finished feature gets one last check against the product goal, done blind as
+its user, and tasks too big to review well fail `rb tasks`.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not

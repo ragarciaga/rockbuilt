@@ -332,7 +332,11 @@ All four live in GitHub so they survive a fresh cloud clone.
   `Rockbuilt control` (label `rb:control`), pinned by convention. It holds the lock and receives
   digest comments.
 - **Lock.** `rb lock acquire --run <id>`: adds `rb:running` to the control issue with a comment
-  carrying the run id and time; refuses if held and younger than 3 hours. `rb lock release`.
+  carrying the run id and time; refuses if held and younger than 3 hours. The same run calling it
+  again renews it (a new lock comment) once it is 30 minutes old, so a working run never goes
+  stale; the cycle calls it before every item, and `merge-gate --run` renews a lock that went stale
+  when no other run took it. Time budgets use the run's age (`runMinutes`, from its first lock
+  after its own last unlock), not the age of the last renewal. `rb lock release`.
 - **Stop switch.** Any open issue labelled `rb:stop`, or the control issue labelled `rb:stop`,
   stops the run before the next task and before every merge. Set it from the phone.
 - **Escalation.** Tier C or blocked work: label `rb:needs-human` (or `rb:needs-local` for steps
@@ -399,11 +403,16 @@ stop the run, stop switch checked between steps.
 2. **Plan.** Dispatch `rb-planner`. The plan includes `Risk and cost` (declared tier with reasons).
    Compute `rb risk --files <affected>`; final tier = max. Post the plan with
    `<!-- rockbuilt:plan base=<sha> tier=<A|B|C> -->`.
-3. **Questions.** ADVISORY: take the default. BLOCKING: answer from spec, ADR or code when
-   possible (`RESOLVED (orchestrator-proposed)`); otherwise escalate.
-4. **Tier C:** the security reviewer checks the plan first (`Mode: plan`: every RESOLVED decision
-   against requirements.md; also for plans touching personal data), then escalate the plan for
-   approval and move on (unless already approved).
+3. **Security read, then questions.** Tier C plans and plans touching personal data first get the
+   security reviewer in `Mode: plan` (every RESOLVED decision against requirements.md), its
+   verdict posted on the issue with a `mode=plan` status line; `rb escalate --kind human` refuses a
+   tier C plan without it (only the plan's first escalation, from trusted authors; an issue already
+   approved, built or blocked is never held by it). Then the questions: ADVISORY take the default; BLOCKING answer from
+   spec, ADR or code when possible (`RESOLVED (orchestrator-proposed)`), otherwise escalate, with
+   the security findings in the question. The planner's message is saved to
+   `.rockbuilt/plans/<id>.md` at once and every later step reads that file; the planner keeps it
+   under about 12,000 characters and proposes a split instead.
+4. **Tier C:** escalate the plan for approval and move on (unless already approved).
 5. **Implement** on `rb/<id>-<slug>` (a worktree in parallel mode) with `rb-implementer`.
 6. **Mechanical check** by the orchestrator: Verification commands; UI-touching tasks also run the
    E2E specs the diff touches or the task's Verify names, never the whole suite (CI runs it), when a
@@ -499,7 +508,10 @@ Unchanged from v0.2 except:
 - **tasks.md**: blocks `## T<n>: title` with `Purpose`, `Covers`, `Size`, `Depends on`, `Files`,
   `Verify`, `Issue`, `Status`, `### Decision log`. `rb tasks` is strict: unknown keys or statuses
   are errors (it accepts Spanish synonyms: Estado, Cubre, Tamaño, Depende de, Archivos, Verificar,
-  and statuses hecho, pendiente, en progreso, en revisión, bloqueado).
+  and statuses hecho, pendiente, en progreso, en revisión, bloqueado). Size limits, also errors, for tasks
+  still `todo`: at most 8 `Files` and 4 `Covers` per task, and `Size: L` only with its reason
+  (`Size: L (<why it cannot be split>)`). A task no reviewer can hold in mind gets a shallow
+  review, in any project.
 - **Plan** (issue comment): marker `<!-- rockbuilt:plan base=<sha> tier=<x> -->`; sections
   Summary, Acceptance criteria, Size, Affected files, Claims this change falsifies, Data / schema
   impact, **Risk and cost** (tier and reasons; any cost with an estimate), Implementation steps,
@@ -552,6 +564,13 @@ spec-derived) and evals (dataset with ground truth, code graders first); it neve
 progress.md, decision logs, ADRs and LESSONS are the memory. rb-retro sorts findings into project
 gotcha, project config or harness problem and files harness problems on ragarciaga/rockbuilt.
 Exception for cloud runs: E2E that needs a browser the environment lacks becomes `rb:needs-local`.
+A fourth gate, **Goal**, runs last on every feature: the blind auditor in `Mode: goal` receives
+only the AGENTS.md Goal, the brief's problem and users, and the requirement statements, and walks
+the feature as that user through the real entry points. `partial` or `no` is a blocker task when
+the requirements cover it, and a human escalation when they do not (the spec missed it). Every
+criterion can pass while the feature misses why it was built; nothing else in the loop checks that.
+The implementer's evidence pass also runs a touched entry point exactly as the README or `## Run`
+documents it.
 
 ## 20. Evidence log
 
@@ -687,6 +706,16 @@ Exception for cloud runs: E2E that needs a browser the environment lacks becomes
    tried: `bpy` installed with pip, and Playwright needed `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`
    (a ladder before needs-local; Blender itself stays project knowledge, not harness). Writing the
    planner's plan to a file was deferred until a second project reports it.
+18. 2026-10-16, issues #17 and #19 (3d_brain, the second on 0.7.0 with 12 PRs in one night) and
+   the eval `build-tier-c-escalates`, failing on 0.6.0 and 0.7.0: the orchestrator escalated the
+   planner's open question and never reached the plan's security read (now first, and checked by
+   `rb escalate`). The lock went stale at 189 min mid-run (renewal). Six PR bodies were rewritten
+   by hand to replace one status line (`rb gh pr-line`). Plans of 30k to 44k characters had to be
+   recovered from a transcript (the plan file, a length limit and task size limits). A test green
+   while the documented command failed (the documented path in the evidence pass). PRs behind
+   only on documentation re-ran a 25 min CI: not patched per file type; the merge queue (0.9.0)
+   tests the combination once instead. Speed had no quality counterpart: `rb quality` (section
+   23), and the goal gate (section 19).
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -717,7 +746,8 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `merge-gate <pr> --run <id> \| --human-approved [--dry-run]` | Section 8. `--run` must match the lock holder. `--human-approved` allows tier C and human-only kinds only when the human asked in the current conversation |
 | `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-c`, `rb:needs-human` |
 | `control ensure` | Find or create the control issue, print its number |
-| `lock acquire --run <id> | release --run <id> | status` | Lock on the control issue (3 h staleness) |
+| `lock acquire --run <id> | release --run <id> | status` | Lock on the control issue (3 h staleness; the same run renews it after 30 min; `status` gives `runMinutes` and `ageMinutes`) |
+| `quality [--since d] [--until d]` | Section 23: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs |
 | `stop status` | Exit 3 when the stop switch is on, 0 otherwise |
 | `escalate <issue> --kind human|local --title <t> --body-file <f>` | Label + comment, never waits |
 | `digest post --file <md>` | Append the run digest to the control issue |
@@ -730,7 +760,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 `label-add <n> <labels>`, `label-remove <n> <label>`, `labels-ensure`,
 `pr-create --head --base --title --body-file [--label a,b] [--draft]`, `pr-view <n>`,
 `pr-list [--state] [--head-prefix rb/]`, `pr-files <n>`, `pr-comment <n> --body-file`,
-`pr-update-branch <n>`, `checks <sha>`, `whoami`, `protection`. Optional `--repo owner/name`.
+`pr-update-branch <n>`, `pr-edit <n> --body-file`, `pr-line <n> --line <machine line>` (replaces the status line of the same stage, or the line of the same kind), `checks <sha>`, `whoami`, `protection`. Optional `--repo owner/name`.
 An unknown flag is a usage error (exit 2), never ignored. `pr-create` adds `rb:tier-x` from the
 body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one.
 
@@ -798,3 +828,18 @@ minutes (section 21, `rb timing`) say where machine time goes; they are not bill
 - **Known limits.** Thinking without touching anything and work in repos outside the report are
   invisible; a pause longer than `gap` inside a task splits it. Calibrate `gap` and `tail` against
   a week of hand-kept hours before quoting the numbers.
+
+## 23. Quality (rb quality)
+
+The harness exists to gain speed without losing quality, so speed numbers (timing, hours) need a
+quality number beside them, from GitHub only:
+
+- **Kickbacks by source**, per merged task PR, from the body line `<!-- rockbuilt:kickbacks
+  mechanical=<n> verifier=<n> auditor=<n> security=<n> ci=<n> -->`. An auditor kickback is a
+  defect the verifier passed; a CI one, a defect every local check passed.
+- **Reverts**: `rb/revert-*` PRs opened in the period.
+- **Escaped bugs**: `rb:bug` issues of the period whose body names a merged harness task PR
+  (`#<n>`). rb-fix's issue asks for the PR that introduced the bug when it is known.
+
+The digest shows the last 7 days; rb-retro reads the scope. A rising escaped-bug or
+auditor-kickback count is a harness finding even when the times improve.

@@ -16,7 +16,8 @@ argument-hint: "[max <n>] [no merges this run]"
 
 You are the orchestrator of one pass (DESIGN 11). The per-task procedure is rb-build's, executed
 unchanged: read `.claude/skills/rb-build/SKILL.md` before the first task and follow its "Per task"
-section, plus its references (`kickback.md`, `parallel.md`, `pr-template.md`, `merge-train.md`).
+section, plus its references (`plan.md`, `kickback.md`, `parallel.md`, `pr-template.md`,
+`merge-train.md`).
 Bugs (`rb:bug`) follow `.claude/skills/rb-fix/SKILL.md`. This file adds intake, ordering, limits,
 unattended rules, the train timing, bookkeeping and the digest. It adds no authority.
 
@@ -116,8 +117,10 @@ No command substitution: run a command, paste its literal output into the next.
 
 Before each item: `rb stop status` (exit 3, or exit 1 because it could not be read: stop
 dispatching, go to section 5 without merges; an unreadable stop switch counts as on),
-`rb lock status --json` (its `run` is not this run id: stop at once, no further mutation,
-digest), and the time budget (its `ageMinutes` 150 or more: no new item). Then:
+`rb lock acquire --run <run id>` (it renews this run's lock, so a long run never goes stale;
+exit 3, or output that is not `already held` or `renewed`, means the lock was lost or taken:
+stop at once, no further mutation, digest), and the
+time budget (`rb lock status --json`, its `runMinutes` 150 or more: no new item). Then:
 
 - CI-fix item: `kickback.md` section 6.
 - Spec task or `rb:task`: rb-build "Per task", with its unattended rules (escalate, never ask).
@@ -162,7 +165,8 @@ every merge; the lock is already held.
 
 `Max tasks per run`; kickback budget 2 per task; 2 resumes per task; 1 CI fix per PR; 3
 consecutive blocked items stop dispatch; stop switch before every item and every merge; no new
-item after 150 minutes of lock age (the lock goes stale at 3 hours); retry ladder per dispatch
+item after 150 minutes of run age (`runMinutes`; the lock renews, and goes stale 3 hours after
+the last renewal); retry ladder per dispatch
 (`kickback.md` section 2); one escalation per issue per run.
 
 ## 8. Degraded mode (GitHub API unavailable)

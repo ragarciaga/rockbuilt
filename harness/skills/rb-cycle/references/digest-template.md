@@ -36,6 +36,11 @@ Duración: <min> min. Harness: <contents of tools/rockbuilt/VERSION>. Modo: <nor
 
 Una línea con la fase que más pesó en la corrida y por qué, si se sabe.
 
+### Calidad (últimos 7 días, de `rb quality --since <fecha>`)
+<n> PR fusionados, <k> devoluciones (verificador <a>, auditor <b>, seguridad <c>, CI <d>), <r> reverts,
+<e> bugs que vienen de PRs fusionados (#<bug> de #<pr>). El auditor cuenta lo que el verificador
+dejó pasar; CI, lo que pasó todos los chequeos locales.
+
 ### Esperan tu decisión
 - #34 (T5, nivel C): <una línea: qué decidir>. Acción: <comenta "aprobado" o elige una opción en #<issue>, o di "/rb-merge #34">.
 - #35 bookkeeping (docs: progress): revísalo y fusiónalo con `/rb-merge #35` cuando quieras.

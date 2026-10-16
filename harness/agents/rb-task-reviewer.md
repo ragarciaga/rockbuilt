@@ -37,8 +37,9 @@ output is a verdict the orchestrator can apply mechanically.
 
 1. **Size.** One verifiable outcome, reviewable as one PR. S is a focused change in one or two
    files; M touches several modules; L only if it cannot be split without losing a verifiable
-   outcome. Too big (several independent outcomes, more than ~8 files, mixes schema + API + UI
-   that could ship separately) means split. Too small (no verifiable outcome alone, only
+   outcome, and then the Size line says why (`Size: L (<reason>)`). Too big (several independent
+   outcomes, more than 8 files, more than 4 criteria, mixes schema + API + UI that could ship
+   separately) means split; `rb tasks` fails on those limits. Too small (no verifiable outcome alone, only
    meaningful together with a neighbor) means merge.
 2. **Alignment.** Every claim traces to `requirements.md` or `design.md`. `Covers` lists real
    criterion IDs that this task actually satisfies. Nothing the spec does not ask for.

@@ -160,7 +160,7 @@ function labelTier(labels) {
 }
 
 // Evaluates every condition; returns { eligible, reasons, ... }. Never merges.
-export function evaluateGate(root, c, pr, { run = null, humanApproved = false, retryMs = Number(process.env.RB_MERGEABLE_RETRY_MS ?? 3000) } = {}) {
+export function evaluateGate(root, c, pr, { run = null, humanApproved = false, dryRun = false, retryMs = Number(process.env.RB_MERGEABLE_RETRY_MS ?? 3000) } = {}) {
   const reasons = [];
   const no = (rule, detail) => reasons.push({ rule, detail });
   let view = ops.prView(c, pr);
@@ -203,7 +203,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   }
 
   const kind = prKind(view.head && view.head.ref);
-  if (kind !== 'task') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head });
+  if (kind !== 'task') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head, dryRun });
 
   // 2. Labels.
   const lt = labelTier(view.labels);
@@ -296,7 +296,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
   if (!humanApproved) {
     if (!run) no('lock', 'pass --run <id> (lock holder) or --human-approved');
     else {
-      const l = holdsLock(c, run);
+      const l = holdsLock(c, run, { renew: !dryRun });
       if (!l.held) no('lock', l.detail);
     }
   }
@@ -306,7 +306,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, r
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
 // lock (or the human) still apply.
-function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head }) {
+function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head, dryRun = false }) {
   for (const l of ['rb:blocked', 'rb:hold']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'bookkeeping' && !humanApproved) for (const l of ['rb:needs-human', 'rb:tier-c']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'human-only' && !humanApproved) no('human-only', `${view.head.ref} PRs merge only when the user asks (--human-approved)`);
@@ -335,7 +335,7 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   if (!humanApproved) {
     if (!run) no('lock', 'pass --run <id> (lock holder) or --human-approved');
     else {
-      const l = holdsLock(c, run);
+      const l = holdsLock(c, run, { renew: !dryRun });
       if (!l.held) no('lock', l.detail);
     }
   }
@@ -344,7 +344,7 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
 }
 
 export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApproved = false } = {}) {
-  const g = evaluateGate(root, c, pr, { run, humanApproved });
+  const g = evaluateGate(root, c, pr, { run, humanApproved, dryRun });
   if (!g.eligible || dryRun) return { ...g, merged: false, dryRun };
   let merged;
   try {

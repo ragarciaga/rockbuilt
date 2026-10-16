@@ -102,7 +102,9 @@ path and output (or the manual script and evidence), the AGENTS.md pointer, LESS
 criteria must include "the reproduction passes" and "no other test changes outcome"; the plan must
 include `Risk and cost`. Tier: **B**, raised to C when the planner declares C or
 `rb risk --files <affected> --json` says C (never A). Post the plan with first line
-`<!-- rockbuilt:plan base=<origin/default sha> tier=<B|C> -->`. Open questions as build step 3.
+`<!-- rockbuilt:plan base=<origin/default sha> tier=<B|C> -->`. Tier C, or personal data: the
+security read of build step 3 first (`Mode: plan` with the bug report and the plan, no spec;
+`rb escalate` refuses a tier C plan without it). Open questions as build step 3.
 Tier C not yet approved: escalate (`tier-c-plan`, options, recommendation, cost), keep the
 reproduction branch pushed (`git push -u origin rb/B<n>-<slug>`), move on. `rb timing end`.
 
@@ -164,6 +166,9 @@ the one bounded CI fix in `kickback.md` section 6. Tier C: it waits for the huma
 A root cause that a future agent could hit again (framework quirk, environment assumption,
 convention missing from AGENTS.md) becomes one dated LESSONS.md entry, 1 to 3 lines, written as an
 instruction, ending with "Regression test: <path>". Ordinary logic slips are not logged.
+When the root cause sits in code a merged harness PR added (`git log -L` or `git blame` on the
+faulty lines names its squash commit `(#<pr>)`), add `Introduced by #<pr>` to the bug issue body
+(`rb gh issue-edit <n> --body-file <f>`): `rb quality` counts it as a defect that escaped review.
 `rb timing report --write`; update docs/progress.md. Tell the user in two or three sentences: root
 cause, the fix, the PR, and whether it merged or what it waits for.
 

@@ -65,15 +65,20 @@ blind auditor, with fresh context, will check every claim you make.
       If none fails, run the full suite once before calling it a survivor. A survivor means a
       missing test: add it (and self-mutate it). Skip only with a stated reason: docs or
       config-only change, no runnable test command, or the mutant needs a file created or deleted.
-   4. **Consequence assertions.** A test whose name describes a consequence asserts on that
+   4. **The documented path.** When the diff touches an entry point (a CLI, a script, a server
+      start, a pipeline step), run it once exactly as the README or AGENTS.md `## Run` documents
+      it, not only through the tests: a test that imports modules in another order or mocks the
+      environment can be green while the documented command fails (3d_brain: `import bmesh`
+      before `import bpy` broke the documented Blender command, with its test green).
+   5. **Consequence assertions.** A test whose name describes a consequence asserts on that
       consequence, not on a neighboring field. A criterion about a stream or exit code asserts
       on that stream or code. A transient UI state (a spinner, a "saving" label, a count that
       returns to 0) is read once, not with an auto-retrying assertion (`toHaveCount(0)` retries
       until the state passes and lets the mutant survive); hold the request in the mock so the
       state stays put while you read it.
-   5. **Claims inside artifacts.** A comment or doc that says a test "pins" something, or that a
+   6. **Claims inside artifacts.** A comment or doc that says a test "pins" something, or that a
       rule is enforced, describes what the code actually checks and the proof you actually ran.
-   6. After the last restore, run the Verification commands once more. Every number in the report
+   7. After the last restore, run the Verification commands once more. Every number in the report
       comes from this final run, pasted from output, with the command that produced it.
 6. Return the report.
 
