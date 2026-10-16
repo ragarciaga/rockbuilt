@@ -142,6 +142,13 @@ function route(s, method, full, body) {
     const runs = c && ciRuns(s, c) ? [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', app: { slug: 'github-actions' }, started_at: new Date().toISOString(), completed_at: new Date().toISOString() }] : [];
     return ok({ total_count: runs.length, check_runs: runs });
   }
+  if (r === 'actions/runs' && method === 'GET' && s.autoCI) {
+    // A push run per rb/queue-* or main ref pointing at the sha, as the workflow triggers.
+    const c = sha(q.get('head_sha') || '');
+    const refs = c ? git(['for-each-ref', '--format=%(refname:short)', '--points-at', c, 'refs/heads']).out.split('\n').filter(Boolean) : [];
+    const runs = (q.get('event') && q.get('event') !== 'push') ? [] : refs.filter((x) => x === 'main' || x.startsWith('rb/queue-')).map((b, i) => ({ id: i + 1, name: 'rockbuilt-ci', event: 'push', head_branch: b, head_sha: c, status: 'completed', conclusion: 'success', created_at: new Date().toISOString() }));
+    return ok({ total_count: runs.length, workflow_runs: runs });
+  }
   if ((m = r.match(/^git\/refs\/heads\/(.+)$/)) && method === 'DELETE') {
     const d = git(['update-ref', '-d', `refs/heads/${decodeURIComponent(m[1])}`]);
     return d.ok ? ok(undefined, 204) : err(422, 'Reference does not exist');

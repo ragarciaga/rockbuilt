@@ -125,13 +125,14 @@ export function queuedBehind(root, c, view, head) {
     const tm = ops.commitInfo(c, view.merge_commit_sha);
     if (tm.parents.length !== 2 || !sameSha(tm.parents[0], tip.sha) || !sameSha(tm.parents[1], head)) return fail('GitHub\'s test merge is not of the current base tip yet; retry', true);
     if (!tm.tree || tm.tree !== step.tree) return fail(`the merge GitHub would land differs from the tested queue step (${view.base.ref} gained something else, or the PR is stacked)`);
-    const checks = ops.checks(c, rec.step);
-    if (!ciPassed(checks)) return fail(`no successful ${CI_CHECK} on the queue step ${String(rec.step).slice(0, 7)}`, checks.some((x) => x.status !== 'completed') || !checks.length);
-    const bad = checks.find((x) => x.status !== 'completed' || !OK_CONCLUSIONS.includes(x.conclusion));
-    if (bad) return fail(`${bad.name} on the queue step is ${bad.status === 'completed' ? bad.conclusion : bad.status}`, bad.status !== 'completed');
-    const reasons = [];
-    e2eRequired(root, checks, (rule, detail) => reasons.push(detail));
-    if (reasons.length) return fail(`queue step: ${reasons[0]}`, true);
+    // Only the push run on the record's own queue branch counts: a pull_request run attaches its
+    // check runs to the head sha but tests refs/pull/N/merge, another tree. The workflow run's
+    // conclusion covers every job in it (E2E shards and their aggregator included).
+    const runs = ops.workflowRuns(c, { headSha: rec.step, event: 'push' }).filter((r) => r.name === CI_CHECK && r.branch === rec.branch && sameSha(r.sha, rec.step));
+    if (!runs.length) return fail(`no ${CI_CHECK} push run on ${rec.branch} yet`, true);
+    const latest = runs.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    if (latest.status !== 'completed') return fail(`${CI_CHECK} on ${rec.branch} is ${latest.status}`, true);
+    if (latest.conclusion !== 'success') return fail(`${CI_CHECK} on ${rec.branch} concluded ${latest.conclusion}`);
     return { ok: true, record: { ...rec, stepTree: step.tree } };
   } catch (e) {
     return fail(e.message);

@@ -342,13 +342,19 @@ types (docs, bookkeeping) only moves the problem. Instead, when two or more PRs 
 - `rb merge-gate` accepts a PR that is behind its base only when, through GitHub and never from
   the record: the PR head is still `pr-head`; `step` is a merge whose second parent is that head;
   GitHub's own test merge of the PR (`merge_commit_sha`, a merge of the current base tip and the
-  head) has exactly the step's tree, which is what a squash lands; and every check on the step
-  passed, `rockbuilt-e2e` included when required. Comparing with GitHub's test merge, not with a
+  head) has exactly the step's tree, which is what a squash lands; and the `rockbuilt-ci` workflow
+  run for the step's **push** to its own `rb/queue-*` branch concluded `success` (the run covers
+  every job, E2E included). Check runs by sha are not enough here: a `pull_request` run attaches
+  its check runs to the head sha while it tests `refs/pull/N/merge`, another tree. Comparing with GitHub's test merge, not with a
   locally computed one, holds against stacked PRs, a merge from outside the queue, merge drivers or
   versions that differ from GitHub's, and a forged step. A test merge or step CI still in progress
   is `queue-pending` (retry), not a refusal.
 - After the squash the gate compares the landed tree with the step's tree once more; a mismatch
-  exits 1 with a STOP line: the caller reverts at once and stops the train.
+  exits 1 with a STOP line: the caller reverts at once and stops the train. This is after the
+  fact: the merge call pins only the PR head, so if the base moves between the gate's read and the
+  merge, an untested tree lands, and the revert PR waits for the human (`rb:needs-human`) while
+  the default branch holds it. The next cycle's baseline check runs on that tree before any work.
+  The window is the seconds between the two calls, inside a run that holds the lock.
 - Anything that breaks the chain falls back to the serial train. `rb queue done` deletes the run's
   queue branches.
 

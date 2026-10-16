@@ -286,6 +286,11 @@ export const ops = {
     const files = (d.files || []).map((f) => ({ filename: f.filename, status: f.status, previous: f.previous_filename || null, sha: f.sha || null, patch: typeof f.patch === 'string' ? f.patch : null, changes: Number(f.changes) || 0 }));
     return { files, truncated: files.length >= 300 };
   },
+  // GitHub Actions workflow runs for one commit and event (push, pull_request, ...).
+  workflowRuns(c, { headSha, event = null }) {
+    const d = c.api('GET', '{repo}/actions/runs', { params: { head_sha: headSha, ...(event ? { event } : {}), per_page: 100 } }) || {};
+    return (d.workflow_runs || []).map((r) => ({ id: r.id, name: r.name, event: r.event, branch: r.head_branch, sha: r.head_sha, status: r.status, conclusion: r.conclusion, created_at: r.created_at || null }));
+  },
   // A commit's sha, tree and parents (any ref GitHub resolves: sha, branch).
   commitInfo(c, ref) {
     const d = c.api('GET', `{repo}/commits/${encodeURIComponent(ref)}`) || {};

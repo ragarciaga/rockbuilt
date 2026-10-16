@@ -83,8 +83,8 @@ test('the gate accepts a queued PR behind its base only when GitHub would land t
   const q = (await rbJson(root, ['queue', 'build', '--run', 'cycle-y', '--prs', '10,11', '--repo', REPO], { ghRunner: gh.runner })).json;
   const [s1, s2] = q.included;
   const s = gh.state;
-  const ci = [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-16T00:00:00Z' }];
-  s.checkRuns[s2.step] = ci;
+  const run = (over = {}) => [{ id: 1, name: 'rockbuilt-ci', event: 'push', head_branch: s2.branch, head_sha: s2.step, status: 'completed', conclusion: 'success', created_at: '2026-10-16T00:00:00Z', ...over }];
+  s.workflowRuns = run();
   // PR 10 merged as tested: squash with the tree of the first step.
   const squash = sh(bare, 'git', ['-c', 'user.name=G', '-c', 'user.email=g@x', 'commit-tree', `${s1.step}^{tree}`, '-p', q.base, '-m', 'PR 10 (#10)']);
   sh(bare, 'git', ['update-ref', 'refs/heads/main', squash]);
@@ -98,12 +98,17 @@ test('the gate accepts a queued PR behind its base only when GitHub would land t
   assert.equal(r.ok, true, r.detail);
   assert.equal(r.record.stepTree, info(bare, s2.step).tree);
 
-  s.checkRuns[s2.step] = [{ ...ci[0], conclusion: 'failure' }];
+  s.workflowRuns = run({ conclusion: 'failure' });
   assert.equal(queuedBehind(root, c, view, h11).ok, false);
-  s.checkRuns[s2.step] = [{ ...ci[0], status: 'in_progress', conclusion: null }];
+  s.workflowRuns = run({ status: 'in_progress', conclusion: null });
   r = queuedBehind(root, c, view, h11);
   assert.equal(r.retry, true, 'pending CI on the step is a retry, not a failure');
-  s.checkRuns[s2.step] = ci;
+  // A green pull_request run on the same sha tested another tree: it never counts.
+  s.workflowRuns = [...run({ conclusion: 'failure' }), ...run({ id: 2, event: 'pull_request', head_branch: 'evil', created_at: '2026-10-16T01:00:00Z' })];
+  assert.equal(queuedBehind(root, c, view, h11).ok, false);
+  s.workflowRuns = run({ head_branch: 'rb/queue-other-1' });
+  assert.equal(queuedBehind(root, c, view, h11).retry, true, 'a run on another branch does not count');
+  s.workflowRuns = run();
 
   assert.equal(queuedBehind(root, c, view, 'e'.repeat(40)).ok, false, 'the PR head moved after queueing');
   assert.equal(queuedBehind(root, c, { ...view, mergeable: null }, h11).retry, true, 'test merge not computed yet');

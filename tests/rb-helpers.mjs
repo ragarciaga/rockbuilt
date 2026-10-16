@@ -230,6 +230,10 @@ export function handle(s, method, fullPath, body) {
     const head = decodeURIComponent(m[2]);
     return ok({ status: 'ahead', files: (s.compareFiles || {})[head] || [], ...((s.compare || {})[head] || { behind_by: 0, ahead_by: 1 }) });
   }
+  if (r === 'actions/runs' && method === 'GET') {
+    const runs = (s.workflowRuns || []).filter((x) => x.head_sha === q.get('head_sha') && (!q.get('event') || x.event === q.get('event')));
+    return ok({ total_count: runs.length, workflow_runs: runs });
+  }
   if ((m = r.match(/^commits\/([^/]+)$/)) && method === 'GET') {
     const info = (s.commitInfo || {})[decodeURIComponent(m[1])];
     return info ? ok({ sha: info.sha, commit: { tree: { sha: info.tree } }, parents: (info.parents || []).map((sha) => ({ sha })) }) : err(404, 'No commit found');
