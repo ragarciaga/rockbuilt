@@ -13,6 +13,7 @@ import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
 import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
 import { qualityReport, qualityText } from './lib/quality.mjs';
+import { buildQueue, finishQueue } from './lib/queue.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
@@ -41,6 +42,7 @@ export const COMMANDS = {
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
+  queue: 'Merge queue: build --run <id> --prs a,b,c (merge them onto the default branch as rb/queue-*, CI runs once) | done --run <id> (delete this run\'s queue branches)',
   quality: 'What escaped the reviews: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs  [--since d] [--until d]',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
@@ -520,6 +522,23 @@ const handlers = {
     return { data: r, text: riskText(r), code: 0 };
   },
 
+  queue({ cwd, positionals, flags, io }) {
+    const root = requireRepoRoot(cwd);
+    const c = client(root, flags, io);
+    if (positionals[0] === 'build') {
+      const r = buildQueue(root, c, { run: flags.run, prs: stringFlag(flags, 'prs', { required: true }) });
+      const lines = [r.detail];
+      if (r.built) lines.push(`order=${r.included.map((x) => x.pr).join(',')}`, ...r.included.map((x) => `#${x.pr} step=${x.step} branch=${x.branch}`));
+      for (const x of r.skipped) lines.push(`skipped #${x.pr}: ${x.reason}`);
+      return { data: r, text: lines.join('\n'), code: r.built ? 0 : 3 };
+    }
+    if (positionals[0] === 'done') {
+      const r = finishQueue(root, c, { run: flags.run });
+      return { data: r, text: `queue branches deleted: ${r.deleted.join(', ') || 'none'}${r.failed.length ? `; failed: ${r.failed.map((f) => f.branch).join(', ')}` : ''}`, code: 0 };
+    }
+    throw new CliError('usage: rb queue build --run <id> --prs a,b,c | done --run <id>', 2);
+  },
+
   quality({ cwd, flags, io }) {
     const root = requireRepoRoot(cwd);
     const r = qualityReport(client(root, flags, io), { since: parseWindow(stringFlag(flags, 'since'), 'since'), until: parseWindow(stringFlag(flags, 'until'), 'until') });
@@ -579,7 +598,9 @@ const handlers = {
     else if (r.eligible) lines.push(`#${r.pr} eligible (tier ${r.tier}); dry run, not merged`);
     else lines.push(`#${r.pr} NOT eligible (label ${r.labelTier || '-'}, risk ${r.riskTier || '-'}):`, ...r.reasons.map((x) => `  ${x.rule.padEnd(15)} ${x.detail}`));
     for (const a of r.after || []) if (!a.ok) lines.push(`WARN after-merge ${a.step}: ${a.error}`);
-    return { data: r, text: lines.join('\n'), code: r.eligible ? 0 : 3 };
+    // Exit 1 stops the train: the queued merge landed a tree CI did not run.
+    if (r.treeMismatch) lines.push(`STOP: #${r.pr} landed a tree different from its tested queue step. Run ${r.revert} now and escalate.`);
+    return { data: r, text: lines.join('\n'), code: r.treeMismatch ? 1 : r.eligible ? 0 : 3 };
   },
 
   revert({ cwd, positionals, flags, io }) {

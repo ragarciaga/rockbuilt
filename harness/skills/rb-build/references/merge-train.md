@@ -17,6 +17,32 @@ none of `rb:needs-human`, `rb:blocked`, `rb:tier-c`, `rb:hold`. Order: PRs whose
 tasks depend on first, then oldest PR number first. Human PRs and branches outside `rb/` are never
 touched.
 
+## 1b. The merge queue (two or more ready PRs)
+
+Serial merging leaves every other PR behind after each merge, and each update costs a full CI run
+(3d_brain: 12 PRs, one CI each). When two or more PRs in the queue order are **ready**, test them
+together instead. Ready: CI completed green on its head, and a dry run `rb merge-gate <pr> --run
+<run id> --dry-run --json` gives no reason, or only `behind`.
+
+1. `rb queue build --run <run id> --prs <a,b,c in queue order>`. It merges them onto the default
+   branch tip in that order and pushes step i (the base plus PRs 1..i) as `rb/queue-<...>-<i>`, so
+   CI runs on every step at once. It skips a PR that conflicts with the ones before it or is
+   stacked on one of them, and records each position on its PR. Exit 3 (fewer than two merge
+   cleanly): serial train (section 2).
+2. For each queued PR in the printed order: `rb merge-gate <pr> --run <run id> --json`, then the
+   after-merge steps of section 2 step 6. The gate merges a queued PR behind its base only when
+   GitHub's own test merge of it has exactly the tree of its step and CI passed on that step.
+   - Reason `queue-pending` (its step's CI still running, or GitHub still computing the test
+     merge after the previous merge): `sleep 60` and call the gate again, at most 30 times.
+   - Any other refusal: that PR and the ones after it go to the serial train (section 2).
+   - **Exit 1 with `STOP: ... landed a tree different from its tested queue step`:** run the
+     `rb revert <pr>` it prints, escalate with the `Default branch red after merge` template, and
+     stop the train (train-stopping, section 3).
+3. `rb queue done --run <run id>` deletes this run's queue branches.
+
+A PR updated while queued, a merge from outside the queue, or a red step all fall back to the
+serial path below: the queue only skips work when GitHub shows the result is the tested one.
+
 ## 2. Per PR, one at a time
 
 1. **Stop check.** `rb stop status`; exit 3 ends the train (record every remaining PR as
@@ -88,7 +114,8 @@ touched.
      (`rb gh pr-line <pr> --line "<timing line>"`). Also after a hold, so the next run starts from it.
    - Tasks that depended on this one may now be ready: the caller loops back to the build queue
      when the run budget allows.
-7. The next PR may now be behind: the gate decides (step 5); a bookkeeping-only gap needs no update.
+7. The next PR may now be behind: the gate decides (step 5); a bookkeeping-only gap needs no update,
+   and a queued PR whose step passed needs none either (section 1b).
 
 ## 3. Outcome classes
 

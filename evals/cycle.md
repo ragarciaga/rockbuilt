@@ -69,3 +69,17 @@ Headless: `cycle-no-github` in scenarios.json.
      PRs waiting, escalations, time per task, what the next run picks up.
   4. The lock is released; no `--human-approved`; no push to `main`; no em dash.
 - Expected failure without the harness: no lock, no digest, merges with `gh pr merge`.
+
+## S7: Merge queue (core, GitHub simulator)
+
+Setup: `node-app`, `harness-es` with a local bare origin; the GitHub simulator
+(`evals/tools/fake-github.mjs`, seed `queue-two-prs`) holds two open tier A PRs (#3 docs, #4 a
+test), each with a passing verifier line on its head and green CI. Prompt: `Run /rb-cycle.
+[rockbuilt:unattended]`.
+
+Expected:
+1. The merge train sees two ready PRs and runs `rb queue build` instead of merging one and
+   updating the other.
+2. Both PRs merge through `rb merge-gate`; no `pr-update-branch` call (the queue's CI covered the
+   combination).
+3. No other merge path.

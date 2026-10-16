@@ -95,7 +95,13 @@ real night it took a bug from an issue, reproduced it with a test, fixed it, had
 audited, and merged it in 14 minutes. The verifier sent it back once on the way, because the
 tests did not catch two of the bugs it planted.
 
-Merges go one at a time, so after each one the next PR can be behind `main`. If all `main` gained
+When two or more PRs are ready, they go through a merge queue: the harness stacks them on `main`
+one after another and pushes each step as its own branch, so CI tests every step at the same time,
+and then each PR merges in order without being updated. The gate only accepts it when GitHub's own
+test merge of that PR has exactly the tree CI tested, and checks the landed tree again after the
+merge. Before 0.9.0 every merge left the others behind and each paid another full CI run, one
+after the other. Outside the
+queue, merges go one at a time, so after each one the next PR can be behind `main`. If all `main` gained
 is bookkeeping (task status, progress notes, lessons), the PR merges as it is. If `main` gained
 code, the PR is updated and CI runs again; when the update changed nothing in the task's own files,
 `rb` confirms it mechanically, with no agent, instead of repeating the whole review. If a fix after a review touched only test files, the
@@ -335,7 +341,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.8.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.9.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
@@ -364,6 +370,10 @@ and the same principle applies to anything an eval shows skipped. Speed also has
 beside it now (`rb quality`, in the digest): kickbacks by reviewer, reverts, and bugs traced back
 to merged PRs. Each finished feature gets one last check against the product goal, done blind as
 its user, and tasks too big to review well fail `rb tasks`.
+
+0.9.0 removes the serial bottleneck of the merge train with a merge queue (one CI run for several
+PRs), and the eval suite now drives a full cycle against a GitHub simulator backed by a real git
+repo, so the autonomous merge path is tested before a release instead of on a real project's night.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not

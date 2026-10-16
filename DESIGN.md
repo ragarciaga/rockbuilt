@@ -324,6 +324,53 @@ Evidence: 3d_brain, 2026-10-14 (five full re-reviews after update-branch found n
 auditor spending 15 to 25 minutes each; every real finding came from the first round), and the
 0.6.0 cases above.
 
+### 8.4 Merge queue
+
+Serial merging makes every merge leave the other open PRs behind, and each update costs a full CI
+run (3d_brain, 0.7.0: 12 PRs in one night, one CI each, 25 min with E2E; issue #19). Exempting file
+types (docs, bookkeeping) only moves the problem. Instead, when two or more PRs are ready:
+
+- `rb queue build --run <id> --prs a,b,c` merges their heads onto the default branch tip in that
+  order in a temporary worktree and pushes **every step** (base plus PRs 1..i) as
+  `rb/queue-<run>-<stamp>-<i>`. `rockbuilt-ci` runs on push to `rb/queue-*`, so all steps test at
+  once: one CI wait instead of one per PR, and wherever the train stops the default branch holds a
+  tested state (the same Actions minutes as the serial train, less wall time). A PR that conflicts
+  with the ones before it is skipped, and so is a PR stacked on a queued one (it shares commits
+  with it beyond the base): its queue merge and GitHub's squash onto the updated base are
+  different three-way merges. Each PR gets a record: `<!-- rockbuilt:queue run= branch= step=
+  prefix= base= pr-head= -->`.
+- `rb merge-gate` accepts a PR that is behind its base only when, through GitHub and never from
+  the record: the PR head is still `pr-head`; `step` is a merge whose second parent is that head;
+  GitHub's own test merge of the PR (`merge_commit_sha`, a merge of the current base tip and the
+  head) has exactly the step's tree, which is what a squash lands; and the `rockbuilt-ci` workflow
+  run for the step's **push** to its own `rb/queue-*` branch concluded `success` (the run covers
+  every job, E2E included). Check runs by sha are not enough here: a `pull_request` run attaches
+  its check runs to the head sha while it tests `refs/pull/N/merge`, another tree. Comparing with GitHub's test merge, not with a
+  locally computed one, holds against stacked PRs, a merge from outside the queue, merge drivers or
+  versions that differ from GitHub's, and a forged step. A test merge or step CI still in progress
+  is `queue-pending` (retry), not a refusal.
+- After the squash the gate compares the landed tree with the step's tree once more; a mismatch
+  exits 1 with a STOP line: the caller reverts at once and stops the train. This is after the
+  fact: the merge call pins only the PR head, so if the base moves between the gate's read and the
+  merge, an untested tree lands, and the revert PR waits for the human (`rb:needs-human`) while
+  the default branch holds it. The next cycle's baseline check runs on that tree before any work.
+  The window is the seconds between the two calls, inside a run that holds the lock.
+- Anything that breaks the chain falls back to the serial train. `rb queue done` deletes the run's
+  queue branches.
+
+The evals now include the autonomous path: `evals/tools/fake-github.mjs` answers `rb` as `gh api`
+would, with issues and comments in a JSON state and every commit question (heads, compare, files,
+test merges, squash merge, update-branch, trees) answered from the workspace's real bare origin;
+CI is green on main, `rb/queue-*` and open PR heads, where the project workflow runs. Scenario
+`cycle-queue-merge` runs a cycle with two ready PRs against it. An independent review of the first
+draft found a stacked-PR case where the squash landed a tree CI never ran; the test-merge check
+and the per-step CI replace that draft's tree-chain argument.
+
+The same eval showed the orchestrator calling `rb` through a shell variable (`R="node
+tools/rockbuilt/rb.mjs"; $R ...`), which the skills forbid because unattended permission rules match
+literal commands; the guard now denies a variable or alias standing for `rb`, `git` or `gh` for
+everyone, the main session included.
+
 ## 9. Unattended runs: lock, stop, escalation, digest
 
 All four live in GitHub so they survive a fresh cloud clone.
@@ -713,8 +760,8 @@ documents it.
    by hand to replace one status line (`rb gh pr-line`). Plans of 30k to 44k characters had to be
    recovered from a transcript (the plan file, a length limit and task size limits). A test green
    while the documented command failed (the documented path in the evidence pass). PRs behind
-   only on documentation re-ran a 25 min CI: not patched per file type; the merge queue (0.9.0)
-   tests the combination once instead. Speed had no quality counterpart: `rb quality` (section
+   only on documentation re-ran a 25 min CI: not patched per file type; the merge queue (0.9.0,
+   section 8.4) tests the combination once instead. Speed had no quality counterpart: `rb quality` (section
    23), and the goal gate (section 19).
 
 ## 21. rb command interface (binding for skills and the CLI)
@@ -747,6 +794,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `revert <pr>` | Create branch `rb/revert-<pr>`, `git revert` the merge commit, push, open PR labelled `rb:tier-c`, `rb:needs-human` |
 | `control ensure` | Find or create the control issue, print its number |
 | `lock acquire --run <id> | release --run <id> | status` | Lock on the control issue (3 h staleness; the same run renews it after 30 min; `status` gives `runMinutes` and `ageMinutes`) |
+| `queue build --run <id> --prs a,b,c \| done --run <id>` | Section 8.4: the merge queue branch and its records; `done` deletes the run's queue branches |
 | `quality [--since d] [--until d]` | Section 23: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs |
 | `stop status` | Exit 3 when the stop switch is on, 0 otherwise |
 | `escalate <issue> --kind human|local --title <t> --body-file <f>` | Label + comment, never waits |

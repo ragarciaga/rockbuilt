@@ -17,7 +17,8 @@ evals/<skill>.md            scenarios for one skill (kickoff, adopt, spec, tasks
                             fix, verify, merge, status)
 evals/scenarios.json        the headless subset, run by evals/run.mjs
 evals/fixtures/<overlay>/   files copied into a temp workspace (see table below)
-evals/tools/                setup-fixture.mjs, gh-sandbox.mjs, no-em-dash.mjs
+evals/tools/                setup-fixture.mjs, gh-sandbox.mjs, no-em-dash.mjs, fake-github.mjs
+                            (GitHub simulator) and github-seeds.mjs (its starting states)
 evals/results/              one file per run: <YYYY-MM-DD>-<skill>.md
 ```
 
@@ -64,6 +65,13 @@ empty-folder scenario (kickoff) gets `git init -b main` first and no `--type`.
 
 Overlays before `--then` are committed on `main`; overlays after it stay uncommitted.
 `--remote` adds a local bare `origin` (enough for `git pull --ff-only`). `--no-git` skips git.
+
+**GitHub simulator** (scenarios with a `github` field in scenarios.json, for example
+`cycle-queue-merge`). The runner sets `RB_GH_BIN` to `tools/fake-github.mjs`, which answers `rb`
+as `gh api` would: issues and comments from a JSON state seeded by `tools/github-seeds.mjs`, and
+every commit question from the workspace's bare origin (setup needs `--remote`). CI is green on
+any commit. Checks `ghMerged` and `ghNoUpdates` read the simulator state. No GitHub account or
+repo is needed, so these run in the normal suite.
 
 **GitHub sandbox** (scenarios marked `GitHub: yes`). In each workspace:
 
