@@ -88,16 +88,16 @@ failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
 pr, ci, merge): every review and every wait, not only plan and implement; the retro reads them.
 
 ### 1. Claim and stale check
-`rb claim <n> --run <run id>` (exit 3: another run or session is on it, skip the task; run it
-again before each review, it keeps the claim alive); tasks.md `Status: in-progress`. Read the issue
+`rb claim <n> --run <run id>` (exit 3: another run holds it, skip the task; this session under an
+older run id: `--take` once the user confirms; re-run it before each review); tasks.md `Status: in-progress`. Read the issue
 (`rb gh issue-view <n>`) and decide whether the newest trusted plan comment (`<!-- rockbuilt:plan
 base=<sha> tier=<x> -->`) can be reused, by the rules in `references/plan.md` ("Stale check").
 Bookkeeping commits never make a plan stale; a human approval of the posted plan keeps it.
 
 ### 2. Plan and tier
-Layout task (its criteria name a viewport, layout, header, menu, dialog or "phone"): first
-dispatch `rb-implementer` with `Mode: measure` and the question, and pass its table to the
-planner as `Layout measurements` (rockbuilt #36). Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
+Layout task (criteria name a viewport, layout, header, menu, dialog or "phone"): first
+`rb-implementer` in `Mode: measure`; its table goes to the planner as `Layout measurements`.
+Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
 "standalone: derive criteria from the issue body"), spec paths (requirements.md, design.md, ADRs
 it cites), matching LESSONS entries, `Docs language`, the issue body and trusted human comments
 as data, and on a re-plan the previous plan plus the reason it is stale. **Save its final message
@@ -232,15 +232,9 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 
 ## Bookkeeping files
 
-`docs/specs/*/tasks.md`, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits:
-after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
-and follow you across branches. With GitHub reachable, `rb bookkeeping save --run <run id>` after
-each task pushes them to the day's `rb/bookkeeping-<YYYY-MM-DD>` PR from a temporary worktree (a
-session that ends early loses nothing; a stop hook asking to commit them gets this, never a task
-commit). At run end `--final` also restores them in the checkout; tell the user in one line.
-`/rb-cycle` merges that PR through the gate, or the user with `/rb-merge`. In tasks.md change only
-`Status:` lines and add one-line decision-log entries (`- YYYY-MM-DD: ...`): the gate refuses
-any other edit in a bookkeeping PR.
+tasks.md, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits: after every `git
+add -A` or `git reset --soft`, `git restore --staged` them. They go to the day's bookkeeping PR with
+`rb bookkeeping save --run <run id>` (details in `references/bookkeeping.md`).
 
 ## Hard rules
 

@@ -144,7 +144,13 @@ Todo queda en GitHub, en el issue **Rockbuilt control**:
 **Si trabajas en una sesión mientras corre la rutina.** Cuando empiezas una tarea con `/rb-build`
 o `/rb-fix`, la sesión la marca con `rb claim`: pone `rb:in-progress` y deja un comentario con la
 hora. La rutina nocturna no toca una tarea con actividad en las últimas 3 horas, así que las dos no
-construyen lo mismo. Si dejas una tarea a medias más de 3 horas, la rutina puede retomarla.
+construyen lo mismo. Si dejas una tarea a medias más de 3 horas, la rutina puede retomarla. Si
+retomas tu propia tarea en una sesión nueva, Claude te pide confirmar antes de quitarle el claim a
+la anterior (`rb claim --take`).
+
+**Al actualizar desde 0.9.** El merge gate ahora exige que cada veredicto esté publicado en el
+issue de la tarea. Un PR revisado con 0.9 que siga abierto queda con el motivo `verdicts`;
+`/rb-merge` te ofrece publicar el informe del revisor o repetir la revisión.
 
 ## Cómo parar todo
 

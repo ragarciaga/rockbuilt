@@ -803,11 +803,14 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
 | `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
-| `review-delta --reviewed <sha> [--base <ref>] [--line --task <id>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched. `--line` prints the verifier identity line when identical and only merges follow the old head (exit 3 otherwise) |
+| `review-delta --reviewed <sha> [--base <ref>] [--line --task <id>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched (tasks.md and progress.md differences ignored, LESSONS.md not), then the task's own per-file patches (section 24.5). `--line` prints the verifier identity line when identical and only merges follow the old head (exit 3 otherwise) |
 | `verify-cmds E2E --only <specs> [--grep <t>]` | Local runs: the suite command with only those spec files and title pattern (never the whole suite locally; CI runs it) |
 | `flaky record <test> [--pr <n>] [--note t] \| list` | Flaky candidates as marked comments on the control issue; `list` counts them across rotated control issues |
 | `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
-| `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims older than it |
+| `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims with no activity since the lock and none in the last 3 hours (section 24.1) |
+| `claim <issue> --run <id> [--release \| --take]` | Section 24.1: label plus claim comment; exit 3 when another run holds a fresh claim (or, for `--release`, when this run is not the holder). `--take` only after the user confirmed |
+| `ci wait <sha> [--timeout <min>] \| logs <sha> [--job <name>] [--tail <n>]` | `wait`: until `rockbuilt-ci` (and `rockbuilt-e2e` when the project has E2E) exist and every check completed; exit 0 green, 1 red, 3 still running. `logs`: the failing job's log tail, or its annotations when the log is not readable |
+| `browser` | Path of a preinstalled Chromium (`PW_CHROMIUM_PATH`, then `PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers`); exit 3 when none |
 | `bookkeeping carry --run <id>` | Run start: apply the open `rb/bookkeeping-*` PR to the checkout (plain `git apply`; exit 3 and untouched when it does not apply) |
 | `bookkeeping save --run <id> [--final]` | Needs GitHub (exit 3 without it). The checkout's edits to tracked tasks.md, progress.md and LESSONS.md (a patch against its HEAD, never whole files or untracked files) applied in a temporary worktree at the default branch, `merge -s ours` the day's branch when it exists, push, open the PR when none is open; exit 3 when the patch no longer applies; `--final` restores those files in the checkout |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
@@ -826,12 +829,12 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 `rb gh` ops (all print JSON): `issue-create --title --body-file [--label a,b]`,
 `issue-edit <n> [--body-file] [--title] [--state open|closed] [--add-label a,b] [--remove-label a]`, `issue-comment <n> --body-file`,
 `issue-view <n>` (includes comments and author_association), `issue-list [--label a,b] [--state]`,
-`label-add <n> <labels>`, `label-remove <n> <label>`, `labels-ensure`,
+`label-add <n> <labels>`, `label-remove <n> <label>`, `labels-ensure`, `label-create <name> [--color hex] [--description t]` (project labels, never `rb:*`),
 `pr-create --head --base --title --body-file [--label a,b] [--draft]`, `pr-view <n>`,
 `pr-list [--state] [--head-prefix rb/]`, `pr-files <n>`, `pr-comment <n> --body-file`,
-`pr-update-branch <n>`, `pr-edit <n> --body-file`, `pr-line <n> --line <machine line>` (replaces the status line of the same stage, or the line of the same kind), `checks <sha>`, `whoami`, `protection`. Optional `--repo owner/name`.
+`pr-update-branch <n>`, `pr-edit <n> --body-file`, `pr-line <n> --line <machine line> | --stage <rb-agent> [--task <id>] --outcome <o> --head <sha> [--identical-to <sha>] [--app-identical-to <sha>] [--mode <m>]` (replaces the status line of the same stage, or the line of the same kind; the flags build and validate a status line), `checks <sha>` (with `started_at`, `completed_at`, `minutes`), `whoami`, `protection`. Optional `--repo owner/name`.
 An unknown flag is a usage error (exit 2), never ignored. `pr-create` adds `rb:tier-x` from the
-body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one.
+body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one. Run on the PR's head branch, it raises the marker and the label to `rb risk` of the real diff when that is higher (section 24.4).
 
 Labels (exact): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:blocked`, `rb:in-progress`,
 `rb:pr-open`, `rb:tier-a`, `rb:tier-b`, `rb:tier-c`, `rb:needs-human`, `rb:needs-local`,
@@ -843,7 +846,9 @@ PR body machine lines (each on its own line):
 `<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=pass head=<sha> -->`,
 `<!-- rockbuilt:security required -->` when the security review applies,
 `<!-- rockbuilt:tier <A|B|C> -->`, and `<!-- rockbuilt:timing task=<id> <phase>=<minutes> ... [est=<hours>] -->`
-(informational; the gate ignores it).
+(informational; the gate ignores it). Every status line except a verifier `identical-to` line written by
+`rb review-delta` (`by=rb-review-delta`, confirmed by the gate) needs the same verdict posted on the
+task issue named by `Closes #n` or `Part of #n` (section 24.2).
 
 ## 22. Attention hours (rb hours)
 
@@ -925,15 +930,22 @@ checks it.
 
 1. **Claims.** `rb claim <n> --run <id>` adds `rb:in-progress` and a trusted comment
    `<!-- rockbuilt:claim run=<id> at=<iso> -->` (at most one per run every 30 minutes). It refuses
-   (exit 3) when another run's claim is fresh. rb-build and rb-fix call it at the start and again
-   before each review. `rb sync --run` with the lock clears a claim only when its last activity
+   (exit 3) when another run's claim is fresh. The holder is the fresh run whose claim streak
+   started first, by GitHub's comment time; the command re-reads after posting, so two runs that
+   claim in the same second agree. `--release` (holder only) ends a claim; `--take`, after the
+   user confirmed, takes over (a resumed session with a new run id). rb-build and rb-fix call it
+   at the start and again before each review. `rb sync --run` with the lock clears a claim only when its last activity
    (claim comment, any trusted rockbuilt comment, the label event) is older than the lock and
    older than 3 hours. An interactive session never holds the lock, so its live claim survives
    the nightly sweep (#35).
 2. **Verdicts on the task issue.** Every verdict, pass or fail, is posted on the task issue
    (`rb gh issue-comment`, the agent's report ending with its `rb-status` line). The gate
    requires, for every status line in the PR body except `by=rb-review-delta`, a trusted comment
-   on the `Closes #n` issue with the same stage, outcome, head and task (reason `verdicts`).
+   on the `Closes #n` (or `Part of #n`) issue with the same stage, outcome and head, and the same
+   task id when both name one, case aside (reason `verdicts`). A task PR that names no issue is
+   refused. Only a verifier `identical-to` line written by `rb review-delta` and confirmed by the
+   gate is exempt. PRs reviewed under 0.9 and still open need their verdicts posted (or a
+   re-review) before they merge.
    `rb quality` reads reviewer kickbacks and timing from those comments (#34).
 3. **Command builders.** `rb gh pr-line <pr> --stage --task --outcome --head [--identical-to]
    [--mode]` builds and validates a status line (#38). `rb ci wait <sha> [--timeout]` polls the
@@ -945,9 +957,10 @@ checks it.
 4. **Tier at PR creation.** `rb gh pr-create`, run on the PR's head branch, computes `rb risk`
    on the real diff and raises the body tier marker and the label when it is higher than the
    plan's, so the mismatch shows before CI, not at the gate (#29).
-5. **Fewer false positives.** `rb risk` counts a host in a test file only on a line that makes a
-   network call (fetch, axios, `page.goto`, requests, curl and the like), not in a fixture or an
-   assertion (#23, #31). Bookkeeping files never change the review-delta class, and a task whose
+5. **Fewer false positives.** In a test file `rb risk` counts a host unless the line is an
+   expectation (`expect(`, `toHaveAttribute`, an `href`), or unless nothing in the file reaches the
+   network and the line names no base URL (#23, #31). tasks.md and progress.md never change the
+   review-delta class (LESSONS.md does: agents read it as binding), and a task whose per-file
    patch equals the reviewed patch (index lines and hunk numbers aside) is `identical` (#24).
    Markers and the control issue are read only from trusted authors (#30).
 6. **Agents read their own rules.** Every agent reads `.claude/LESSONS.md` itself, the
@@ -962,6 +975,9 @@ checks it.
 8. **Small fixes.** `rb vendor` does not add the smoke spec to a project that has specs or a
    Playwright config (#22). The E2E CI job caches the browser, retries the install once, warns
    at 21 minutes and says "raise E2E shards" when a shard is cancelled by its timeout (#25).
-   `pkill` and `killall` are denied: a process is stopped by its PID (#37). `rb protect` requires
+   Kill by name is denied in every form (`pkill`, `killall`, a `pgrep` list into `kill`, `fuser -k`,
+   `kill-port`) and so is kill by group (`kill 0`, `kill -1`): a process stops by its PID, or by
+   its port through `lsof -ti:<port>` (#37). The workflow's bash blocks pass `bash -n` in the
+   selfcheck. `rb protect` requires
    `rockbuilt-ci` (and `rockbuilt-e2e` when the project has E2E) without `strict`, which would
    block the merge queue (section 8.4).
