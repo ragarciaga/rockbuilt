@@ -799,3 +799,23 @@ test('merge-gate verdicts: a task issue is required, the rb exemption is narrow,
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 });
+
+test('merge-gate: an identity line holds when the task patch is unchanged though the base moved the file (#24)', async () => {
+  const OLD = `ddddddd${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const root = project();
+  const run = async (patchNow) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'A', body: `<!-- rockbuilt:status stage=rb-verifier task=T1 outcome=pass head=${HEAD} identical-to=${OLD} by=rb-review-delta -->\n<!-- rockbuilt:tier A -->\n` });
+    gh.state.compareFiles = {
+      [OLD]: [{ filename: 'src/app.test.js', status: 'modified', sha: 'blob-1', patch: '@@ -10,3 +10,4 @@ ctx\n a\n+task\n b' }],
+      [HEAD]: [{ filename: 'src/app.test.js', status: 'modified', sha: 'blob-2', patch: patchNow }],
+    };
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  let r = await run('@@ -14,3 +14,4 @@ ctx\n a\n+task\n b');
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  r = await run('@@ -14,3 +14,4 @@ ctx\n a\n+other\n b');
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'stale-head'), JSON.stringify(r.json.reasons));
+});

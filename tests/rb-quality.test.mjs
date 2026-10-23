@@ -170,3 +170,27 @@ test('merge-gate --dry-run never renews or takes a lock', async () => {
   assert.equal(Object.values(gh.state.comments).flat().filter((c) => /rockbuilt:lock/.test(c.body)).length, 1, 'no renewal comment');
   assert.ok(Object.values(gh.state.comments).flat().length >= before);
 });
+
+test('rb quality (0.10.0): reviewer kickbacks and minutes from the verdicts on the task issue', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const s = gh.state;
+  const cm = (id, at, body, assoc = 'OWNER') => ({ id, body, user: { login: 'rb-bot' }, author_association: assoc, created_at: at });
+  // The PR line says nothing about reviewers (an interactive session forgot it); the issue has it all.
+  s.issues[30] = { number: 30, title: 'PR 30', body: 'Closes #5\n<!-- rockbuilt:kickbacks mechanical=1 ci=1 -->', state: 'closed', labels: [], isPr: true, created_at: '2026-10-20T11:00:00Z' };
+  s.pulls[30] = { number: 30, head: 'rb/T5-x', base: 'main', headSha: 'f'.repeat(40), merged_at: '2026-10-20T11:30:00Z' };
+  s.issues[5] = { number: 5, title: 'T5', body: '', state: 'closed', labels: ['rb:task'] };
+  s.comments[5] = [
+    cm(1, '2026-10-20T09:00:00Z', '<!-- rockbuilt:claim run=s1 at=2026-10-20T09:00:00Z -->'),
+    cm(2, '2026-10-20T09:20:00Z', '<!-- rockbuilt:plan base=abc1234 tier=B -->\nPlan'),
+    cm(3, '2026-10-20T10:00:00Z', '<!-- rockbuilt:status stage=rb-verifier task=T5 outcome=fail head=aaaaaaa -->'),
+    cm(4, '2026-10-20T10:20:00Z', '<!-- rockbuilt:status stage=rb-verifier task=T5 outcome=pass head=bbbbbbb -->'),
+    cm(5, '2026-10-20T10:40:00Z', '<!-- rockbuilt:status stage=rb-auditor task=T5 outcome=fail head=bbbbbbb -->'),
+    cm(6, '2026-10-20T10:50:00Z', '<!-- rockbuilt:status stage=rb-auditor task=T5 outcome=fail head=bbbbbbb -->', 'NONE'),
+  ];
+  const r = await rbJson(root, ['quality', '--since', '2026-10-01'], { ghRunner: gh.runner });
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.json.kickbacks, { mechanical: 1, verifier: 1, auditor: 1, security: 0, ci: 1 }, 'an outsider comment does not count');
+  assert.deepEqual(r.json.timing, [{ pr: 30, issue: 5, plan: 20, build: 40, review: 40, merge: 30 }]);
+  assert.match((await rb(root, ['quality', '--since', '2026-10-01'], { ghRunner: gh.runner })).out, /to plan 20, plan to first review 40/);
+});
