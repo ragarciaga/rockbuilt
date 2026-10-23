@@ -53,6 +53,8 @@ export function queueTwoPrs(ws) {
     ].join('\n');
     s.issues[n] = { number: n, title, body, state: 'open', labels: ['rb:tier-a', 'rb:pr-open'], isPr: true, author: 'rb-bot', author_association: 'OWNER', created_at: now() };
     s.pulls[n] = { number: n, head: branch, base: 'main', headSha: head };
+    // 0.10.0: the gate needs every review verdict posted on the task issue (DESIGN 24.2).
+    s.comments[issueNo] = [...(s.comments[issueNo] || []), { id: s.nextComment++, body: `## Verifier\n\nNo findings.\n\n<!-- rockbuilt:status stage=rb-verifier task=i${issueNo} outcome=pass head=${head} -->`, user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: now() }];
     return n;
   };
   const a = issue('Documentar el formato de entrada', ['rb:task', 'rb:pr-open']);
