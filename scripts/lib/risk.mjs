@@ -1,4 +1,5 @@
 // rb risk: mechanical autonomy tier from a diff (DESIGN.md section 6). A model may raise it, never lower it.
+import { isTestPath } from './delta.mjs';
 import path from 'node:path';
 import { contractInfo } from './contract.mjs';
 import { matchAny, normalizePath } from './glob.mjs';
@@ -69,6 +70,9 @@ const ENV_PATTERNS = [
 const ENV_DESTRUCTURE = /\{([^}]*)\}\s*=\s*(?:process\.env|import\.meta\.env|Deno\.env\.toObject\(\))/g;
 
 // Cost scanning covers every code file, tests and evals included: they run in CI with real secrets.
+// A line in a test that reaches the network rather than naming a URL.
+const NETWORK_CALL = /\b(fetch|axios(\.\w+)?|got|ky|superagent|request|https?\.(get|request)|page\.goto|page\.request\.\w+|request\.(get|post|put|patch|delete|fetch)|new\s+(WebSocket|EventSource|XMLHttpRequest)|navigator\.sendBeacon|urlopen|requests\.\w+|httpx\.\w+|curl|wget)\s*\(?/;
+
 function isSource(p) {
   return SOURCE_EXT.test(p);
 }
@@ -234,7 +238,11 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
           }
         }
         // Hosts: code and config files (an endpoint in src/config/endpoints.json is still a call).
-        if ((source || (config && !copy)) && !isComment(line)) {
+        // In test files a URL is usually an expected value (an href, a link in a README test), not
+        // a call: it counts only on a line that makes a request (3d_brain #226 and #258, rockbuilt
+        // #23 and #31). A test that does call a host still raises the tier.
+        const testFile = isTestPath(p);
+        if ((source || (config && !copy)) && !isComment(line) && (!testFile || NETWORK_CALL.test(line))) {
           for (const m of line.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,}|localhost|\[::1\]|\d+\.\d+\.\d+\.\d+)(?::\d+)?/gi)) {
             const host = m[1].toLowerCase();
             if (LOCAL_HOSTS.test(host) || NAMESPACE_HOSTS.test(host) || seen.has(`host:${host}`)) continue;

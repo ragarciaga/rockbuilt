@@ -32,6 +32,13 @@ function seed(gh, { tier = 'A', files, labels, body, checks, number = 10, mergea
   s.files[number] = fileList;
   s.checkRuns[HEAD] = checks || [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' }];
   s.nextNumber = 20;
+  // 0.10.0: every review line in the body has its verdict posted on the task issue.
+  postVerdicts(gh, s.issues[number].body);
+}
+
+function postVerdicts(gh, body, issue = 3) {
+  const s = gh.state;
+  s.comments[issue] = (s.comments[issue] || []).concat([...String(body).matchAll(/<!--\s*rockbuilt:status[^>]*-->/g)].map((m, i) => ({ id: 1000 + i, body: m[0], user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: '2026-10-16T00:00:00Z' })));
 }
 
 async function locked(root, gh, run = 'run-1') {
@@ -737,6 +744,24 @@ test('merge-gate: with an ## E2E section the rockbuilt-e2e check must exist and 
     { name: 'rockbuilt-e2e', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' },
   ] });
   await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate: every review line needs its verdict posted on the task issue (rockbuilt #34)', async () => {
+  const root = project();
+  const gh = fakeGh();
+  seed(gh, { tier: 'B' });
+  gh.state.comments[3] = gh.state.comments[3].filter((cm) => !/stage=rb-auditor/.test(cm.body));
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts' && /rb-auditor/.test(x.detail)));
+  // A verdict posted by an outside commenter does not count.
+  gh.state.comments[3].push({ id: 5000, body: statusLine('rb-auditor'), user: { login: 'x' }, author_association: 'NONE' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+  gh.state.comments[3].push({ id: 5001, body: `Audit...\n${statusLine('rb-auditor')}`, user: { login: 'rb-bot' }, author_association: 'OWNER' });
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 });

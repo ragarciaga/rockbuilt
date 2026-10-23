@@ -20,10 +20,10 @@ const READONLY_EDITORS = new Set(['verifier']);
 
 // rb subcommands no subagent may run (orchestrator only).
 const PRIVILEGED_RB = new Set([
-  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours', 'bookkeeping', 'quality', 'queue',
+  'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours', 'bookkeeping', 'quality', 'queue', 'claim',
 ]);
 // rb subcommands a read-only role may run (they only read).
-const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan']);
+const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan', 'browser', 'ci']);
 
 // "rb-implementer", "rockbuilt:rb-implementer", "implementer" -> "implementer".
 export function roleOf(agentType) {
@@ -774,6 +774,9 @@ function everyoneSegmentReason(seg, role, ctx) {
   const cost = costCliReason(w, ctx.cwd);
   if (cost) return cost;
   const name = commandName(w[0]);
+  // Kill by name matches other agents' processes in other worktrees and the shell itself
+  // (`pkill -f vite` matched its own command line: exit 144, 3d_brain twice despite LESSONS).
+  if (name === 'pkill' || name === 'killall') return `${name} is not allowed: stop only the process you started, with kill <pid> (or the port's pid from lsof -ti:<port>)`;
   if (name === 'git') {
     const g = parseGit(w);
     // Everyone: no per-command config (-c alias.x='!cmd', core.sshCommand, core.hooksPath) and no

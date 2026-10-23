@@ -20,7 +20,8 @@ export const CONTROL_ROTATE_AT = 1500;
 // issue that is not locked or stopped is closed and replaced by a fresh one.
 export function ensureControl(c, { create = true } = {}) {
   let list = ops.issueList(c, { labels: ['rb:control'], state: 'open' });
-  if (!list.length) list = ops.issueList(c, { state: 'open' }).filter((i) => i.title === CONTROL_TITLE);
+  // By title only from a trusted author: on a public repo anyone can open "Rockbuilt control" (#30).
+  if (!list.length) list = ops.issueList(c, { state: 'open' }).filter((i) => i.title === CONTROL_TITLE && (!i.author_association || ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(i.author_association)));
   if (list.length) {
     const issue = list.sort((a, b) => a.number - b.number)[0];
     if (!issue.labels.includes('rb:control')) ops.labelAdd(c, issue.number, ['rb:control']);

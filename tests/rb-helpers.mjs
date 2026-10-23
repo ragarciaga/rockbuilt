@@ -246,7 +246,7 @@ export function handle(s, method, fullPath, body) {
   if ((m = r.match(/^commits\/([^/]+)\/status$/))) return ok({ state: 'success', statuses: s.statuses[m[1]] || [] });
   if ((m = r.match(/^branches\/([^/]+)\/protection$/))) {
     if (s.protection.mode === 'paywall') return err(403, 'Upgrade to GitHub Pro or make this repository public to enable this feature.');
-    if (method === 'PUT') { s.protection = { mode: 'on', contexts: body.required_status_checks.contexts }; return ok({}); }
+    if (method === 'PUT') { s.protection = { mode: 'on', contexts: body.required_status_checks.contexts, ...(body.required_status_checks.strict ? { strict: true } : {}) }; return ok({}); }
     if (s.protection.mode === 'on') return ok({ required_status_checks: { contexts: s.protection.contexts } });
     return err(404, 'Branch not protected');
   }

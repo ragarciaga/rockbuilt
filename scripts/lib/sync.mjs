@@ -5,7 +5,36 @@ import { holdsLock } from './control.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
 import { currentBranch, defaultBranch } from './repo.mjs';
-import { exists, git, readText, slugify, toPosix } from './util.mjs';
+import { CliError, exists, git, now, readText, slugify, toPosix } from './util.mjs';
+
+export const CLAIM_TTL_MS = 3 * 60 * 60 * 1000;
+const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+
+// rb claim <issue> --run <id>: the issue is being worked on by this run or session. Adds
+// rb:in-progress and a dated claim comment (at most one per run every 30 minutes); rb sync keeps
+// a claim with activity in the last 3 hours, and the cycle skips issues labelled rb:in-progress.
+export function claimIssue(c, issue, { run, release = false }) {
+  if (!run || run === true || !/^[A-Za-z0-9._-]+$/.test(String(run))) throw new CliError('--run <id> is required', 2);
+  const n = Number(String(issue).replace(/^#/, ''));
+  if (!n) throw new CliError('usage: rb claim <issue> --run <id> [--release]', 2);
+  if (release) { ops.labelRemove(c, n, 'rb:in-progress'); return { issue: n, released: true }; }
+  const view = ops.issueView(c, n);
+  const at = now();
+  const others = [];
+  let mine = null;
+  for (const cm of view.comments) {
+    const m = cm.body.match(/<!--\s*rockbuilt:claim\s+run=(\S+)\s+at=(\S+)\s*-->/);
+    if (!m || !TRUSTED.has(cm.author_association)) continue;
+    if (m[1] === String(run)) mine = Date.parse(m[2]);
+    else others.push({ run: m[1], at: Date.parse(m[2]) });
+  }
+  const fresh = others.filter((o) => at.getTime() - o.at < CLAIM_TTL_MS && view.labels.includes('rb:in-progress'));
+  const latest = fresh.sort((a, b) => b.at - a.at)[0];
+  if (latest && (!mine || latest.at > mine)) return { issue: n, claimed: false, holder: latest.run, since: new Date(latest.at).toISOString() };
+  if (!view.labels.includes('rb:in-progress')) ops.labelAdd(c, n, ['rb:in-progress']);
+  if (!mine || at.getTime() - mine >= 30 * 60000) ops.issueComment(c, n, `<!-- rockbuilt:claim run=${run} at=${at.toISOString()} -->\nWorking on this (run \`${run}\`).`);
+  return { issue: n, claimed: true, run: String(run) };
+}
 
 export function specDirs(root) {
   const base = path.join(root, 'docs', 'specs');
@@ -71,6 +100,7 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   if (c) {
     try {
       for (const i of ops.issueList(c, { state: 'all' })) {
+        if (i.author_association && !TRUSTED.has(i.author_association)) continue; // rockbuilt #30
         const m = String(i.body || '').match(/<!--\s*rockbuilt:task\s+(\S+?)(?:\s+spec=(\S+?))?\s*-->/);
         if (m && m[2] && m[2] !== 'none') issueSpec.set(i.number, { id: m[1].toUpperCase().startsWith('T') ? m[1].toUpperCase() : m[1], spec: m[2].replace(/\/+$/, '') });
       }
@@ -149,24 +179,33 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
           result.labels.push({ issue: i.number, removed: label });
         }
       }
-      // A run that holds the lock is the only one working: rb:in-progress left on an open issue
-      // without an open PR is a claim from a run that died (timeout, exhausted context). A claim
-      // labelled after this run took the lock is its own (3d_brain, 2026-10-15: a mid-run sync
-      // cleared the run's own claims on #149, #162 and #163), and so is one we cannot date.
+      // A run that holds the lock clears rb:in-progress left by a run that died (timeout,
+      // exhausted context). A claim is alive while anything happens on it: labelled, claimed
+      // (`rb claim`), planned or reviewed within CLAIM_TTL, or since this run took the lock. An
+      // interactive session never holds the lock, so "older than the lock" alone is not stale
+      // (rockbuilt #35: the nightly cycle cleared a session's claim and built the same issue).
       const lock = run ? holdsLock(c, run) : { held: false };
       if (lock.held) {
         const since = Date.parse(lock.since) || 0;
+        const at = now().getTime();
         const prOpen = new Set(ops.issueList(c, { labels: ['rb:pr-open'], state: 'open' }).map((i) => i.number));
         for (const i of ops.issueList(c, { labels: ['rb:in-progress'], state: 'open' })) {
           if (prOpen.has(i.number)) continue;
-          let claimed = null;
+          let active = null;
           try {
             const ev = ops.issueEvents(c, i.number).filter((e) => e.event === 'labeled' && e.label === 'rb:in-progress');
-            claimed = ev.length ? Date.parse(ev[ev.length - 1].created_at) || null : 0;
+            const times = ev.map((e) => Date.parse(e.created_at) || 0);
+            for (const cm of ops.issueComments(c, i.number)) {
+              if (!TRUSTED.has(cm.author_association) || !/<!--\s*rockbuilt:/.test(cm.body)) continue;
+              const claimAt = (cm.body.match(/<!--\s*rockbuilt:claim\s+run=\S+\s+at=(\S+)\s*-->/) || [])[1];
+              times.push(Date.parse(claimAt || cm.created_at) || 0);
+            }
+            active = times.length ? Math.max(...times) : 0;
           } catch {
-            claimed = null;
+            active = null;
           }
-          if (claimed === null || claimed >= since) { result.labels.push({ issue: i.number, kept: 'rb:in-progress', reason: claimed === null ? 'claim time unknown' : 'claimed by this run' }); continue; }
+          const reason = active === null ? 'claim time unknown' : active >= since ? 'claimed by this run' : at - active < CLAIM_TTL_MS ? `claimed elsewhere ${Math.round((at - active) / 60000)} min ago` : null;
+          if (reason) { result.labels.push({ issue: i.number, kept: 'rb:in-progress', reason }); continue; }
           ops.labelRemove(c, i.number, 'rb:in-progress');
           result.labels.push({ issue: i.number, removed: 'rb:in-progress', reason: 'stale claim' });
         }

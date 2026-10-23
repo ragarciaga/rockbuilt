@@ -8,7 +8,7 @@ import { defaultBranch, resolveBaseRef } from './repo.mjs';
 import { readContract } from './contract.mjs';
 import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
 import { parseQueueRecord } from './queue.mjs';
-import { classify, isTestPath } from './delta.mjs';
+import { classify, isTestPath, normalizePatch, samePatches } from './delta.mjs';
 import { computeRisk, maxTier, tierRank } from './risk.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
 
@@ -34,13 +34,22 @@ export function ciPassed(checks) {
     && x.source === 'check-run' && x.app === 'github-actions' && x.status === 'completed' && x.conclusion === 'success');
 }
 
+const TRUSTED_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+
+// Every status line in a text, in order, as { stage, outcome, head, ... }.
+export function parseStatusList(text) {
+  return [...String(text || '').matchAll(/<!--\s*rockbuilt:status\s+([^>]*?)\s*-->/g)]
+    .map((m) => Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\S+)/g)].map((x) => [x[1], x[2]])))
+    .filter((kv) => kv.stage);
+}
+function parseStatusLines(text) {
+  return Object.fromEntries(parseStatusList(text).map((kv, i) => [i, kv]));
+}
+
 // Machine lines in a PR body: last status line per stage, tier line, security flag.
 export function parseBody(body) {
   const status = {};
-  for (const m of String(body || '').matchAll(/<!--\s*rockbuilt:status\s+([^>]*?)\s*-->/g)) {
-    const kv = Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\S+)/g)].map((x) => [x[1], x[2]]));
-    if (kv.stage) status[kv.stage] = kv;
-  }
+  for (const kv of parseStatusList(body)) status[kv.stage] = kv;
   const tier = (String(body || '').match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
   const security = /<!--\s*rockbuilt:security\s+required\s*-->/i.test(body || '') || /^\s*security:\s*required\s*$/mi.test(body || '');
   const closes = [...String(body || '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map((m) => Number(m[1]));
@@ -90,6 +99,11 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
     };
     const differing = touched.filter((p) => read(atOld, p, reviewedHead) !== read(atNow, p, head));
     const cls = classify(differing);
+    if (cls !== 'identical') {
+      // The same task diff on a base that moved elsewhere (rockbuilt #24): compare the patches.
+      const patches = (files) => new Map(files.map((f) => [f.filename, typeof f.patch === 'string' ? normalizePatch(f.patch) : null]));
+      if (samePatches(patches(before.files), patches(after.files))) return { class: 'identical', detail: 'same task diff as reviewed (the base changed other parts)' };
+    }
     if (cls === 'identical') return { class: cls, detail: `${touched.length} touched file(s), same content as reviewed` };
     if (cls === 'test-only') return { class: cls, detail: `only test files changed: ${differing.slice(0, 3).join(', ')}` };
     return { class: cls, detail: `app files changed: ${differing.filter((p) => !isTestPath(p)).slice(0, 3).join(', ')}` };
@@ -316,6 +330,26 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
         const id = identity.get(carry.from);
         if (!carry.allowed.includes(id.class)) no('stale-head', `${stage} reviewed ${s.head}; the verifier carries it forward, but the gate finds the change ${id.class} (${id.detail}): re-review`);
       } else no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
+    }
+  }
+
+  // 4b. Every review line in the body matches a verdict posted on the task issue (rockbuilt #34):
+  // the issue is the record of every pass and fail, which is what rb quality counts. Lines that
+  // rb wrote itself (`by=rb-review-delta`) are re-checked above, not posted.
+  if (body.closes.length) {
+    let posted = null;
+    try {
+      posted = body.closes.flatMap((n) => ops.issueComments(c, n)).filter((cm) => TRUSTED_ASSOC.has(cm.author_association)).flatMap((cm) => Object.values(parseStatusLines(cm.body)));
+    } catch (e) {
+      no('verdicts', `could not read the task issue: ${e.message}`);
+    }
+    if (posted) {
+      for (const stage of need) {
+        const line = body.status[stage];
+        if (!line || line.by === 'rb-review-delta') continue;
+        const match = posted.some((v) => v.stage === stage && v.outcome === line.outcome && sameSha(v.head || '', line.head || '') && (v.task || null) === (line.task || null));
+        if (!match) no('verdicts', `the ${stage} line (head ${String(line.head || '?').slice(0, 7)}) has no matching verdict on #${body.closes[0]}: post the reviewer's final message there (rb gh issue-comment ${body.closes[0]} --body-file <its report>)`);
+      }
     }
   }
 
