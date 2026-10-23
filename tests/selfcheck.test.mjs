@@ -349,3 +349,7 @@ test('every bash run block in the workflows parses with bash -n', (t) => {
   }
   assert.deepEqual(problems, []);
 });
+
+test('the vendored Playwright config reads PW_CHROMIUM_PATH (rb browser hands agents that path)', () => {
+  assert.match(readFileSync(path.join(ROOT, 'harness/web/playwright.config.ts'), 'utf8'), /executablePath:\s*process\.env\.PW_CHROMIUM_PATH/);
+});

@@ -765,6 +765,39 @@ function costCliReason(w, cwd, depth = 0) {
   return `${name} ${sub || ''}`.trim() + ' can deploy, spend money or change live systems: escalate it to the human (tier C)';
 }
 
+// Stop only a process you started, by its PID. Kill by name (pkill, killall, a pgrep list piped or
+// substituted into kill, fuser -k, kill-port) or by group (kill 0, kill -1, negative pids) also hits
+// other agents' processes and the shell itself (3d_brain #37; 0.10.0 review).
+const BY_PORT = /^(?:[^|;&`$]*;\s*|[^|;&`$]*&&\s*)?(?:lsof\s+(?:-t\s*-i|-ti)\s*:?\d+(?:\s+-s\S+)?\s*\|\s*xargs\s+(?:-r\s+)?kill(?:\s+-\w+)?|kill(?:\s+-\w+)?\s+\$\(\s*lsof\s+(?:-t\s*-i|-ti)\s*:?\d+\s*\))\s*(?:2>\/dev\/null)?\s*(?:\|\|\s*true)?\s*$/;
+let topCommand = '';
+const KILL_HINT = 'stop only the process you started, with kill <pid> (or the port\'s pid from lsof -ti:<port>)';
+function killReason(w, name) {
+  if (name === 'busybox' && w[1]) return killReason(w.slice(1), commandName(w[1]));
+  if (['pkill', 'killall', 'killall5', 'kill-port', 'fkill'].includes(name)) return `${name} is not allowed: ${KILL_HINT}`;
+  if ((name === 'npx' || name === 'pnpx') && w.slice(1).some((x) => /^(kill-port|fkill(-cli)?)(@|$)/.test(x))) return `kill-port is not allowed: ${KILL_HINT}`;
+  if (name === 'fuser' && w.some((x) => /^-[A-Za-z]*k/.test(x))) return `fuser -k is not allowed: ${KILL_HINT}`;
+  if (name !== 'kill') return null;
+  const args = w.slice(1);
+  if (args.some((x) => /^-(l|L|-list|-table)$/.test(x))) return null;
+  const pids = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--') { pids.push(...args.slice(i + 1)); break; }
+    if (!pids.length && (a === '-s' || a === '-n')) { i++; continue; }
+    if (!pids.length && /^-([A-Za-z]+|\d+)$/.test(a) && i === 0) continue; // the signal (-9, -TERM)
+    pids.push(a);
+  }
+  // The pid list may come from the port the process listens on: `lsof -ti:<port> | xargs kill` or
+  // `kill $(lsof -ti:<port>)`. Any other source (pgrep, ps | grep) is kill by name.
+  if (!pids.length || pids.some((p) => /^\$\(|^`/.test(p))) return BY_PORT.test(topCommand) ? null : `kill with a pid list from another command is allowed only from lsof -ti:<port>: ${KILL_HINT}`;
+  for (const p of pids) {
+    if (/^%\d*$/.test(p) || /^\d+$/.test(p) && Number(p) > 0) continue;
+    if (/^"?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"?$/.test(p)) continue; // kill $PID (from $! or lsof)
+    return `kill ${p} is not allowed: ${KILL_HINT}`;
+  }
+  return null;
+}
+
 // Rules for everyone (main session included) on one segment.
 function everyoneSegmentReason(seg, role, ctx) {
   const env = envReadReason(seg);
@@ -776,7 +809,8 @@ function everyoneSegmentReason(seg, role, ctx) {
   const name = commandName(w[0]);
   // Kill by name matches other agents' processes in other worktrees and the shell itself
   // (`pkill -f vite` matched its own command line: exit 144, 3d_brain twice despite LESSONS).
-  if (name === 'pkill' || name === 'killall') return `${name} is not allowed: stop only the process you started, with kill <pid> (or the port's pid from lsof -ti:<port>)`;
+  const kr = killReason(w, name);
+  if (kr) return kr;
   if (name === 'git') {
     const g = parseGit(w);
     // Everyone: no per-command config (-c alias.x='!cmd', core.sshCommand, core.hooksPath) and no
@@ -813,6 +847,7 @@ const ALIAS_RE = /(?:^|[\s;&|(])(?:alias\s+[A-Za-z_][\w-]*|[A-Za-z_]\w*)=(["']?)
 
 function checkCommandString(src, role, ctx, depth = 0) {
   if (depth > 5 || typeof src !== 'string') return null;
+  if (depth === 0) topCommand = src.trim();
   const isWrite = role && WRITE_ROLES.has(role);
   const isRead = role && READONLY_ROLES.has(role);
   if (depth === 0 && ALIAS_RE.test(src)) return 'write every rb, git or gh command out in full, no shell variable or alias standing for it: unattended runs allow only commands that literally match the permission list';

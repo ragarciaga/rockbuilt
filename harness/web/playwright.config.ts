@@ -17,6 +17,9 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // A preinstalled Chromium when the installed Playwright version has no browser of its own
+    // (`node tools/rockbuilt/rb.mjs browser` prints the path).
+    launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH || undefined },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: process.env.E2E_BASE_URL
