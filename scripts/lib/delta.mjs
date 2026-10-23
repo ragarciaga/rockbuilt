@@ -8,7 +8,6 @@
 // auditor and the security reviewer saw is unchanged), different (any other file differs).
 // `rb merge-gate` re-checks the same rule through GitHub; it never trusts this output.
 import { matchAny, normalizePath } from './glob.mjs';
-import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
 import { git, gitRaw } from './util.mjs';
 
 // Files whose content cannot change what the running app does. Anything not listed counts as app.
@@ -22,11 +21,13 @@ export const isTestPath = (p) => {
   return matchAny(n, TEST_GLOBS) && !matchAny(n, ROUTED_GLOBS);
 };
 
-// { identical | test-only | different } from the paths whose content differs. The harness's own
-// bookkeeping files (tasks.md status, progress.md, LESSONS.md) never change what the app does or
-// what CI runs: a difference only there is identical (3d_brain #228, rockbuilt #24).
+// { identical | test-only | different } from the paths whose content differs. Task status
+// (tasks.md) and progress notes never change what the app does or what CI runs: a difference only
+// there is identical (3d_brain #228, rockbuilt #24). LESSONS.md is not exempt: every agent reads it
+// as binding, so a change to it after the review is a change the reviewers did not see.
+const NOTES_FILE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md)$/;
 export function classify(differing) {
-  const rest = differing.filter((p) => !BOOKKEEPING_FILE.test(normalizePath(p)));
+  const rest = differing.filter((p) => !NOTES_FILE.test(normalizePath(p)));
   if (!rest.length) return 'identical';
   return rest.every(isTestPath) ? 'test-only' : 'different';
 }
@@ -42,22 +43,27 @@ export function normalizePatch(patch) {
 
 // True when two per-file patch maps hold the same change (same files, same normalized patches).
 export function samePatches(a, b) {
-  const ka = [...a.keys()].filter((p) => !BOOKKEEPING_FILE.test(p)).sort();
-  const kb = [...b.keys()].filter((p) => !BOOKKEEPING_FILE.test(p)).sort();
+  const ka = [...a.keys()].filter((p) => !NOTES_FILE.test(p)).sort();
+  const kb = [...b.keys()].filter((p) => !NOTES_FILE.test(p)).sort();
   if (ka.length !== kb.length || ka.some((k, i) => k !== kb[i])) return false;
   return ka.every((k) => a.get(k) !== null && a.get(k) === b.get(k));
 }
 
+// Per-file patches between two commits. File names come from `-z` (spaces, non-ASCII), and each
+// patch is read on its own, so a content line that starts with `--- ` is never taken for a header
+// (0.10.0 review).
 function localPatches(root, from, to) {
-  const r = gitRaw(root, ['diff', '--no-renames', '--no-color', from, to]);
-  if (!r.ok) return null;
+  const list = names(root, from, to);
+  if (list === null) return null;
   const out = new Map();
-  for (const chunk of r.stdout.split(/^diff --git /m).slice(1)) {
-    const m = chunk.match(/^a\/(\S+) b\/(\S+)/);
-    if (!m) continue;
-    if (/^Binary files /m.test(chunk)) { out.set(m[2], null); continue; }
-    const body = chunk.split('\n').filter((l) => !/^(--- |\+\+\+ |new file mode|deleted file mode|old mode|new mode)/.test(l)).slice(1).join('\n');
-    out.set(m[2], normalizePatch(body));
+  for (const p of list) {
+    const r = gitRaw(root, ['diff', '--no-renames', '--no-color', '--binary', from, to, '--', p]);
+    if (!r.ok) return null;
+    if (/^GIT binary patch$|^Binary files /m.test(r.stdout)) { out.set(p, null); continue; }
+    const lines = r.stdout.split('\n');
+    const first = lines.findIndex((l) => l.startsWith('@@'));
+    const head = lines.slice(0, first === -1 ? lines.length : first).filter((l) => /^(old mode|new mode|new file mode|deleted file mode) /.test(l));
+    out.set(p, normalizePatch([...head, ...(first === -1 ? [] : lines.slice(first))].join('\n')));
   }
   return out;
 }
