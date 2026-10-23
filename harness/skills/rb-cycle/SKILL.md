@@ -21,12 +21,13 @@ section, plus its references (`plan.md`, `kickback.md`, `parallel.md`, `pr-templ
 Bugs (`rb:bug`) follow `.claude/skills/rb-fix/SKILL.md`. This file adds intake, ordering, limits,
 unattended rules, the train timing, bookkeeping and the digest. It adds no authority.
 
-**Language.** Human-facing text (escalations, issue and PR comments, the digest, progress.md,
-the final report) uses the `Docs language` from AGENTS.md (fallback CLAUDE.md), or the language of
-the current request if the user writes in another language; existing documents keep their
-language. In Spanish, address the user as tú (never vos; usted only if the user writes that way).
-Agent prompts are in English with `Docs language: <code>`. Labels, commit types, branch and file
-names stay in English. Never use the em dash character; use commas or parentheses.
+**Language.** **Repository text** (files, commits, escalations, issue and PR comments, the digest,
+progress.md) uses the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing documents keep
+their language unless AGENTS.md says otherwise. **Chat** with the user (questions, the final report)
+uses the language the user writes in (before they write: `Docs language`). In Spanish, address the
+user as tú (never vos; usted only if the user writes that way). Agent prompts are in English and
+carry `Docs language: <code>`. Labels, commit types, branch and file names stay in English. Never
+use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
 fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). GitHub only
@@ -72,7 +73,8 @@ No command substitution: run a command, paste its literal output into the next.
    carry --run <run id>` applies it to the checkout, and this run's saves land on that same PR.
    Exit 3 (it does not apply): that PR is left alone, note it for the digest.
    Then `rb sync --run <run id>` (with the lock held it also clears `rb:in-progress` claims left
-   by a run that died).
+   by a run that died: no claim comment or rockbuilt activity within 3 hours; an interactive
+   session's live claim is kept).
 4. Setup commands (`rb verify-cmds Setup`) when `node_modules` or the equivalent is missing.
 5. **Baseline.** `rb baseline --check` on the default branch. A failure outside
    `docs/rockbuilt/known-failures.json`: escalate on `<ctl>` (`Default branch red` template), no

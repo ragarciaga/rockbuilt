@@ -26,6 +26,17 @@ must therefore be a committed script, not a transcript of a browsing session.
   rendering.
 - Include a coverage line: every `[e2e]` criterion maps to at least one case.
 
+## Layout and the viewport matrix
+
+Any criterion about layout, a header, a menu, a dialog or "phone" is checked on the whole matrix,
+not one size: 320x568, 360x740 and 390x844 portrait, one landscape phone size (740x360), and 125 %
+root text (`document.documentElement.style.fontSize = '125%'`) at 360 and 390. A project overrides
+it with a `Viewports:` line in AGENTS.md (same `WxH` list). The pass condition is observable at
+every size: no horizontal scroll, no control outside the viewport, every button of a dialog
+reachable. Prefer intrinsic layout (flex-wrap, `min()`, `clamp()`, wrapping groups) over a
+breakpoint measured at one text size: a breakpoint that fits at 100 % text breaks at 125 %
+(rockbuilt #36).
+
 ## Cloud runs
 
 Cloud sessions and routines start from a fresh clone, often without a usable browser, Docker or

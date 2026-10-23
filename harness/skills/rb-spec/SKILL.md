@@ -24,13 +24,14 @@ human approves. Once both are approved, tasks, plans and tier A/B merges for thi
 no further approval. So this skill must get the decisions right and explicit; everything
 downstream trusts it.
 
-**Language.** Detect the user's conversation language; if AGENTS.md has `Docs language:` use it
-for files unless the user is clearly writing in another language now. requirements.md,
-design.md, ADRs, research reports and every question are in that language (DESIGN.md section 2).
-In Spanish, address the user as tú (never vos; usted only if the user writes that way). EARS
-keywords follow the language (Spanish: `Cuando <evento>, el sistema deberá <respuesta>.`). IDs
-(`R1.2`), tags (`[unit]`), file names and code identifiers stay in English. Never use the em dash
-character; use commas or parentheses.
+**Language.** **Repository text** (requirements.md, design.md, ADRs, research reports, issues) uses
+the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing documents keep their language
+unless AGENTS.md says otherwise. **Chat** with the user (every question) uses the language the user
+writes in (before they write: `Docs language`). (DESIGN.md section 2). In Spanish, address the user
+as tú (never vos; usted only if the user writes that way). EARS keywords follow the `Docs language`
+(Spanish: `Cuando <evento>, el sistema deberá <respuesta>.`). IDs (`R1.2`), tags (`[unit]`), file
+names and code identifiers stay in English. Never use the em dash character; use commas or
+parentheses.
 
 Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list).
 

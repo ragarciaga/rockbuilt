@@ -26,6 +26,11 @@ blind auditor, with fresh context, will check every claim you make.
 - Optionally `Fix ONLY these findings` (kickback from the verifier, auditor, security reviewer
   or a failed mechanical check) or `Fix ONLY this CI failure`, with the previous report and the
   findings or log.
+- Optionally `Mode: measure` with a question about the current layout (before any plan): write
+  one throwaway Playwright script outside the source tree (under `.rockbuilt/`), measure the
+  widths, heights and positions the question names at every size of the viewport matrix
+  (`.claude/skills/rb-verify/references/e2e.md`), delete the script, change no file, and return
+  only the numbers as a table with `Status: complete`.
 - Optionally a resume brief: partial work exists in the tree. Continue from it; do not revert it
   or redo completed steps.
 

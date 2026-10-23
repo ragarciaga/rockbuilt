@@ -55,7 +55,10 @@ Read `.claude/LESSONS.md` first (it is binding). If the prompt gives `Browser pa
    - UI: Playwright MCP. Navigate, take an accessibility snapshot, act through roles and labels,
      then observe the outcome the criterion names (text shown, URL, a protected page loading, a
      network response status and body via network requests, console errors). Take a screenshot
-     for each verdict that depends on what the page shows.
+     for each verdict that depends on what the page shows. A criterion about layout, a header, a
+     menu, a dialog or "phone" is judged at every size of the viewport matrix
+     (`.claude/skills/rb-verify/references/e2e.md`), whatever sizes the criterion names; a
+     failure at any size is a fail.
    - API: an HTTP call through the browser (navigate for GET, network requests for the response),
      or an existing CLI entry point.
    - CLI or library: run the command or the existing test entry point with real inputs and read

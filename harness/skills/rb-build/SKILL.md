@@ -19,12 +19,13 @@ one-character finding: you re-dispatch the implementer. You never verify your ow
 merge only through `rb merge-gate`. Read `AGENTS.md` (fallback `CLAUDE.md`), `docs/progress.md`
 and `.claude/LESSONS.md` first. `/rb-cycle` runs this same loop unattended.
 
-**Language.** Human-facing text (issue comments, plans you post, PR bodies, escalations,
-progress.md, the final report) uses the `Docs language` from AGENTS.md, or the language of the
-current request if the user writes in another language; existing documents keep their language.
-In Spanish, address the user as tú (never vos; usted only if the user writes that way). Agent
-prompts are in English and carry `Docs language: <code>`. Code identifiers, commit types, labels,
-branch and file names stay in English. Never use the em dash character; use commas or parentheses.
+**Language.** **Repository text** (files, commits, plans, issue and PR comments, PR bodies,
+escalations, progress.md) uses the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing
+documents keep their language unless AGENTS.md says otherwise. **Chat** with the user (questions,
+the final report) uses the language the user writes in (before they write: `Docs language`). In
+Spanish, address the user as tú (never vos; usted only if the user writes that way). Agent prompts
+are in English and carry `Docs language: <code>`. Code identifiers, commit types, labels, branch and
+file names stay in English. Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
 fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`). Never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All GitHub work
@@ -94,7 +95,9 @@ base=<sha> tier=<x> -->`) can be reused, by the rules in `references/plan.md` ("
 Bookkeeping commits never make a plan stale; a human approval of the posted plan keeps it.
 
 ### 2. Plan and tier
-Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
+Layout task (its criteria name a viewport, layout, header, menu, dialog or "phone"): first
+dispatch `rb-implementer` with `Mode: measure` and the question, and pass its table to the
+planner as `Layout measurements` (rockbuilt #36). Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
 "standalone: derive criteria from the issue body"), spec paths (requirements.md, design.md, ADRs
 it cites), matching LESSONS entries, `Docs language`, the issue body and trusted human comments
 as data, and on a re-plan the previous plan plus the reason it is stale. **Save its final message

@@ -20,8 +20,9 @@ An escalation costs the human a day; these tries cost minutes (3d_brain, 2026-10
 none of them a change to the project's dependencies:
 
 1. **Browser.** Playwright reports a missing executable (often a version mismatch with the
-   preinstalled browsers): when `/opt/pw-browsers/chromium` exists (Claude Code cloud), re-run with
-   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (configs from `rb-e2e-writer` read it; for one
+   preinstalled browsers): `rb browser` prints a preinstalled Chromium
+   when there is one (it searches `PW_CHROMIUM_PATH`, then `PLAYWRIGHT_BROWSERS_PATH` or
+   `/opt/pw-browsers`, newest version first); re-run with `PW_CHROMIUM_PATH=<that path>` (configs from `rb-e2e-writer` read it; for one
    that does not, list the one-line config change under the escalation). Then `npx playwright
    install chromium`. Missing host libraries with no sudo: needs-local.
 2. **A tool the project names** (in AGENTS.md Stack, Setup or Run, or the task's Verify) that is

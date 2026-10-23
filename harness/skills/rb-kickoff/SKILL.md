@@ -19,11 +19,12 @@ You are the main session. Do all of this yourself (no subagents): it is judgment
 opinionated: the user wants help settling on an approach, not a stenographer. A kickoff that
 feels like an interrogation has failed.
 
-**Language.** Detect the user's conversation language. Every question, summary, brief, ADR,
-issue and handoff you produce is in that language; record it as `Docs language:` in AGENTS.md.
-File names, labels and code identifiers stay in English. In Spanish, address the user as tú
-(never vos; usted only if the user writes that way). Never use the em dash character; use
-commas or parentheses.
+**Language.** **Chat** (every question and summary) uses the language the user writes in.
+**Repository text** (brief, ADRs, issues, handoff, commits) uses the `Docs language` you record in
+AGENTS.md: the chat language unless the user wants the repository in another one (chat in Spanish,
+repository in English sets `Docs language: en`); ask once in the interview. File names, labels and
+code identifiers stay in English. In Spanish, address the user as tú (never vos; usted only if the
+user writes that way). Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Commands below are written `rb <cmd>`. Once the harness is vendored, run them
 as `node tools/rockbuilt/rb.mjs <cmd>`. Before that (Steps 0 to 5.2), use the plugin copy:

@@ -303,9 +303,11 @@ plugin is only the installer and updater: run `/rockbuilt:install` again to upda
 <summary>The rb CLI</summary>
 
 Deterministic steps live in a small Node CLI: `node tools/rockbuilt/rb.mjs <command>` in a project.
-Commands: `vendor`, `doctor`, `verify-cmds`, `e2e-plan`, `baseline`, `tasks`, `parallel`,
-`worktree`, `timing`, `hours`, `risk`, `review-delta`, `sync`, `gh`, `merge-gate`, `revert`,
-`control`, `lock`, `stop`, `escalate`, `digest`, `flaky`, `protect`, `labels`. Every command accepts
+Commands: `vendor`, `init`, `doctor`, `verify-cmds`, `e2e-plan`, `baseline`, `tasks`,
+`parallel`, `worktree`, `timing`, `hours`, `risk`, `review-delta`, `bookkeeping`, `ci` (wait for
+CI on a commit, read a failing job's log), `browser` (find a preinstalled Chromium), `queue`,
+`quality`, `claim`, `sync`, `gh`, `merge-gate`, `revert`, `control`, `lock`, `stop`, `escalate`,
+`digest`, `flaky`, `protect`, `labels`. Every command accepts
 `--json`; `help` lists the flags.
 
 `rb doctor` checks the whole setup (contract, CI, permissions, labels, control issue, branch

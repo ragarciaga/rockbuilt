@@ -120,6 +120,10 @@ test('every SKILL.md states the language rule, the tú register and the em dash 
   for (const s of skillFiles()) {
     const id = `${s.base}/${s.dir}`;
     if (!/Docs language/.test(s.text)) problems.push(`${id}: no Docs language rule`);
+    // rockbuilt #33: repository text follows Docs language, chat follows the user.
+    const lang = (s.text.match(/^\*\*Language\.\*\*[\s\S]*?(?=\n\n)/m) || [''])[0];
+    if (!/Repository text/.test(lang) || !/\*\*Chat\*\*/.test(lang)) problems.push(`${id}: Language paragraph does not split repository text and chat`);
+    if (/keep their language(?! unless AGENTS\.md)/.test(lang.replace(/\s+/g, ' '))) problems.push(`${id}: "keep their language" without "unless AGENTS.md says otherwise"`);
     if (!/(^|[^\p{L}])tú([^\p{L}]|$)/u.test(s.text) || !/\bvos\b/.test(s.text)) problems.push(`${id}: no tú/vos register line`);
     if (!/em\s+dash/i.test(s.text)) problems.push(`${id}: no em dash rule`);
   }

@@ -56,8 +56,9 @@ serial path below: the queue only skips work when GitHub shows the result is the
      is not a reason to update). `rb gh pr-update-branch <pr>` once per PR per run (never a
      local merge, never a push to that branch from here), then read the new head SHA. Same
      head: hold, next PR.
-3. **Wait for CI**, bounded, timed (`rb timing start <id> ci` ... `end`). Poll `rb gh checks
-   <head sha>` every 60 s (`sleep 60`), at most 30 polls. All completed: go on. Still pending: hold ("CI pending on <sha>", the next run re-reads
+3. **Wait for CI**, bounded, timed (`rb timing start <id> ci` ... `end`). `rb ci wait <head sha>
+   --timeout 30` (it polls for you: exit 0 green, 1 red, 3 still running; never a hand-written
+   `sleep` loop). Red: `rb ci logs <head sha>` gives the failing job's log tail. Exit 3: hold ("CI pending on <sha>", the next run re-reads
    it), next PR. No `rockbuilt-ci` check at all: not eligible, escalate once (`No CI` template).
    Unattended runs do not sit in this wait while build work remains: evaluate the train after the
    build batch, so most CI runs have finished.
@@ -91,7 +92,8 @@ serial path below: the queue only skips work when GitHub shows the result is the
        base merge), for tier B the auditor again (a re-audit, `audit.md`), security when
        required; rewrite every machine line with the new head.
      The gate re-checks the class through GitHub and refuses a carried line it cannot confirm.
-     Then apply the new lines with `rb gh pr-line <pr> --line "<line>"` (one call per line) and run
+     Then apply the new lines with `rb gh pr-line <pr> --stage <rb-agent> --task <id> --outcome
+     <o> --head <sha>` (one call per line; the flags build and validate the line, rockbuilt #38) and run
      the gate once more.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).

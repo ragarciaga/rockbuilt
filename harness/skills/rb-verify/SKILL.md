@@ -25,11 +25,12 @@ You are the orchestrator. Only you run git and `rb gh`, write tasks.md, progress
 LESSONS.md, and talk to the user. Subagents return report bodies; you write them into the spec
 folder. You never write app code or eval code: what a gate needs becomes a task (Step 4).
 
-**Language.** All human-facing output (artifacts, issues, the summary, questions) is in the
-`Docs language` from AGENTS.md (fallback `CLAUDE.md` for v0.2 projects), switching if the user
-writes in another language now. In Spanish, address the user as tú (never vos; usted only if the
-user writes that way). Agent prompts are in English and carry `Docs language: <code>`. Never use
-the em dash character; use commas or parentheses.
+**Language.** **Repository text** (the artifacts, issues, comments, escalations) uses the `Docs
+language` from AGENTS.md (fallback CLAUDE.md); existing documents keep their language unless
+AGENTS.md says otherwise. **Chat** with the user (questions, the summary) uses the language the user
+writes in (before they write: `Docs language`). In Spanish, address the user as tú (never vos; usted
+only if the user writes that way). Agent prompts are in English and carry `Docs language: <code>`.
+Never use the em dash character; use commas or parentheses.
 
 Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub operations go through `rb gh <op>` (REST); never `gh issue`, `gh pr` or `gh label`. Agent

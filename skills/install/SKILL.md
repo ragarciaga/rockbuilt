@@ -20,11 +20,11 @@ section 3): cloud sessions do not load plugins, but they do load whatever is com
 repo. After this skill, every Rockbuilt command is a project skill (`/rb-kickoff`, `/rb-adopt`,
 `/rb-cycle`, ...) and `rb` runs as `node tools/rockbuilt/rb.mjs <cmd>`.
 
-**Language.** Everything the user reads (questions, the summary, the commit message body, the PR
-body) uses the `Docs language` from AGENTS.md (fallback CLAUDE.md) when it exists, otherwise the
-language of the current request. In Spanish, address the user as tú (never vos; usted only if
-the user writes that way). Never use the em dash character; use commas or parentheses. Commands,
-file names, labels and commit types stay in English.
+**Language.** **Repository text** (the commit message body, the PR body) uses the `Docs language`
+from AGENTS.md (fallback CLAUDE.md) when it exists, otherwise the language of the current request.
+**Chat** with the user (questions, the summary) uses the language the user writes in. In Spanish,
+address the user as tú (never vos; usted only if the user writes that way). Never use the em dash
+character; use commas or parentheses. Commands, file names, labels and commit types stay in English.
 
 **Invoking rb.** Before the harness is vendored, run the plugin copy:
 `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`. If `CLAUDE_PLUGIN_ROOT` is empty (a cloud

@@ -179,7 +179,9 @@ merge deja en el PR el comando para revertirlo.
 
 En un repo privado con el plan gratuito de GitHub no se puede activar la protección de ramas, así
 que las reglas las aplica `rb merge-gate`. Con GitHub Pro (USD 4 al mes, decisión tuya) o un repo
-público, `rb protect` hace que GitHub mismo exija la CI.
+público, `rb protect` hace que GitHub mismo exija la CI: el check `rockbuilt-ci` (y `rockbuilt-e2e`
+cuando el proyecto tiene E2E), sin exigir que el PR esté al día con main, porque esa regla
+bloquearía la cola de merges; el gate ya revisa el árbol que se va a fusionar.
 
 ## Playwright (pruebas en el navegador)
 
@@ -194,7 +196,8 @@ Después de que el esqueleto instale las dependencias:
 
 Cada tarea que toque pantallas corre las pruebas E2E antes de abrir el PR. En la nube, si el
 navegador no arranca, primero intenta con el Chromium que ya trae la nube
-(`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`; la configuración que escribe el harness lo lee).
+(`node tools/rockbuilt/rb.mjs browser` imprime su ruta y la corrida la pasa como
+`PW_CHROMIUM_PATH`; la configuración que escribe el harness lo lee).
 Si tampoco arranca, la tarea queda con `rb:needs-local` y los comandos para correrlas en tu
 computador.
 
