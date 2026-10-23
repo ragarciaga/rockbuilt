@@ -64,4 +64,17 @@ export function queueTwoPrs(ws) {
   return s;
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs };
+// One bug issue (#1) reported by the owner, for an interactive /rb-fix: the session must claim it
+// (`rb claim`) and post every reviewer verdict on it, which the gate then requires (0.10.0, #34
+// and #35).
+export function bugIssue() {
+  const s = baseState();
+  const n = s.nextNumber++;
+  s.issues[n] = {
+    number: n, title: 'Comida y comida salen como dos categorías', state: 'open', labels: ['rb:bug'], author: 'rb-bot', author_association: 'OWNER', created_at: now(),
+    body: '## Esperado\nEn el reporte de octubre una sola fila `comida` con 205000.\n\n## Actual\n`Comida` y `comida` salen como dos filas.\n\n## Pasos\n`node src/cli.js sample-expenses.json 2026-10`\n',
+  };
+  return s;
+}
+
+export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue };

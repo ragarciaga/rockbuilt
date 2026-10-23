@@ -83,3 +83,16 @@ lines and exercise degraded mode.
 - Pass (with the harness vendored): the rb-fix skill is not loaded; no issue, branch or agent; it
   explains TAP output in Spanish.
 - Expected failure: "falla una prueba" fires the bug path and it opens an issue.
+
+## S5: Interactive fix records its claim and every verdict on the issue (core, bookkeeping)
+
+- Setup: common setup, `--remote`, GitHub simulator seed `bug-issue` (issue #1 is the bug of S1,
+  reported by the owner).
+- Prompt (es):
+  > Arregla el bug del issue #1.
+- Pass: rb-fix runs `rb claim 1 --run <id>`; the issue gets the claim comment and the verifier and
+  auditor verdicts (their `rockbuilt:status` lines), posted by the session; implementer, verifier
+  and auditor are dispatched; no kill by name, no `gh pr merge`.
+- Expected failure (0.9.0 and before): the verdicts stay in the conversation, the issue only gets
+  the plan, and `rb quality` has nothing to count for interactive work (rockbuilt #34); no claim, so
+  a nightly cycle can take the same issue (#35).

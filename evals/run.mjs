@@ -244,6 +244,14 @@ export function runCheck(check, ctx) {
       const merged = st.merges.map((x) => x.pr);
       return { ok: check.prs.every((n) => merged.includes(n)), detail: `merged ${merged.join(', ') || 'none'}` };
     }
+    case 'ghIssueComment': {
+      // GitHub simulator: a trusted comment on the issue matches the pattern.
+      const st = ctx.env ? JSON.parse(readFileSync(ctx.env.RB_GH_STATE, 'utf8')) : { comments: {} };
+      const re = toRegExp(check.pattern);
+      const list = (st.comments[check.issue] || []).filter((c) => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association));
+      const hit = list.find((c) => re.test(c.body));
+      return { ok: Boolean(hit), detail: hit ? hit.body.split('\n').find((l) => re.test(l)) || 'matched' : `${list.length} comment(s) on #${check.issue}, none match /${check.pattern}/` };
+    }
     case 'ghNoUpdates': {
       const st = ctx.env ? JSON.parse(readFileSync(ctx.env.RB_GH_STATE, 'utf8')) : {};
       return { ok: !(st.updates || []).length, detail: `update-branch on ${(st.updates || []).join(', ') || 'none'}` };

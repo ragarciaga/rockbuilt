@@ -436,6 +436,63 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "fix-posts-verdicts",
+      "source": "fix.md#S5",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "bug-issue"
+      },
+      "prompt": "Arregla el bug del issue #1.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-fix"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs claim 1 --run"
+        },
+        {
+          "type": "ghIssueComment",
+          "issue": 1,
+          "pattern": "rockbuilt:claim run="
+        },
+        {
+          "type": "ghIssueComment",
+          "issue": 1,
+          "pattern": "rockbuilt:status stage=rb-verifier\\b[^>]*outcome=(pass|fail)"
+        },
+        {
+          "type": "ghIssueComment",
+          "issue": 1,
+          "pattern": "rockbuilt:status stage=rb-auditor\\b[^>]*outcome=(pass|fail)"
+        },
+        {
+          "type": "agentsInclude",
+          "agents": [
+            "rb-implementer",
+            "rb-verifier",
+            "rb-auditor"
+          ]
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "gh pr merge|pkill|killall"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }
