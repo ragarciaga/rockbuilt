@@ -40,7 +40,8 @@ export function qualityReport(c, { since = null, until = null } = {}) {
   const timing = [];
   for (const p of merged) {
     const k = parseKickbacks(p.body);
-    const issue = parseBody(p.body).closes[0];
+    const pb = parseBody(p.body);
+    const issue = pb.closes[0] || pb.partOf[0];
     let fromIssue = null;
     if (issue) {
       try {

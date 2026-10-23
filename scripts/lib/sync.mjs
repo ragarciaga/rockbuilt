@@ -13,27 +13,56 @@ const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 // rb claim <issue> --run <id>: the issue is being worked on by this run or session. Adds
 // rb:in-progress and a dated claim comment (at most one per run every 30 minutes); rb sync keeps
 // a claim with activity in the last 3 hours, and the cycle skips issues labelled rb:in-progress.
-export function claimIssue(c, issue, { run, release = false }) {
+// --release ends this run's claim (refused for another run's); --take, after the user confirmed,
+// takes over from another run (a resumed session with a new run id).
+const CLAIM_RE = /<!--\s*rockbuilt:claim\s+run=(\S+)\s+at=(\S+)((?:\s+(?:release|take))*)\s*-->/;
+const commentTime = (cm, at) => Date.parse(cm.created_at || '') || Date.parse(at || '') || 0;
+
+// Claim state from the trusted claim comments, oldest first. A run's streak starts at its first
+// claim after a gap longer than the TTL (or after a release or a take); the holder is the fresh run
+// whose streak started first, so two runs that claimed in the same second agree on one holder
+// (0.10.0 review). GitHub's created_at is the clock, never the self-reported at=.
+export function claimState(comments, at = now().getTime()) {
+  const runs = new Map();
+  const list = comments.filter((cm) => TRUSTED.has(cm.author_association) && CLAIM_RE.test(cm.body || ''))
+    .map((cm) => { const m = cm.body.match(CLAIM_RE); return { run: m[1], t: commentTime(cm, m[2]), flags: m[3] || '' }; })
+    .sort((x, y) => x.t - y.t);
+  for (const c of list) {
+    if (/\btake\b/.test(c.flags)) for (const r of runs.values()) r.released = true;
+    const r = runs.get(c.run);
+    if (/\brelease\b/.test(c.flags)) { if (r) r.released = true; continue; }
+    if (!r || r.released || c.t - r.last > CLAIM_TTL_MS) runs.set(c.run, { run: c.run, start: c.t, last: c.t, released: false });
+    else r.last = c.t;
+  }
+  const fresh = [...runs.values()].filter((r) => !r.released && at - r.last < CLAIM_TTL_MS).sort((x, y) => x.start - y.start || (x.run < y.run ? -1 : 1));
+  return { holder: fresh[0] || null, fresh, runs };
+}
+
+export function claimIssue(c, issue, { run, release = false, take = false }) {
   if (!run || run === true || !/^[A-Za-z0-9._-]+$/.test(String(run))) throw new CliError('--run <id> is required', 2);
   const n = Number(String(issue).replace(/^#/, ''));
-  if (!n) throw new CliError('usage: rb claim <issue> --run <id> [--release]', 2);
-  if (release) { ops.labelRemove(c, n, 'rb:in-progress'); return { issue: n, released: true }; }
+  if (!n) throw new CliError('usage: rb claim <issue> --run <id> [--release | --take]', 2);
+  const me = String(run);
   const view = ops.issueView(c, n);
-  const at = now();
-  const others = [];
-  let mine = null;
-  for (const cm of view.comments) {
-    const m = cm.body.match(/<!--\s*rockbuilt:claim\s+run=(\S+)\s+at=(\S+)\s*-->/);
-    if (!m || !TRUSTED.has(cm.author_association)) continue;
-    if (m[1] === String(run)) mine = Date.parse(m[2]);
-    else others.push({ run: m[1], at: Date.parse(m[2]) });
+  const labelled = view.labels.includes('rb:in-progress');
+  const state = () => claimState(ops.issueComments(c, n));
+  let st = claimState(view.comments);
+  const holder = labelled ? st.holder : null;
+  const post = (flags = '') => ops.issueComment(c, n, `<!-- rockbuilt:claim run=${me} at=${now().toISOString()}${flags} -->\n${flags.includes('release') ? `Released (run \`${me}\`).` : `Working on this (run \`${me}\`).`}`);
+  if (release) {
+    if (holder && holder.run !== me) return { issue: n, released: false, holder: holder.run, since: new Date(holder.start).toISOString() };
+    post(' release');
+    if (labelled) ops.labelRemove(c, n, 'rb:in-progress');
+    return { issue: n, released: true };
   }
-  const fresh = others.filter((o) => at.getTime() - o.at < CLAIM_TTL_MS && view.labels.includes('rb:in-progress'));
-  const latest = fresh.sort((a, b) => b.at - a.at)[0];
-  if (latest && (!mine || latest.at > mine)) return { issue: n, claimed: false, holder: latest.run, since: new Date(latest.at).toISOString() };
-  if (!view.labels.includes('rb:in-progress')) ops.labelAdd(c, n, ['rb:in-progress']);
-  if (!mine || at.getTime() - mine >= 30 * 60000) ops.issueComment(c, n, `<!-- rockbuilt:claim run=${run} at=${at.toISOString()} -->\nWorking on this (run \`${run}\`).`);
-  return { issue: n, claimed: true, run: String(run) };
+  if (holder && holder.run !== me && !take) return { issue: n, claimed: false, holder: holder.run, since: new Date(holder.start).toISOString() };
+  if (!labelled) ops.labelAdd(c, n, ['rb:in-progress']);
+  const mine = st.runs.get(me);
+  if (take || !mine || mine.released || now().getTime() - mine.last >= 30 * 60000 || !holder) post(take ? ' take' : '');
+  // Re-read: another run may have claimed in the same moment; the earliest streak wins.
+  st = state();
+  if (st.holder && st.holder.run !== me) return { issue: n, claimed: false, holder: st.holder.run, since: new Date(st.holder.start).toISOString() };
+  return { issue: n, claimed: true, run: me, ...(take && holder && holder.run !== me ? { tookFrom: holder.run } : {}) };
 }
 
 export function specDirs(root) {
@@ -197,8 +226,8 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
             const times = ev.map((e) => Date.parse(e.created_at) || 0);
             for (const cm of ops.issueComments(c, i.number)) {
               if (!TRUSTED.has(cm.author_association) || !/<!--\s*rockbuilt:/.test(cm.body)) continue;
-              const claimAt = (cm.body.match(/<!--\s*rockbuilt:claim\s+run=\S+\s+at=(\S+)\s*-->/) || [])[1];
-              times.push(Date.parse(claimAt || cm.created_at) || 0);
+              if (/<!--\s*rockbuilt:claim\b[^>]*\brelease\b/.test(cm.body)) continue;
+              times.push(commentTime(cm, (cm.body.match(CLAIM_RE) || [])[2]));
             }
             active = times.length ? Math.max(...times) : 0;
           } catch {

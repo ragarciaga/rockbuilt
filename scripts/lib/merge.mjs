@@ -53,7 +53,8 @@ export function parseBody(body) {
   const tier = (String(body || '').match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
   const security = /<!--\s*rockbuilt:security\s+required\s*-->/i.test(body || '') || /^\s*security:\s*required\s*$/mi.test(body || '');
   const closes = [...String(body || '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map((m) => Number(m[1]));
-  return { status, tier: tier ? tier.toUpperCase() : null, security, closes: [...new Set(closes)] };
+  const partOf = [...String(body || '').matchAll(/\bpart of\s+#(\d+)/gi)].map((m) => Number(m[1]));
+  return { status, tier: tier ? tier.toUpperCase() : null, security, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
 }
 
 function shaMatches(given, head) {
@@ -335,20 +336,25 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
 
   // 4b. Every review line in the body matches a verdict posted on the task issue (rockbuilt #34):
   // the issue is the record of every pass and fail, which is what rb quality counts. Lines that
-  // rb wrote itself (`by=rb-review-delta`) are re-checked above, not posted.
-  if (body.closes.length) {
+  // rb wrote itself (a `by=rb-review-delta` verifier line with `identical-to`) are re-checked
+  // above, not posted. A task PR names its issue (`Closes #n`, or `Part of #n` for a partial PR).
+  const taskIssues = body.closes.length ? body.closes : body.partOf;
+  const sameTask = (a, b) => !a || !b || String(a).toLowerCase() === String(b).toLowerCase();
+  if (!taskIssues.length) no('verdicts', 'the body names no task issue (Closes #n or Part of #n): the verdicts are posted there');
+  else {
     let posted = null;
     try {
-      posted = body.closes.flatMap((n) => ops.issueComments(c, n)).filter((cm) => TRUSTED_ASSOC.has(cm.author_association)).flatMap((cm) => Object.values(parseStatusLines(cm.body)));
+      posted = taskIssues.flatMap((n) => ops.issueComments(c, n)).filter((cm) => TRUSTED_ASSOC.has(cm.author_association)).flatMap((cm) => Object.values(parseStatusLines(cm.body)));
     } catch (e) {
       no('verdicts', `could not read the task issue: ${e.message}`);
     }
     if (posted) {
       for (const stage of need) {
         const line = body.status[stage];
-        if (!line || line.by === 'rb-review-delta') continue;
-        const match = posted.some((v) => v.stage === stage && v.outcome === line.outcome && sameSha(v.head || '', line.head || '') && (v.task || null) === (line.task || null));
-        if (!match) no('verdicts', `the ${stage} line (head ${String(line.head || '?').slice(0, 7)}) has no matching verdict on #${body.closes[0]}: post the reviewer's final message there (rb gh issue-comment ${body.closes[0]} --body-file <its report>)`);
+        if (!line) continue;
+        if (line.by === 'rb-review-delta' && stage === 'rb-verifier' && line['identical-to'] && (identity.get(line['identical-to']) || {}).class === 'identical') continue;
+        const match = posted.some((v) => v.stage === stage && v.outcome === line.outcome && sameSha(v.head || '', line.head || '') && sameTask(v.task, line.task));
+        if (!match) no('verdicts', `the ${stage} line (head ${String(line.head || '?').slice(0, 7)}) has no matching verdict on #${taskIssues[0]}: post the reviewer's final message there (rb gh issue-comment ${taskIssues[0]} --body-file <its report>)`);
       }
     }
   }

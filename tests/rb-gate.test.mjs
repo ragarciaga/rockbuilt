@@ -27,7 +27,7 @@ function seed(gh, { tier = 'A', files, labels, body, checks, number = 10, mergea
   const lines = [statusLine('rb-verifier')];
   if (tier !== 'A') lines.push(statusLine('rb-auditor'));
   s.issues[3] = { number: 3, title: 'T1: feature', body: '<!-- rockbuilt:task T1 spec=docs/specs/01-x -->', state: 'open', labels: ['rb:task', 'rb:in-progress', 'rb:pr-open'] };
-  s.issues[number] = { number, title: 'feat: T1', body: body ?? `Closes #3\n\n${lines.join('\n')}\n<!-- rockbuilt:tier ${tier} -->\n`, state: 'open', labels: labels || [`rb:tier-${tier.toLowerCase()}`, 'rb:pr-open'], isPr: true };
+  s.issues[number] = { number, title: 'feat: T1', body: body != null ? (/\b(closes|part of) #\d+/i.test(body) ? body : `Closes #3\n${body}`) : `Closes #3\n\n${lines.join('\n')}\n<!-- rockbuilt:tier ${tier} -->\n`, state: 'open', labels: labels || [`rb:tier-${tier.toLowerCase()}`, 'rb:pr-open'], isPr: true };
   s.pulls[number] = { number, head: 'rb/T1-feature', base, headSha: HEAD, mergeable, draft };
   s.files[number] = fileList;
   s.checkRuns[HEAD] = checks || [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' }];
@@ -762,6 +762,40 @@ test('merge-gate: every review line needs its verdict posted on the task issue (
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 3);
   gh.state.comments[3].push({ id: 5001, body: `Audit...\n${statusLine('rb-auditor')}`, user: { login: 'rb-bot' }, author_association: 'OWNER' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate verdicts: a task issue is required, the rb exemption is narrow, task ids match loosely', async () => {
+  const root = project();
+  const rules = (r) => r.json.reasons.map((x) => x.rule);
+  // No Closes and no Part of: nothing to check the verdicts against.
+  let gh = fakeGh();
+  seed(gh, { tier: 'B' });
+  gh.state.issues[10].body = gh.state.issues[10].body.replace('Closes #3', 'Task T1');
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(rules(r).includes('verdicts'), JSON.stringify(r.json.reasons));
+  // Part of #n is a task issue too.
+  gh.state.issues[10].body = gh.state.issues[10].body.replace('Task T1', 'Part of #3');
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+
+  // `by=rb-review-delta` on an auditor line exempts nothing.
+  gh = fakeGh();
+  const auditorBy = statusLine('rb-auditor').replace(' -->', ' by=rb-review-delta -->');
+  seed(gh, { tier: 'B', body: `${statusLine('rb-verifier')}\n${auditorBy}\n<!-- rockbuilt:tier B -->\n` });
+  gh.state.comments[3] = gh.state.comments[3].filter((cm) => !/stage=rb-auditor/.test(cm.body));
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts' && /rb-auditor/.test(x.detail)), JSON.stringify(r.json.reasons));
+
+  // A body line without task=, or in another case, still matches the posted verdict.
+  gh = fakeGh();
+  const noTask = statusLine('rb-verifier').replace(/ task=\S+/, '');
+  seed(gh, { tier: 'A', body: `${noTask}\n<!-- rockbuilt:tier A -->\n` });
+  gh.state.comments[3] = [{ id: 7000, body: statusLine('rb-verifier').replace('task=T1', 'task=t1'), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
+  await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 });

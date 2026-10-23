@@ -158,7 +158,7 @@ export function handle(s, method, fullPath, body) {
     if (!s.issues[m[1]]) return err(404, 'Not Found');
     s.comments[m[1]] = s.comments[m[1]] || [];
     if (method === 'POST') {
-      const c = { id: s.nextComment++, body: body.body, user: { login: s.user }, author_association: 'OWNER', created_at: new Date().toISOString() };
+      const c = { id: s.nextComment++, body: body.body, user: { login: s.user }, author_association: 'OWNER', created_at: (process.env.RB_NOW ? new Date(process.env.RB_NOW) : new Date()).toISOString() };
       s.comments[m[1]].push(c);
       return ok(c, 201);
     }

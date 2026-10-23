@@ -53,6 +53,31 @@ test('rb claim: label and claim comment, refused while another run is active, ke
   assert.equal((await rb(root, ['claim', '5', ...repo], io(gh))).code, 2, '--run is required');
 });
 
+test('rb claim: a same-moment race has one winner; release and take', async () => {
+  const root = repoWith({ 'AGENTS.md': AGENTS() });
+  const gh = fakeGh();
+  const s = gh.state;
+  s.issues[5] = { number: 5, title: 'T1', body: '', state: 'open', labels: [] };
+  // Run B posted its claim a second earlier but its label had not landed when A looked.
+  s.comments[5] = [{ id: 1, body: '<!-- rockbuilt:claim run=run-b at=2026-10-22T10:00:00Z -->', user: { login: 'b' }, author_association: 'OWNER', created_at: '2026-10-22T09:59:59Z' }];
+  await withEnv({ RB_NOW: '2026-10-22T10:00:00Z' }, async () => {
+    const a = await rbJson(root, ['claim', '5', '--run', 'run-a', ...repo], io(gh));
+    assert.equal(a.code, 3, 'the earlier claim wins after the re-read');
+    assert.equal(a.json.holder, 'run-b');
+    const b = await rbJson(root, ['claim', '5', '--run', 'run-b', ...repo], io(gh));
+    assert.equal(b.code, 0);
+    assert.equal((await rbJson(root, ['claim', '5', '--run', 'run-a', '--release', ...repo], io(gh))).code, 3, 'only the holder releases');
+    const t = await rbJson(root, ['claim', '5', '--run', 'run-a', '--take', ...repo], io(gh));
+    assert.equal(t.code, 0, JSON.stringify(t.json));
+    assert.equal(t.json.tookFrom, 'run-b');
+    assert.equal((await rbJson(root, ['claim', '5', '--run', 'run-b', ...repo], io(gh))).code, 3, 'after a take the taker holds it');
+    assert.equal((await rbJson(root, ['claim', '5', '--run', 'run-a', '--release', ...repo], io(gh))).code, 0);
+    assert.ok(!s.issues[5].labels.includes('rb:in-progress'));
+    const c = await rbJson(root, ['claim', '5', '--run', 'run-c', ...repo], io(gh));
+    assert.equal(c.code, 0, 'a released claim does not block the next run');
+  });
+});
+
 test('rb sync with the lock keeps a claim active in the last 3 hours, clears an idle one (#35)', async () => {
   const root = repoWith({ 'AGENTS.md': AGENTS() });
   const gh = fakeGh();
@@ -144,6 +169,13 @@ test('rb ci wait and rb ci logs (#26)', async () => {
   assert.deepEqual(r.json.jobs[0].lines, ['failure: e2e/home.spec.ts:12 home: expected "Hola"']);
   assert.equal((await rb(root, ['ci', 'logs', sha, '--job', 'nope', ...repo], io(gh))).code, 3);
   assert.equal((await rb(root, ['ci', 'wait', 'main', ...repo], io(gh))).code, 2, 'a sha, not a ref');
+  assert.equal((await rb(root, ['ci', 'wait', sha, '--timeout', 'abc', ...repo], io(gh))).code, 2);
+  // Only a shard job exists so far: not green yet, the aggregate check is still to come.
+  gh.state.checkRuns[sha] = [run('e2e (1)')];
+  await withEnv({ RB_CI_POLL_S: '0' }, async () => {
+    r = await rbJson(root, ['ci', 'wait', sha, '--timeout', '0', ...repo], io(gh));
+  });
+  assert.equal(r.code, 3, 'no rockbuilt-ci check yet');
 });
 
 test('findBrowser: PW_CHROMIUM_PATH, then the chromium link, then the newest chromium-<n>', () => {

@@ -43,11 +43,11 @@ export const COMMANDS = {
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
-  ci: 'CI on a commit: wait <sha> [--timeout <min>] (until every check completes; exit 0 green, 1 red, 3 timed out) | logs <sha> [--job <name>] [--tail <n>] (log tail, or annotations when the log is not readable)',
+  ci: 'CI on a commit: wait <sha> [--timeout <min>] (until rockbuilt-ci, and rockbuilt-e2e when the project has E2E, exist and every check completed; exit 0 green, 1 red, 3 timed out) | logs <sha> [--job <name>] [--tail <n>] (log tail, or annotations when the log is not readable)',
   browser: 'Print the Chromium executable for PW_CHROMIUM_PATH (exit 3 when none is found)',
   queue: 'Merge queue: build --run <id> --prs a,b,c (merge them onto the default branch as rb/queue-*, CI runs once) | done --run <id> (delete this run\'s queue branches)',
   quality: 'What escaped the reviews: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs  [--since d] [--until d]',
-  claim: 'Mark an issue as being worked on by this run or session: <issue> --run <id> [--release] (rb sync keeps claims active in the last 3 h)',
+  claim: 'Mark an issue as being worked on by this run or session: <issue> --run <id> [--release | --take] (exit 3: another run holds it; rb sync keeps claims active in the last 3 h; --take only after the user confirms)',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
   'merge-gate': 'Merge a PR only if every gate condition holds  <pr> --run <id> | --human-approved [--dry-run]',
@@ -533,11 +533,17 @@ const handlers = {
     if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) throw new CliError('usage: rb ci wait|logs <sha>', 2);
     const table = (checks) => checks.map((x) => `${x.name.padEnd(28)} ${(x.conclusion || x.status).padEnd(12)} ${x.minutes != null ? `${x.minutes} min` : ''}`.trimEnd()).join('\n');
     if (op === 'wait') {
-      const limit = Date.now() + Number(stringFlag(flags, 'timeout') || 30) * 60000;
-      const poll = Number(process.env.RB_CI_POLL_S ?? 60) * 1000;
+      const tmin = Number(stringFlag(flags, 'timeout') ?? 30);
+      if (!Number.isFinite(tmin) || tmin < 0 || tmin > 360) throw new CliError('--timeout must be minutes, 0 to 360', 2);
+      const limit = Date.now() + tmin * 60000;
+      const poll = Math.max(0, Number(process.env.RB_CI_POLL_S ?? 60) || 0) * 1000;
+      // The aggregate checks are created after their jobs, so "every present check completed" can be
+      // true before rockbuilt-ci or rockbuilt-e2e exists: wait for the required ones too.
+      let required = ['rockbuilt-ci'];
+      try { if (e2ePlan(readContract(root).text).has) required.push('rockbuilt-e2e'); } catch { required = ['rockbuilt-ci']; }
       for (;;) {
         const checks = ops.checks(c, sha);
-        const done = checks.length > 0 && checks.every((x) => x.status === 'completed');
+        const done = checks.length > 0 && required.every((n) => checks.some((x) => x.name === n)) && checks.every((x) => x.status === 'completed');
         if (done) {
           const red = checks.filter((x) => !['success', 'neutral', 'skipped'].includes(x.conclusion));
           return { data: { sha, checks, green: !red.length }, text: `${red.length ? 'RED' : 'green'} on ${sha.slice(0, 7)}\n${table(checks)}`, code: red.length ? 1 : 0 };
@@ -609,9 +615,9 @@ const handlers = {
 
   claim({ cwd, positionals, flags, io }) {
     const root = requireRepoRoot(cwd);
-    const r = claimIssue(client(root, flags, io), positionals[0], { run: flags.run, release: Boolean(flags.release) });
-    const text = r.released ? `released #${r.issue}` : r.claimed ? `#${r.issue} claimed by ${r.run}` : `#${r.issue} is claimed by ${r.holder} since ${r.since}: leave it`;
-    return { data: r, text, code: r.claimed === false ? 3 : 0 };
+    const r = claimIssue(client(root, flags, io), positionals[0], { run: flags.run, release: Boolean(flags.release), take: Boolean(flags.take) });
+    const text = r.released === false ? `#${r.issue} is claimed by ${r.holder}: not released` : r.released ? `released #${r.issue}` : r.claimed ? `#${r.issue} claimed by ${r.run}` : `#${r.issue} is claimed by ${r.holder} since ${r.since}: leave it`;
+    return { data: r, text, code: r.claimed === false || r.released === false ? 3 : 0 };
   },
 
   sync({ cwd, flags, io }) {
