@@ -243,6 +243,11 @@ export function handle(s, method, fullPath, body) {
     const runs = (s.checkRuns[m[1]] || []).map((x) => ({ app: { slug: 'github-actions' }, ...x }));
     return ok({ total_count: runs.length, check_runs: page(runs, q) });
   }
+  if ((m = r.match(/^actions\/jobs\/(\d+)\/logs$/))) {
+    const t = (s.jobLogs || {})[m[1]];
+    return t == null ? err(403, 'Must have admin rights to Repository.') : { ok: true, status: 0, stdout: t, stderr: '' };
+  }
+  if ((m = r.match(/^check-runs\/(\d+)\/annotations$/))) return ok(page((s.annotations || {})[m[1]] || [], q));
   if ((m = r.match(/^commits\/([^/]+)\/status$/))) return ok({ state: 'success', statuses: s.statuses[m[1]] || [] });
   if ((m = r.match(/^branches\/([^/]+)\/protection$/))) {
     if (s.protection.mode === 'paywall') return err(403, 'Upgrade to GitHub Pro or make this repository public to enable this feature.');

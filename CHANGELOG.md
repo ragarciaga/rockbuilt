@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.10.0 (2026-10-23)
+
+Mechanical bookkeeping: the steps an interactive session skipped are now commands that the gate or
+a later command checks (issues #22 to #38 from 3d_brain on 0.9.0; DESIGN 20.19 and 24).
+
+- **Verdicts on the task issue, checked by the gate (#34).** Every verifier, auditor and security
+  verdict, pass or fail, is posted on the task issue. `rb merge-gate` refuses a PR whose status
+  line has no matching trusted comment (reason `verdicts`; `by=rb-review-delta` lines are exempt).
+  `rb quality` counts reviewer kickbacks from those comments, so interactive work is no longer
+  missing, and adds minutes per task (to plan, plan to first review, review span, PR to merge).
+- **`rb claim <n> --run <id>` (#35).** Label plus a claim comment with the time; exit 3 when
+  another run's claim is fresh. `rb sync` with the lock keeps a claim with activity in the last 3
+  hours, so the nightly cycle no longer clears a live session's claim and builds the same issue.
+- **Command builders (#26, #27, #38).** `rb gh pr-line --stage --task --outcome --head` builds and
+  validates a status line. `rb ci wait <sha>` polls the checks (0 green, 1 red, 3 still running)
+  and `rb ci logs <sha>` prints the failing job's log tail or its annotations; `rb gh checks`
+  gives each job's minutes. `rb gh label-create` creates project labels. `rb browser` finds a
+  preinstalled Chromium (`/opt/pw-browsers/chromium` does not exist in every cloud image).
+- **Tier at PR creation (#29).** `rb gh pr-create` on the head branch raises the tier marker and
+  label to `rb risk` on the real diff, so the mismatch shows before CI instead of at the gate.
+- **False positives (#23, #24, #31).** A host in a test file counts only on a line that makes a
+  network call. A base change only in bookkeeping files, or a task diff equal to the reviewed one,
+  keeps the review.
+- **Agents (#28, #32, #37).** Every agent reads LESSONS itself; the implementer lists the
+  conventions its diff touches first; the verifier requires the reviewed head committed and a
+  clean tree; the auditor reports a `[manual]` criterion it cannot see as `needs-local`. `pkill`
+  and `killall` are denied: processes stop by PID.
+- **Language (#33).** Repository text follows `Docs language`; the chat follows the user. Existing
+  documents keep their language unless AGENTS.md says otherwise. The selfcheck enforces it.
+- **Layout (#36).** Layout criteria hold at 320x568, 360x740, 390x844, 740x360 and 125 % text (or
+  the AGENTS.md `Viewports:` line); rb-build measures before planning (`Mode: measure`), and the
+  auditor judges every size.
+- **Trusted authors only (#30)** for task markers, hours markers and adopting the control issue.
+- **Small fixes.** `rb vendor` no longer adds the smoke spec to a project with its own E2E suite
+  (#22). The E2E job caches the browser, retries the install, warns at 21 minutes and tells a
+  timeout from a failure (#25). `rb protect` drops `strict` (it would block the merge queue) and
+  requires `rockbuilt-e2e` when the project has E2E.
+- Update an existing project with `rb vendor` to get the skills, agents, guard and workflow.
+
 ## 0.9.0 (2026-10-16)
 
 The merge queue, and evals for the autonomous path (issue #19 item 1; DESIGN 8.4).

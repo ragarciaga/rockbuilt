@@ -86,6 +86,10 @@ can see where the night went. Progress notes and lessons travel in one bookkeepi
 pushed after every task (so a session that dies loses nothing), and the next run merges it on its
 own.
 
+If I work on a task in a session while the routine runs, the session claims it (`rb claim`) and
+the routine leaves it alone while it shows activity in the last 3 hours. Every reviewer's verdict
+goes on the task issue, so the numbers are the same whether the work ran at night or with me.
+
 During the day I answer what it asked, with a comment or the `rb:approved` label, usually from the
 phone. Small work I add as a GitHub issue labelled `rb:task` or `rb:bug`. A new feature is a short
 session where I approve the requirements and the design. That is most of my part.
@@ -343,7 +347,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.9.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.10.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
@@ -376,6 +380,16 @@ its user, and tasks too big to review well fail `rb tasks`.
 0.9.0 removes the serial bottleneck of the merge train with a merge queue (one CI run for several
 PRs), and the eval suite now drives a full cycle against a GitHub simulator backed by a real git
 repo, so the autonomous merge path is tested before a release instead of on a real project's night.
+
+0.10.0 comes from a week of interactive sessions on that project, which follow the skills by hand
+and skip any step nothing checks. So those steps are now commands that something checks: every
+verdict is posted on the task issue and the merge gate refuses a PR without it (which also makes
+`rb quality` complete for interactive work), a session claims its task with `rb claim` so the
+nightly run leaves it alone, status lines are built by `rb gh pr-line` flags instead of typed,
+`rb ci wait` and `rb ci logs` replace hand-written polling, and `rb browser` finds the cloud's
+Chromium instead of a hard-coded path. It also fixes the false positives that sent PRs to me for
+nothing (a URL inside a test, a base change only in progress notes), separates the repository
+language from the chat language, and checks screen layouts on a phone size matrix.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not

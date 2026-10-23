@@ -379,7 +379,7 @@ export const ops = {
   jobLog(c, checkRunId, { tail = 200 } = {}) {
     try {
       const text = c.api('GET', `{repo}/actions/jobs/${num(checkRunId)}/logs`, { raw: true });
-      const lines = String(text || '').split(/\r?\n/);
+      const lines = (typeof text === 'string' ? text : JSON.stringify(text ?? '')).split(/\r?\n/);
       return { source: 'log', lines: lines.slice(-tail) };
     } catch (e) {
       const ann = c.paged(`{repo}/check-runs/${num(checkRunId)}/annotations`).map((a) => `${a.annotation_level}: ${a.path || ''}${a.start_line ? `:${a.start_line}` : ''} ${a.title ? `${a.title}: ` : ''}${a.message}`);
