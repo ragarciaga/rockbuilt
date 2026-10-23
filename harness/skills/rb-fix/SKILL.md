@@ -66,8 +66,8 @@ user can publish later.
 - Labels `rb:blocked`, `rb:needs-human`, `rb:needs-local`, `rb:hold`: skip unless the user asked
   to retry (then remove `rb:blocked`). An existing branch: Crash recovery in `kickback.md`.
 
-Preconditions as in build (clean tree, fetch, pull, `rb sync`), then
-`rb gh label-add <n> rb:in-progress` and `rb baseline --check`. Red **because of this bug**: fine,
+Preconditions as in build (clean tree, fetch, pull, run id, bookkeeping carry, `rb sync`), then
+`rb claim <n> --run <run id>` (exit 3: someone else is on it) and `rb baseline --check`. Red **because of this bug**: fine,
 note the command; it is the reproduction. Red for another reason: ask whether to fix that first
 (unattended: the cycle already stopped on a red baseline).
 

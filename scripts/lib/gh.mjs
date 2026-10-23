@@ -263,6 +263,20 @@ export const ops = {
     }
     return results;
   },
+  // A project label (issue forms, triage), created or updated idempotently (rockbuilt #27).
+  labelCreate(c, name, { color, description } = {}) {
+    if (!name || name.startsWith('rb:')) throw new CliError('label-create is for project labels; rb:* labels come from labels-ensure', 2);
+    const hex = color ? String(color).replace(/^#/, '') : 'ededed';
+    if (!/^[0-9a-f]{6}$/i.test(hex)) throw new CliError('--color must be a 6-digit hex color', 2);
+    const want = { name, color: hex.toLowerCase(), description: description || '' };
+    const have = c.paged('{repo}/labels').find((l) => l.name === name);
+    if (!have) { c.api('POST', '{repo}/labels', { body: want }); return { name, action: 'created' }; }
+    if (have.color !== want.color || (have.description || '') !== want.description) {
+      c.api('PATCH', `{repo}/labels/${encodeURIComponent(name)}`, { body: { color: want.color, description: want.description } });
+      return { name, action: 'updated' };
+    }
+    return { name, action: 'ok' };
+  },
   missingLabels(c) {
     const names = new Set(c.paged('{repo}/labels').map((l) => l.name));
     return LABELS.map((l) => l.name).filter((n) => !names.has(n));
@@ -435,6 +449,7 @@ export const GH_OPS = {
   'label-add': '<n> <label[,label]>',
   'label-remove': '<n> <label>',
   'labels-ensure': '',
+  'label-create': '<name> [--color <hex>] [--description <text>]',
   'pr-create': '--head <b> --base <b> --title <t> --body-file <f> [--label a,b] [--draft]',
   'pr-view': '<n>',
   'pr-list': '[--state open|closed|all] [--head-prefix rb/]',
@@ -576,6 +591,7 @@ export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
     case 'label-add': return ops.labelAdd(c, req(a, op), labelsFlag(req(b, op)));
     case 'label-remove': return ops.labelRemove(c, req(a, op), req(b, op));
     case 'labels-ensure': return ops.labelsEnsure(c);
+    case 'label-create': return ops.labelCreate(c, req(a, op), { color: str('color'), description: str('description') });
     case 'pr-create': {
       const body = bodyFrom(flags, cwd);
       return ops.prCreate(c, { head: str('head'), base: str('base') || defaultBranch(), title: str('title'), body, labels: prLabels(body, labelsFlag(flags.label)), draft: Boolean(flags.draft) });

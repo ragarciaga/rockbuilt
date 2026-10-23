@@ -38,6 +38,8 @@ files, run commands, or call git or gh.
 
 # Process
 
+Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or not the prompt repeated them (rockbuilt #37).
+
 1. Read AGENTS.md, the spec files and the task. Every criterion in `Covers` appears in your
    Acceptance criteria, ID first (`R1.2: ...`), with its verification tag. No `Covers` (issue or
    bug): derive criteria as `D1`, `D2`..., each testable, and say so in the Summary.

@@ -33,6 +33,11 @@ blind auditor, with fresh context, will check every claim you make.
 
 1. Read `AGENTS.md` (fallback `CLAUDE.md`): conventions, scope limits, the `## Verification`
    commands that define done (`node tools/rockbuilt/rb.mjs verify-cmds` prints them).
+   Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or
+   not the prompt repeated them (rockbuilt #37).
+   If the prompt gives `Browser path: <p>`, run every Playwright command with `PW_CHROMIUM_PATH=<p>`;
+   without it, when Playwright reports a missing executable, run `node tools/rockbuilt/rb.mjs browser`
+   and use the path it prints. Stop processes you started by PID, never by name.
 2. Read the plan. Implement **that** plan, not your redesign. Plan line numbers were true at the
    plan's base; if the code drifted, trust the live code (find the symbol by name) and note the
    drift under Deviations.
@@ -45,12 +50,16 @@ blind auditor, with fresh context, will check every claim you make.
    minutes): `node tools/rockbuilt/rb.mjs verify-cmds E2E --only <spec files> [--grep "<titles>"]`.
    On a fix dispatch, only the cases the finding names.
 5. **Evidence pass** (every dispatch; on a fix dispatch, scoped to the fix):
-   1. **Claim sweep.** For every behavior your diff changes, grep README, docs, ADRs, comments,
+   1. **Conventions.** List each AGENTS.md convention the diff touches (repository language of
+      comments, test names and docs; naming; forbidden patterns) and confirm every added or
+      edited line follows it, including text you only edited. Put the list in the report. Three
+      verifier rounds in one 3d_brain task were edited comments left in the old language.
+   2. **Claim sweep.** For every behavior your diff changes, grep README, docs, ADRs, comments,
       docstrings and test descriptions for the claim's wording, not the identifier. Fix every
       stale site, starting from the plan's "Claims this change falsifies" (a start, not the whole
       list). When you change a number or a total, grep the bare old number and walk every hit.
       When you delete or reshape code, walk every existing test comment that describes it.
-   2. **Self-mutation on every new or rewritten test.** Temporarily break the behavior the test
+   3. **Self-mutation on every new or rewritten test.** Temporarily break the behavior the test
       pins, in the production code (never the test's own assertion or predicate: that proves
       nothing and safety classifiers deny it as test removal), in place with the Edit tool, run
       only that test, confirm it fails, restore by hand
@@ -59,26 +68,26 @@ blind auditor, with fresh context, will check every claim you make.
       satisfies the assertion, an already-sorted fixture, a limit the library enforces, an early
       exit that never reaches the check, a substring match that a renamed identifier still
       satisfies (perturb by removing characters, never by appending a suffix).
-   3. **Behavior probe on every acceptance criterion and testable `RESOLVED:` decision.** One
+   4. **Behavior probe on every acceptance criterion and testable `RESOLVED:` decision.** One
       small mutation in production code that breaks it (invert a predicate, drop a filter,
       return the input unchanged), run the tests your diff touches, confirm one fails, restore.
       If none fails, run the full suite once before calling it a survivor. A survivor means a
       missing test: add it (and self-mutate it). Skip only with a stated reason: docs or
       config-only change, no runnable test command, or the mutant needs a file created or deleted.
-   4. **The documented path.** When the diff touches an entry point (a CLI, a script, a server
+   5. **The documented path.** When the diff touches an entry point (a CLI, a script, a server
       start, a pipeline step), run it once exactly as the README or AGENTS.md `## Run` documents
       it, not only through the tests: a test that imports modules in another order or mocks the
       environment can be green while the documented command fails (3d_brain: `import bmesh`
       before `import bpy` broke the documented Blender command, with its test green).
-   5. **Consequence assertions.** A test whose name describes a consequence asserts on that
+   6. **Consequence assertions.** A test whose name describes a consequence asserts on that
       consequence, not on a neighboring field. A criterion about a stream or exit code asserts
       on that stream or code. A transient UI state (a spinner, a "saving" label, a count that
       returns to 0) is read once, not with an auto-retrying assertion (`toHaveCount(0)` retries
       until the state passes and lets the mutant survive); hold the request in the mock so the
       state stays put while you read it.
-   6. **Claims inside artifacts.** A comment or doc that says a test "pins" something, or that a
+   7. **Claims inside artifacts.** A comment or doc that says a test "pins" something, or that a
       rule is enforced, describes what the code actually checks and the proof you actually ran.
-   7. After the last restore, run the Verification commands once more. Every number in the report
+   8. After the last restore, run the Verification commands once more. Every number in the report
       comes from this final run, pasted from output, with the command that produced it.
 6. Return the report.
 

@@ -87,7 +87,8 @@ failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
 pr, ci, merge): every review and every wait, not only plan and implement; the retro reads them.
 
 ### 1. Claim and stale check
-`rb gh label-add <n> rb:in-progress`; tasks.md `Status: in-progress`. Read the issue
+`rb claim <n> --run <run id>` (exit 3: another run or session is on it, skip the task; run it
+again before each review, it keeps the claim alive); tasks.md `Status: in-progress`. Read the issue
 (`rb gh issue-view <n>`) and decide whether the newest trusted plan comment (`<!-- rockbuilt:plan
 base=<sha> tier=<x> -->`) can be reused, by the rules in `references/plan.md` ("Stale check").
 Bookkeeping commits never make a plan stale; a human approval of the posted plan keeps it.
@@ -164,9 +165,10 @@ instead: only local commits squash, each fix is one commit on top (no force push
 Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
-- **Verifier** (all tiers): task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the
-  implementer report, `git diff origin/<default>...HEAD --stat`, the default branch, the working
-  directory, `Docs language`, `Dispatch attempt: <k>`.
+- **Verifier** (all tiers), on the committed head of step 8 (it stops on uncommitted changes):
+  task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the implementer report, `git diff
+  origin/<default>...HEAD --stat`, the default branch, the working directory, `Docs language`,
+  `Dispatch attempt: <k>`, and `Browser path: <rb browser output>` for browser work.
 - **Blind auditor** (tiers B and C), after the verifier passes: follow `references/audit.md`
   (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
@@ -178,7 +180,9 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
   triggers, `.claude/skills/rb-verify/references/security.md`, `Reviewed head: <sha>`. Blocker or
   major: kickback; minors go to the PR under Risks.
 
-Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
+**Post every verdict**, pass or fail, on the task issue as it returns (`rb gh issue-comment <n>
+--body-file <its saved report>`): the gate refuses a PR line without its posted verdict, and
+`rb quality` counts kickbacks from them. Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
 finding from any reviewer: kickback, budget 2 shared, then the blocked path plus an escalation.
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 

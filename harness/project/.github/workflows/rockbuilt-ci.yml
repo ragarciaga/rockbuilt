@@ -130,13 +130,29 @@ jobs:
       - name: Setup
         run: node tools/rockbuilt/rb.mjs verify-cmds Setup | node -e "$RB_RUN"
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      # The browser download is the step that most often breaks for runner reasons (a TLS error,
+      # minutes lost before any test): cache it, and retry the install once.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json', 'pnpm-lock.yaml', 'yarn.lock') }}
 
+      - name: Install Playwright Chromium
+        shell: bash
+        run: npx playwright install --with-deps chromium || (sleep 20 && npx playwright install --with-deps chromium)
+
+      # Warns before the 30 min limit cuts a shard (3d_brain: shard 3 cancelled at 28.5 min with
+      # every test green): past 70 % of the limit, raise `E2E shards` in AGENTS.md.
       - name: E2E
+        shell: bash
         env:
           SHARD: ${{ matrix.shard }}/${{ needs.rockbuilt-e2e-plan.outputs.total }}
-        run: node tools/rockbuilt/rb.mjs verify-cmds E2E --shard "$SHARD" | node -e "$RB_RUN"
+        run: |
+          node tools/rockbuilt/rb.mjs verify-cmds E2E --shard "$SHARD" | node -e "$RB_RUN"
+          MIN=$((SECONDS / 60))
+          echo "E2E shard $SHARD took $MIN min of the 30 min job limit"
+          if [ "$MIN" -ge 21 ]; then echo "::warning::E2E shard $SHARD took $MIN of 30 min: raise 'E2E shards' in AGENTS.md before a shard gets cut off"; fi"
 
   rockbuilt-e2e:
     name: rockbuilt-e2e
@@ -153,5 +169,6 @@ jobs:
         run: |
           if [ "$PLAN" != "success" ]; then echo "::error::E2E plan job: $PLAN"; exit 1; fi
           if [ "$HAS" != "true" ]; then echo "No E2E section in AGENTS.md; nothing to run"; exit 0; fi
-          if [ "$SHARDS" != "success" ]; then echo "::error::E2E shards: $SHARDS (a failed, cancelled or timed-out shard)"; exit 1; fi
+          if [ "$SHARDS" = "cancelled" ]; then echo "::error::E2E shards: a shard was cancelled, usually by the 30 min job limit with tests still running, not by a failing test. Raise 'E2E shards' in AGENTS.md (rb ci logs <sha> --job rockbuilt-e2e shows which shard and how long)"; exit 1; fi
+          if [ "$SHARDS" != "success" ]; then echo "::error::E2E shards: $SHARDS (a failing test, or a runner problem such as the browser download; rb ci logs <sha> shows which)"; exit 1; fi
           echo "All E2E shards passed"

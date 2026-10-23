@@ -38,6 +38,8 @@ issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, 
 
 # Method
 
+Read `.claude/LESSONS.md` first (it is binding). If the prompt gives `Browser path: <p>`, run every Playwright command with `PW_CHROMIUM_PATH=<p>`; without it, when Playwright reports a missing executable, run `node tools/rockbuilt/rb.mjs browser` and use the path it prints. Stop processes you started by PID, never by name.
+
 (Goal mode: steps 1, 3 and 4 apply; step 2 does not, you walk the user's path instead.)
 
 1. Confirm `git rev-parse HEAD` equals `Reviewed head`. If not, stop with `outcome=incomplete`.
@@ -93,10 +95,13 @@ changed files can reach is never carried.
   missing credential, needs a scratch check the session cannot write).
 - Any `fail`, in criteria or regressions: `outcome=fail`.
 - Otherwise, any `not-observable` on an `[e2e]` criterion because `Browser: unavailable` in a
-  cloud session, or because a credential exists only on the user's machine:
-  `outcome=needs-local`, with the exact steps the user should run locally.
-- Otherwise, any other `not-observable` on an `[e2e]` or `[manual]` criterion:
-  `outcome=incomplete` with the reason. Only `[unit]` criteria may be not-observable in a pass.
+  cloud session, or because a credential exists only on the user's machine, **and any
+  `not-observable` on a `[manual]` criterion** (the human's own view: GitHub's render, their
+  phone, their spreadsheet, the deployed site): `outcome=needs-local`, with the exact steps the
+  user should run, after deploy when the check needs it (rockbuilt #32: three PRs blocked on an
+  `incomplete` that only the human could ever resolve).
+- Otherwise, any other `not-observable` on an `[e2e]` criterion (the app did not start, the run
+  failed): `outcome=incomplete` with the reason: the audit itself could not finish. Only `[unit]` criteria may be not-observable in a pass.
 - Otherwise `outcome=pass`. A `[unit]` criterion with no user-visible surface may be
   not-observable without failing the audit; say so explicitly.
 - Never guess a pass. Never infer behavior from reading the implementation or the tests.

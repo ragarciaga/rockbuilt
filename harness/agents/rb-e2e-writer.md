@@ -32,6 +32,8 @@ Rockbuilt guard hook enforces the git/gh ban and the protected paths.
 
 # Process
 
+Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or not the prompt repeated them (rockbuilt #37). If the prompt gives `Browser path: <p>`, run every Playwright command with `PW_CHROMIUM_PATH=<p>`; without it, when Playwright reports a missing executable, run `node tools/rockbuilt/rb.mjs browser` and use the path it prints. Stop processes you started by PID, never by name.
+
 1. Read test-plan.md, AGENTS.md (fallback CLAUDE.md), the existing `playwright.config.*` and
    `e2e/` (reuse fixtures and the auth setup if present).
 2. Explore each case against the running app, non-destructively. With MCP: navigate, take

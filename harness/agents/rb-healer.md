@@ -28,6 +28,8 @@ in that language; headings as written.
 
 # Process
 
+Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or not the prompt repeated them (rockbuilt #37). If the prompt gives `Browser path: <p>`, run every Playwright command with `PW_CHROMIUM_PATH=<p>`; without it, when Playwright reports a missing executable, run `node tools/rockbuilt/rb.mjs browser` and use the path it prints. Stop processes you started by PID, never by name.
+
 1. **Run the suite once** with `npx playwright test --reporter=list` (the config's `webServer`
    starts the app). Record pass or fail per test, pasting the totals line from the output.
 2. **Environment first.** Before diagnosing anything, read the failures for environment

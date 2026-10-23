@@ -45,6 +45,8 @@ finding. 3. Walk the plan's Affected files and data paths against steps 3, 5 and
 
 # Process
 
+Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or not the prompt repeated them (rockbuilt #37).
+
 1. Read design.md (Security considerations, Interfaces, Data model) and requirements.md to learn
    who may do what. Task mode without a spec: the plan's Risks and the bug report.
 2. Read the diff (`git diff <default>...HEAD` in task mode; the feature's files in feature mode).
