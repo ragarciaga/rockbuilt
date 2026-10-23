@@ -152,7 +152,7 @@ jobs:
           node tools/rockbuilt/rb.mjs verify-cmds E2E --shard "$SHARD" | node -e "$RB_RUN"
           MIN=$((SECONDS / 60))
           echo "E2E shard $SHARD took $MIN min of the 30 min job limit"
-          if [ "$MIN" -ge 21 ]; then echo "::warning::E2E shard $SHARD took $MIN of 30 min: raise 'E2E shards' in AGENTS.md before a shard gets cut off"; fi"
+          if [ "$MIN" -ge 21 ]; then echo "::warning::E2E shard $SHARD took $MIN of 30 min: raise 'E2E shards' in AGENTS.md before a shard gets cut off"; fi
 
   rockbuilt-e2e:
     name: rockbuilt-e2e

@@ -70,8 +70,14 @@ const ENV_PATTERNS = [
 const ENV_DESTRUCTURE = /\{([^}]*)\}\s*=\s*(?:process\.env|import\.meta\.env|Deno\.env\.toObject\(\))/g;
 
 // Cost scanning covers every code file, tests and evals included: they run in CI with real secrets.
-// A line in a test that reaches the network rather than naming a URL.
-const NETWORK_CALL = /\b(fetch|axios(\.\w+)?|got|ky|superagent|request|https?\.(get|request)|page\.goto|page\.request\.\w+|request\.(get|post|put|patch|delete|fetch)|new\s+(WebSocket|EventSource|XMLHttpRequest)|navigator\.sendBeacon|urlopen|requests\.\w+|httpx\.\w+|curl|wget)\s*\(?/;
+// In a test file a URL is often an expected value (an href, a link a README must contain), not a
+// call. A host there counts unless the line is plainly an expectation, or unless nothing in the
+// file can reach the network and the line does not name a base URL (rockbuilt #23, #31; review of
+// 0.10.0: a constant passed to fetch() on another line, or a baseURL used by page.goto('/'), must
+// still count).
+const NETWORK_CALL = /\b(fetch|axios(\.\w+)?|got|ky|superagent|request|https?\.(get|request)|page\.goto|page\.request\.\w+|request\.(get|post|put|patch|delete|fetch)|navigator\.sendBeacon|urlopen|requests\.\w+|httpx\.\w+|curl|wget)\s*\(|\bnew\s+(WebSocket|EventSource|XMLHttpRequest)\b|\$\(\s*curl\b|^\s*(curl|wget)\s/;
+const EXPECTED_VALUE = /\b(expect|assert(\.\w+)?|toHaveURL|toHaveAttribute|toContain|toMatch|toBe|toEqual|toStrictEqual|assertEquals|assertIn|assertRegex)\s*\(|\bhref\s*[:=]/;
+const BASE_URL_HINT = /\b(base_?url|api_?url|api_?base|endpoint|server_?url|origin|host)\b|\bbaseURL\b|\bapi\b/i;
 
 function isSource(p) {
   return SOURCE_EXT.test(p);
@@ -180,7 +186,7 @@ export function packageDepChanges(oldText, newText) {
 
 // Core classifier. input: { files: [{ path, status, previousPath, additions, deletions, added: [lines] | null }],
 // contentKnown, packageJson(path) -> { old, new }, baseHas(str) -> bool|null, autonomy }.
-export function classify({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, autonomy = {} }) {
+export function classify({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -225,6 +231,7 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
       const py = /\.py$/i.test(p);
       const config = /\.(ya?ml|toml|json|jsonc)$/i.test(p);
       const copy = Boolean(matchAny(p, ['**/locales/**', '**/i18n/**', '**/messages/**']));
+      let callsIn;
       for (const line of f.added) {
         if (source && !isComment(line)) {
           for (const mod of py ? pyModules(line) : jsModules(line)) {
@@ -242,7 +249,9 @@ export function classify({ files, contentKnown = true, packageJson = () => null,
         // a call: it counts only on a line that makes a request (3d_brain #226 and #258, rockbuilt
         // #23 and #31). A test that does call a host still raises the tier.
         const testFile = isTestPath(p);
-        if ((source || (config && !copy)) && !isComment(line) && (!testFile || NETWORK_CALL.test(line))) {
+        if (testFile && callsIn === undefined) { const t = headText(p); callsIn = NETWORK_CALL.test(t == null ? f.added.join('\n') : t); }
+        const testHostCounts = !testFile || (!EXPECTED_VALUE.test(line) && (callsIn || BASE_URL_HINT.test(line)));
+        if ((source || (config && !copy)) && !isComment(line) && testHostCounts) {
           for (const m of line.matchAll(/https?:\/\/([a-z0-9.-]+\.[a-z]{2,}|localhost|\[::1\]|\d+\.\d+\.\d+\.\d+)(?::\d+)?/gi)) {
             const host = m[1].toLowerCase();
             if (LOCAL_HOSTS.test(host) || NAMESPACE_HOSTS.test(host) || seen.has(`host:${host}`)) continue;
@@ -354,7 +363,8 @@ export function computeRisk(root, { files: fileList, pr, base, gh } = {}) {
       const f = files.find((x) => x.path === p);
       return { old: f && f.status === 'added' ? null : ops.fileAt(gh, p, view.base.sha), new: f && f.status === 'deleted' ? null : ops.fileAt(gh, p, view.head.sha) };
     };
-    const r = classify({ files, packageJson, baseHas: baseGrepper(root, local), autonomy });
+    const headText = (p) => { try { return ops.fileAt(gh, p, view.head.sha); } catch { return null; } };
+    const r = classify({ files, packageJson, baseHas: baseGrepper(root, local), headText, autonomy });
     return { source: 'pr', pr: view.number, head: view.head ? view.head.sha : null, ...r, files: summary(files) };
   }
   const branch = base && base !== true ? base : defaultBranch(root);
@@ -365,7 +375,7 @@ export function computeRisk(root, { files: fileList, pr, base, gh } = {}) {
     const old = git(root, ['show', `${from}:${p}`]);
     return { old: old.ok ? old.stdout : null, new: readText(path.join(root, p)) };
   };
-  const r = classify({ files, packageJson, baseHas: baseGrepper(root, from), autonomy });
+  const r = classify({ files, packageJson, baseHas: baseGrepper(root, from), headText: (p) => readText(path.join(root, p)), autonomy });
   return { source: 'git', base: baseRef, mergeBase: from, ...r, files: summary(files) };
 }
 

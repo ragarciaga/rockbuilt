@@ -6,6 +6,7 @@ import { after, test } from 'node:test';
 import { findBrowser } from '../scripts/lib/browser.mjs';
 import { normalizePatch } from '../scripts/lib/delta.mjs';
 import { statusLineFrom } from '../scripts/lib/gh.mjs';
+import { classify } from '../scripts/lib/risk.mjs';
 import { REPO, cleanup, commitAll, fakeGh, rb, rbJson, repoWith, sh, tmp, withEnv, write } from './rb-helpers.mjs';
 
 after(cleanup);
@@ -173,6 +174,21 @@ test('rb risk: a host in a test file counts only on a network call (#23, #31)', 
   commitAll(root, 'test calling a host');
   r = await rbJson(root, ['risk', '--base', 'main']);
   assert.ok(r.json.reasons.some((x) => /api\.acme-weather\.io/.test(`${x.detail} ${x.path}`)), JSON.stringify(r.json.reasons));
+});
+
+test('classify: test-file hosts, expected values exempt, reachable calls count', () => {
+  const tier = (p, lines, head = null) => classify({ files: [{ path: p, status: 'modified', additions: lines.length, deletions: 0, added: lines }], headText: () => head }).tier;
+  // Expected values: never a call.
+  assert.equal(tier('e2e/citas.ts', ['export const doiHref = (doi) => `https://doi.org/${doi}`;']), 'A');
+  assert.equal(tier('tests/readme.test.ts', ["  expect(readme).toContain('https://www.linkedin.com/in/me/');"]), 'A');
+  assert.equal(tier('e2e/links.spec.ts', ["await expect(link).toHaveAttribute('href', 'https://docs.acme-guide.io/a');", "await page.goto('/');"]), 'A');
+  assert.equal(tier('tests/t.test.ts', ["test('got https://acme-weather.io back', () => {});"]), 'A', 'a word, not a call');
+  // Reachable calls.
+  assert.equal(tier('tests/pay.test.ts', ["const API = 'https://api.stripe-like.io/v1';", 'await fetch(API);']), 'C');
+  assert.equal(tier('tests/pay.test.ts', ["const API = 'https://api.stripe-like.io/v1';"], "const API = 'https://api.stripe-like.io/v1';\nawait fetch(\n  API);\n"), 'C', 'the call is elsewhere in the file');
+  assert.equal(tier('e2e/prod.spec.ts', ["test.use({ baseURL: 'https://prod.acme-shop.io' });"]), 'C');
+  assert.equal(tier('tests/helpers/env.ts', ["export const BASE_URL = 'https://prod.acme-shop.io';"]), 'C');
+  assert.equal(tier('src/client.ts', ["const u = 'https://api.acme-weather.io';"]), 'C', 'production code is unchanged');
 });
 
 test('review-delta: a base change only in bookkeeping, or far from the task lines, keeps the review (#24)', async () => {
