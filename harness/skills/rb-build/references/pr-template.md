@@ -75,12 +75,18 @@ Rules:
 - Replace, never append, after a re-review (CI fix, update-branch re-review): the body describes
   the tree the head commit carries. After a light re-review (identical diff) only the verifier line
   changes; the auditor and security lines keep their `head=`. One machine line at a time:
-  `rb gh pr-line <pr> --line "<line>"` (replaces the line of the same stage or kind); a
+  `rb gh pr-line <pr> --stage <rb-agent> --task <id> --outcome <o> --head <sha>` for a status
+  line (it builds and validates it), `--line "<line>"` for any other kind; it replaces the line of
+  the same stage or kind; a
   whole body: `rb gh pr-edit <pr> --body-file <f>`. Labels: `rb gh issue-edit <pr> --add-label` /
   `--remove-label`, or `rb gh label-add`.
 - The kickbacks line counts every kickback by its source (the shared budget of 2, plus the CI
   fix): `rb quality` reads it. An auditor kickback is a defect the verifier passed; a CI one, a
   defect every local check passed. Update it with `rb gh pr-line` after a later kickback.
+- Every status line except `by=rb-review-delta` needs the same verdict posted on the task issue
+  (`rb gh issue-comment <n> --body-file <the agent's report>`, the report ends with its
+  `rb-status` line). `rb merge-gate` refuses a PR whose line has no matching trusted comment
+  (reason `verdicts`), and `rb quality` counts reviewer kickbacks from those comments.
 - `Closes #n` only when the PR completes the task; a deliberate partial PR says `Part of #n`.
 - Numbers come from command output you ran in the mechanical check, never from memory.
 - Bug PRs (rb-fix): Problem is expected vs actual; Criteria start with "the reproduction test

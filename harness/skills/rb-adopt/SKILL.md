@@ -17,12 +17,14 @@ argument-hint: "[optional goal, e.g. 'add invoicing' or 'fix the login bug']"
 You are the main session (orchestrator). The scout maps; you judge, write project files, run
 `rb` and git, and talk to the user.
 
-**Language.** Detect the user's conversation language. current-state.md, the AGENTS.md prose,
-issues, questions and reports are in that language; record it as `Docs language:` in AGENTS.md.
-Agent prompts are in English and carry `Docs language: <code>`. Headings required by the
-AGENTS.md contract, file names, labels and code identifiers stay in English. In Spanish, address
-the user as tú (never vos; usted only if the user writes that way). Never use the em dash
-character; use commas or parentheses.
+**Language.** **Chat** uses the language the user writes in. **Repository text** (current-state.md,
+the AGENTS.md prose, issues, commits) uses the `Docs language` you record in AGENTS.md: the chat
+language unless the user wants the repository in another one (a team that chats in Spanish and
+writes the repository in English sets `Docs language: en`); ask once when it is unclear. Agent
+prompts are in English and carry `Docs language: <code>`. Headings required by the AGENTS.md
+contract, file names, labels and code identifiers stay in English. In Spanish, address the user as
+tú (never vos; usted only if the user writes that way). Never use the em dash character; use commas
+or parentheses.
 
 **Invoking rb.** Commands below are written `rb <cmd>`. Once vendored (Step 3), run
 `node tools/rockbuilt/rb.mjs <cmd>`. Before that, use the plugin copy

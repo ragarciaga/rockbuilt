@@ -169,9 +169,22 @@ export function missingPlaywrightDeps(root) {
   }
 }
 
+// A project that already has Playwright specs gets no template smoke test (rockbuilt #22: an
+// update added a generic spec to a 120-test suite).
+function hasSpecs(root) {
+  const seen = (dir, depth) => {
+    let entries = [];
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return false; }
+    return entries.some((e) => (e.isFile() && /\.(spec|test)\.(ts|js|mjs|cjs|mts|cts)$/.test(e.name))
+      || (e.isDirectory() && depth < 3 && e.name !== 'node_modules' && seen(path.join(dir, e.name), depth + 1)));
+  };
+  return ['e2e', 'tests/e2e', 'playwright'].some((d) => seen(path.join(root, d), 0));
+}
+
 export function applyWebOverlay(root, src) {
   const result = { created: [], skipped: [], mcp: null, e2eScript: null, missingDeps: [] };
   if (!isDir(src)) return { ...result, unavailable: true };
+  const suite = hasSpecs(root) || hasPlaywrightConfig(root);
   for (const rel of walk(src)) {
     const relPosix = toPosix(rel);
     const dest = path.join(root, rel);
@@ -186,6 +199,7 @@ export function applyWebOverlay(root, src) {
       continue;
     }
     if (/^playwright\.config\./.test(relPosix) && hasPlaywrightConfig(root)) { result.skipped.push(relPosix); continue; }
+    if (/^e2e\/smoke\.spec\./.test(relPosix) && suite) { result.skipped.push(`${relPosix} (the project has its own E2E suite)`); continue; }
     if (exists(dest)) { result.skipped.push(relPosix); continue; }
     mkdirSync(path.dirname(dest), { recursive: true });
     copyFileSync(path.join(src, rel), dest);

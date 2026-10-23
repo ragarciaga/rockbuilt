@@ -158,7 +158,7 @@ export function handle(s, method, fullPath, body) {
     if (!s.issues[m[1]]) return err(404, 'Not Found');
     s.comments[m[1]] = s.comments[m[1]] || [];
     if (method === 'POST') {
-      const c = { id: s.nextComment++, body: body.body, user: { login: s.user }, author_association: 'OWNER', created_at: new Date().toISOString() };
+      const c = { id: s.nextComment++, body: body.body, user: { login: s.user }, author_association: 'OWNER', created_at: (process.env.RB_NOW ? new Date(process.env.RB_NOW) : new Date()).toISOString() };
       s.comments[m[1]].push(c);
       return ok(c, 201);
     }
@@ -243,10 +243,15 @@ export function handle(s, method, fullPath, body) {
     const runs = (s.checkRuns[m[1]] || []).map((x) => ({ app: { slug: 'github-actions' }, ...x }));
     return ok({ total_count: runs.length, check_runs: page(runs, q) });
   }
+  if ((m = r.match(/^actions\/jobs\/(\d+)\/logs$/))) {
+    const t = (s.jobLogs || {})[m[1]];
+    return t == null ? err(403, 'Must have admin rights to Repository.') : { ok: true, status: 0, stdout: t, stderr: '' };
+  }
+  if ((m = r.match(/^check-runs\/(\d+)\/annotations$/))) return ok(page((s.annotations || {})[m[1]] || [], q));
   if ((m = r.match(/^commits\/([^/]+)\/status$/))) return ok({ state: 'success', statuses: s.statuses[m[1]] || [] });
   if ((m = r.match(/^branches\/([^/]+)\/protection$/))) {
     if (s.protection.mode === 'paywall') return err(403, 'Upgrade to GitHub Pro or make this repository public to enable this feature.');
-    if (method === 'PUT') { s.protection = { mode: 'on', contexts: body.required_status_checks.contexts }; return ok({}); }
+    if (method === 'PUT') { s.protection = { mode: 'on', contexts: body.required_status_checks.contexts, ...(body.required_status_checks.strict ? { strict: true } : {}) }; return ok({}); }
     if (s.protection.mode === 'on') return ok({ required_status_checks: { contexts: s.protection.contexts } });
     return err(404, 'Branch not protected');
   }

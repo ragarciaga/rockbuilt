@@ -127,7 +127,9 @@ stop the run.
 ## 6. CI fix (one bounded attempt per PR)
 
 Triggered from the merge train or the cycle queue when the checks on an rb PR's head
-(`rb gh checks <sha>`) completed with a failure.
+(`rb gh checks <sha>`) completed with a failure. Read the failure with `rb ci logs <sha>` (the
+failing job's log tail, or its annotations when the log is not readable); never guess from the
+check name.
 
 1. **Already used?** The PR branch has a commit whose subject ends `(CI, <id>)`: the attempt is
    spent. Escalate (`CI red after fix`) once and move on.
@@ -152,7 +154,8 @@ Triggered from the merge train or the cycle queue when the checks on an rb PR's 
    failure here takes the blocked path for the fix (the PR stays open, labelled `rb:blocked`).
 6. `git push`. Replace every machine line that names the old head, the timing line (from `rb timing
    line <id> --pr <pr>`, which keeps the minutes already in the body) and the kickbacks line (now
-   `ci=1`), each with `rb gh pr-line <pr> --line "<line>"`. If an edit fails, escalate: the gate
+   `ci=1`), each with `rb gh pr-line <pr> --line "<line>"` (status lines: `--stage --task --outcome
+   --head`). If an edit fails, escalate: the gate
    will refuse the stale lines.
 7. CI runs again; the train reads it. Still red: escalate `CI red after fix`, label `rb:blocked`
    on the issue, the PR stays open.

@@ -102,8 +102,10 @@ rutina o en la configuración de entornos de claude.ai/code:
 Si Chromium no se puede instalar en la nube, no pasa nada grave. Antes de pedirte tu computador,
 la corrida intenta tres cosas, una vez cada una:
 
-- El Chromium que ya trae la nube, con `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (sirve cuando
-  la versión de Playwright del proyecto no coincide con la instalada). La configuración de
+- El Chromium que ya trae la nube: `rb browser` lo busca (en `PW_CHROMIUM_PATH`, luego en
+  `PLAYWRIGHT_BROWSERS_PATH` o `/opt/pw-browsers`, la versión más nueva primero) y la corrida lo
+  usa con `PW_CHROMIUM_PATH=<esa ruta>` (sirve cuando la versión de Playwright del proyecto no
+  coincide con la instalada; la ruta cambia entre imágenes, por eso no se escribe a mano). La configuración de
   Playwright que escribe el harness lee esa variable; si tu proyecto ya tenía la suya, agrega
   `launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH || undefined }` en `use`.
 - Instalar con pip o npm, sin sudo, una herramienta que el proyecto nombra en `AGENTS.md` (por
@@ -233,7 +235,8 @@ el único camino de merge que usa el harness. `rb doctor` te muestra el modo: `r
 
 **GitHub Pro cuesta USD 4 al mes** y permite que GitHub mismo rechace cualquier merge sin el check
 `rockbuilt-ci` en verde, incluso uno hecho a mano. Es una decisión tuya. Si lo activas (o el repo
-es público), `rb protect` configura el check obligatorio.
+es público), `rb protect` configura los checks obligatorios (`rockbuilt-ci`, y `rockbuilt-e2e`
+cuando hay E2E), sin la regla de "rama al día", que bloquearía la cola de merges.
 
 ## Qué cuesta
 

@@ -38,6 +38,8 @@ files, run commands, or call git or gh.
 
 # Process
 
+Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or not the prompt repeated them (rockbuilt #37).
+
 1. Read AGENTS.md, the spec files and the task. Every criterion in `Covers` appears in your
    Acceptance criteria, ID first (`R1.2: ...`), with its verification tag. No `Covers` (issue or
    bug): derive criteria as `D1`, `D2`..., each testable, and say so in the Summary.
@@ -93,6 +95,11 @@ files, run commands, or call git or gh.
   A criterion about a stream (stdout vs stderr) or an exit code is asserted on that stream or
   code. Every literal a criterion spells (a command line, an output header, a message) maps to an
   assertion that observes it.
+- **Layout tasks name the viewport matrix.** A criterion about layout, a header, a menu, a dialog
+  or "phone" lists the sizes it holds at: the AGENTS.md `Viewports:` line, else 320x568, 360x740,
+  390x844, 740x360 and 125 % root text at 360 and 390. Choose the layout from the numbers in
+  `Layout measurements` when the prompt has them, never from a guess; prefer intrinsic wrapping
+  over a breakpoint measured at one text size (`.claude/skills/rb-verify/references/e2e.md`).
 - **Questions are BLOCKING or ADVISORY.** BLOCKING only when no sensible default exists and a
   wrong guess is expensive. ADVISORY always states the recommended default. Do not inflate
   implementation details into questions.

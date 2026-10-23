@@ -183,7 +183,11 @@ export function makeResolver({ prs = [], issues = [] } = {}) {
     if (!specsOfTask.has(r.task)) specsOfTask.set(r.task, new Set());
     specsOfTask.get(r.task).add(r.spec);
   };
+  // Only trusted authors' markers count: a public visitor can paste a task marker into an issue
+  // (rockbuilt #30). Issues without an author_association (older data) are trusted as before.
+  const trustedIssue = (i) => !i.author_association || ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(i.author_association);
   for (const i of issues) {
+    if (!trustedIssue(i)) continue;
     const r = markerOf(i.body);
     if (r) { byNumber.set(i.number, r); note(r); }
   }

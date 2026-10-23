@@ -17,11 +17,12 @@ agents. You never write the fix or the reproduction test yourself, never verify 
 merge only through `rb merge-gate`. Read `AGENTS.md` (fallback `CLAUDE.md`), `docs/progress.md`
 and `.claude/LESSONS.md` first.
 
-**Language.** Human-facing text (the issue, comments, escalations, the PR body, questions, the
-report) uses the `Docs language` from AGENTS.md, or the language of the current request if the user
-writes in another language; existing documents keep their language. In Spanish, address the user
-as tú (never vos; usted only if the user writes that way). Agent prompts are in English with
-`Docs language: <code>`. Never use the em dash character; use commas or parentheses.
+**Language.** **Repository text** (files, commits, the issue, comments, escalations, the PR body)
+uses the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing documents keep their language
+unless AGENTS.md says otherwise. **Chat** with the user (questions, the report) uses the language
+the user writes in (before they write: `Docs language`). In Spanish, address the user as tú (never
+vos; usted only if the user writes that way). Agent prompts are in English and carry `Docs language:
+<code>`. Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
 fallback `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`); never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). GitHub only
@@ -66,8 +67,8 @@ user can publish later.
 - Labels `rb:blocked`, `rb:needs-human`, `rb:needs-local`, `rb:hold`: skip unless the user asked
   to retry (then remove `rb:blocked`). An existing branch: Crash recovery in `kickback.md`.
 
-Preconditions as in build (clean tree, fetch, pull, `rb sync`), then
-`rb gh label-add <n> rb:in-progress` and `rb baseline --check`. Red **because of this bug**: fine,
+Preconditions as in build (clean tree, fetch, pull, run id, bookkeeping carry, `rb sync`), then
+`rb claim <n> --run <run id>` (exit 3: someone else is on it) and `rb baseline --check`. Red **because of this bug**: fine,
 note the command; it is the reproduction. Red for another reason: ask whether to fix that first
 (unattended: the cycle already stopped on a red baseline).
 
@@ -145,7 +146,9 @@ push; later fixes are commits on top); record the reviewed head. Then, serially:
   `origin/<default>...HEAD`, the triggers, `.claude/skills/rb-verify/references/security.md`,
   `Reviewed head: <sha>`.
 
-Any finding: kickback (budget 2 shared, `kickback.md` section 1, then re-review), then the blocked path plus a
+Re-run `rb claim <n> --run <run id>` before each review, and post every verdict, pass or fail,
+on the issue as build does (`rb gh issue-comment <n> --body-file <report>`): the gate refuses a
+PR line without it. Any finding: kickback (budget 2 shared, `kickback.md` section 1, then re-review), then the blocked path plus a
 `blocked-task` escalation.
 
 ## 7. PR and merge

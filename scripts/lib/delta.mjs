@@ -21,10 +21,51 @@ export const isTestPath = (p) => {
   return matchAny(n, TEST_GLOBS) && !matchAny(n, ROUTED_GLOBS);
 };
 
-// { identical | test-only | different } from the paths whose content differs.
+// { identical | test-only | different } from the paths whose content differs. Task status
+// (tasks.md) and progress notes never change what the app does or what CI runs: a difference only
+// there is identical (3d_brain #228, rockbuilt #24). LESSONS.md is not exempt: every agent reads it
+// as binding, so a change to it after the review is a change the reviewers did not see.
+const NOTES_FILE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md)$/;
 export function classify(differing) {
-  if (!differing.length) return 'identical';
-  return differing.every(isTestPath) ? 'test-only' : 'different';
+  const rest = differing.filter((p) => !NOTES_FILE.test(normalizePath(p)));
+  if (!rest.length) return 'identical';
+  return rest.every(isTestPath) ? 'test-only' : 'different';
+}
+
+// A diff as comparable text per file: hunk line numbers and index lines dropped, so the same
+// change on a base that moved elsewhere compares equal.
+export function normalizePatch(patch) {
+  return String(patch || '').split('\n')
+    .filter((l) => !/^index [0-9a-f]+\.\.[0-9a-f]+/.test(l))
+    .map((l) => l.replace(/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/, '@@'))
+    .join('\n').trimEnd();
+}
+
+// True when two per-file patch maps hold the same change (same files, same normalized patches).
+export function samePatches(a, b) {
+  const ka = [...a.keys()].filter((p) => !NOTES_FILE.test(p)).sort();
+  const kb = [...b.keys()].filter((p) => !NOTES_FILE.test(p)).sort();
+  if (ka.length !== kb.length || ka.some((k, i) => k !== kb[i])) return false;
+  return ka.every((k) => a.get(k) !== null && a.get(k) === b.get(k));
+}
+
+// Per-file patches between two commits. File names come from `-z` (spaces, non-ASCII), and each
+// patch is read on its own, so a content line that starts with `--- ` is never taken for a header
+// (0.10.0 review).
+function localPatches(root, from, to) {
+  const list = names(root, from, to);
+  if (list === null) return null;
+  const out = new Map();
+  for (const p of list) {
+    const r = gitRaw(root, ['diff', '--no-renames', '--no-color', '--binary', from, to, '--', p]);
+    if (!r.ok) return null;
+    if (/^GIT binary patch$|^Binary files /m.test(r.stdout)) { out.set(p, null); continue; }
+    const lines = r.stdout.split('\n');
+    const first = lines.findIndex((l) => l.startsWith('@@'));
+    const head = lines.slice(0, first === -1 ? lines.length : first).filter((l) => /^(old mode|new mode|new file mode|deleted file mode) /.test(l));
+    out.set(p, normalizePatch([...head, ...(first === -1 ? [] : lines.slice(first))].join('\n')));
+  }
+  return out;
 }
 
 function names(root, from, to) {
@@ -68,7 +109,14 @@ export function reviewDelta(root, { base, reviewed, head = 'HEAD' }) {
   const atNow = entries(root, now, touched);
   if (!atOld || !atNow) return fail('git ls-tree failed');
   const differing = touched.filter((p) => (atOld.get(p) || '') !== (atNow.get(p) || ''));
-  const cls = classify(differing);
+  let cls = classify(differing);
+  // The task's own diff unchanged while the base moved files it does not change (a stacked base
+  // squash-merged with later edits; 3d_brain #248): the same review holds.
+  if (cls !== 'identical') {
+    const was = localPatches(root, oldBase.stdout, old);
+    const is = localPatches(root, b, now);
+    if (was && is && samePatches(was, is)) return { identical: true, class: 'identical', detail: 'same task diff as reviewed (the base changed other parts of the touched files)', base: b, reviewed: old, head: now, files: touched.length, differing };
+  }
   const base_ = { base: b, reviewed: old, head: now, files: touched.length, differing };
   if (cls === 'identical') return { identical: true, class: cls, detail: `${touched.length} touched file(s), same content as reviewed`, ...base_ };
   if (cls === 'test-only') return { identical: false, class: cls, detail: `only test files changed: ${differing.slice(0, 5).join(', ')}`, ...base_ };

@@ -27,11 +27,12 @@ does not contain, a decision the design did not settle).
 
 Read `AGENTS.md` first (fallback `CLAUDE.md` for v0.2 projects).
 
-**Language.** Human-facing text (tasks.md content, issue bodies, the summary, questions) is in
-the `Docs language` from AGENTS.md, or the live conversation language if the user switched.
-In Spanish, address the user as tú (never vos; usted only if the user writes that way). Agent
-prompts are in English and carry `Docs language: <code>`. Never use the em dash character; use
-commas or parentheses.
+**Language.** **Repository text** (tasks.md, issue bodies, the spec PR) uses the `Docs language`
+from AGENTS.md (fallback CLAUDE.md); existing documents keep their language unless AGENTS.md says
+otherwise. **Chat** with the user (questions, the summary) uses the language the user writes in
+(before they write: `Docs language`). In Spanish, address the user as tú (never vos; usted only if
+the user writes that way). Agent prompts are in English and carry `Docs language: <code>`. Never use
+the em dash character; use commas or parentheses.
 
 **Canonical keys.** `rb tasks` parses tasks.md strictly: unknown keys or statuses are errors.
 It accepts Spanish synonyms (Estado, Cubre, Tamaño, Depende de, Archivos, Verificar; hecho,

@@ -53,6 +53,8 @@ export function queueTwoPrs(ws) {
     ].join('\n');
     s.issues[n] = { number: n, title, body, state: 'open', labels: ['rb:tier-a', 'rb:pr-open'], isPr: true, author: 'rb-bot', author_association: 'OWNER', created_at: now() };
     s.pulls[n] = { number: n, head: branch, base: 'main', headSha: head };
+    // 0.10.0: the gate needs every review verdict posted on the task issue (DESIGN 24.2).
+    s.comments[issueNo] = [...(s.comments[issueNo] || []), { id: s.nextComment++, body: `## Verifier\n\nNo findings.\n\n<!-- rockbuilt:status stage=rb-verifier task=i${issueNo} outcome=pass head=${head} -->`, user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: now() }];
     return n;
   };
   const a = issue('Documentar el formato de entrada', ['rb:task', 'rb:pr-open']);
@@ -62,4 +64,17 @@ export function queueTwoPrs(ws) {
   return s;
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs };
+// One bug issue (#1) reported by the owner, for an interactive /rb-fix: the session must claim it
+// (`rb claim`) and post every reviewer verdict on it, which the gate then requires (0.10.0, #34
+// and #35).
+export function bugIssue() {
+  const s = baseState();
+  const n = s.nextNumber++;
+  s.issues[n] = {
+    number: n, title: 'Comida y comida salen como dos categorías', state: 'open', labels: ['rb:bug'], author: 'rb-bot', author_association: 'OWNER', created_at: now(),
+    body: '## Esperado\nEn el reporte de octubre una sola fila `comida` con 205000.\n\n## Actual\n`Comida` y `comida` salen como dos filas.\n\n## Pasos\n`node src/cli.js sample-expenses.json 2026-10`\n',
+  };
+  return s;
+}
+
+export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue };

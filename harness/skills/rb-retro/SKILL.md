@@ -18,10 +18,11 @@ argument-hint: "[spec folder | 'last run' | 'since <date>' | free-text complaint
 You are the orchestrator. This skill changes no code. It reads evidence, proposes, and writes only
 after the user approves each item.
 
-**Language.** Everything the user reads (the summary, LESSONS entries, AGENTS.md proposals,
-drafts for this project) is in the `Docs language` from AGENTS.md (fallback `CLAUDE.md` for v0.2
-projects) or the live conversation language. In Spanish, address the user as tú (never vos;
-usted only if the user writes that way). Issues filed on the Rockbuilt repo are written in
+**Language.** **Repository text** (LESSONS entries, AGENTS.md proposals, drafts for this project)
+uses the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing documents keep their language
+unless AGENTS.md says otherwise. **Chat** with the user (the summary, questions) uses the language
+the user writes in (before they write: `Docs language`). In Spanish, address the user as tú (never
+vos; usted only if the user writes that way). Issues filed on the Rockbuilt repo are written in
 English (the harness is maintained in English). Never use the em dash character; use commas or
 parentheses.
 

@@ -3,6 +3,7 @@
 //   harness/agents/rb-*.md         canonical agents
 //   skills/*/SKILL.md              plugin skills (only /rockbuilt:install)
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -120,6 +121,10 @@ test('every SKILL.md states the language rule, the tú register and the em dash 
   for (const s of skillFiles()) {
     const id = `${s.base}/${s.dir}`;
     if (!/Docs language/.test(s.text)) problems.push(`${id}: no Docs language rule`);
+    // rockbuilt #33: repository text follows Docs language, chat follows the user.
+    const lang = (s.text.match(/^\*\*Language\.\*\*[\s\S]*?(?=\n\n)/m) || [''])[0];
+    if (!/Repository text/.test(lang) || !/\*\*Chat\*\*/.test(lang)) problems.push(`${id}: Language paragraph does not split repository text and chat`);
+    if (/keep their language(?! unless AGENTS\.md)/.test(lang.replace(/\s+/g, ' '))) problems.push(`${id}: "keep their language" without "unless AGENTS.md says otherwise"`);
     if (!/(^|[^\p{L}])tú([^\p{L}]|$)/u.test(s.text) || !/\bvos\b/.test(s.text)) problems.push(`${id}: no tú/vos register line`);
     if (!/em\s+dash/i.test(s.text)) problems.push(`${id}: no em dash rule`);
   }
@@ -308,4 +313,43 @@ test('skills use the mechanical bookkeeping and identity steps, not the old manu
   assert.match(cycle, /rb bookkeeping save --run\s+<run id> --final/);
   assert.match(text(path.join(ROOT, 'harness/skills/rb-build/references/merge-train.md')), /--line --task <id>/);
   assert.match(text(path.join(ROOT, 'harness/skills/rb-build/references/audit.md')), /rockbuilt:audit task=<id> head=<sha>/);
+});
+
+// Every bash `run:` block of the shipped workflows parses (0.10.0 review: a stray quote made every
+// E2E shard exit 2 after its tests passed). Blocks are taken from the YAML text; `${{ }}`
+// expressions become a placeholder word.
+test('every bash run block in the workflows parses with bash -n', (t) => {
+  const bash = spawnSync('bash', ['--version'], { encoding: 'utf8' });
+  if (bash.status !== 0) { t.skip('no bash here'); return; }
+  const files = [path.join(ROOT, 'harness/project/.github/workflows'), path.join(ROOT, '.github/workflows')]
+    .filter((d) => existsSync(d)).flatMap((d) => readdirSync(d).filter((f) => /\.ya?ml$/.test(f)).map((f) => path.join(d, f)));
+  const problems = [];
+  for (const file of files) {
+    const lines = readFileSync(file, 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\s*)(?:- )?run:\s*(.*)$/);
+      if (!m) continue;
+      let script;
+      if (/^[|>][-+]?\s*$/.test(m[2])) {
+        const body = [];
+        let indent = null;
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim() === '') { body.push(''); continue; }
+          const ind = lines[j].match(/^\s*/)[0].length;
+          if (indent === null) indent = ind;
+          if (ind < indent) break;
+          body.push(lines[j].slice(indent));
+        }
+        script = body.join('\n');
+      } else script = m[2];
+      script = script.replace(/\$\{\{[^}]*\}\}/g, 'X');
+      const r = spawnSync('bash', ['-n'], { input: script, encoding: 'utf8' });
+      if (r.status !== 0) problems.push(`${path.relative(ROOT, file)}:${i + 1}: ${r.stderr.trim()}`);
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+test('the vendored Playwright config reads PW_CHROMIUM_PATH (rb browser hands agents that path)', () => {
+  assert.match(readFileSync(path.join(ROOT, 'harness/web/playwright.config.ts'), 'utf8'), /executablePath:\s*process\.env\.PW_CHROMIUM_PATH/);
 });

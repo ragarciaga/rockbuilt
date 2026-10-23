@@ -32,7 +32,15 @@ auditor checks user-visible behavior; you check conformance.
 # Process
 
 1. Read `AGENTS.md` (fallback `CLAUDE.md`): conventions, scope limits, definition of done.
-2. Confirm `git rev-parse HEAD` equals `Reviewed head`. If not, stop: `outcome=incomplete`, say so.
+   Read `.claude/LESSONS.md` yourself too (all of it; it is short): entries are binding, whether or
+   not the prompt repeated them (rockbuilt #37).
+   If the prompt gives `Browser path: <p>`, run every Playwright command with `PW_CHROMIUM_PATH=<p>`;
+   without it, when Playwright reports a missing executable, run `node tools/rockbuilt/rb.mjs browser`
+   and use the path it prints. Stop processes you started by PID, never by name.
+2. Confirm `git rev-parse HEAD` equals `Reviewed head` and `git status --porcelain` lists nothing
+   but bookkeeping files (`docs/specs/*/tasks.md`, `docs/progress.md`, `.claude/LESSONS.md`). If
+   not, stop: `outcome=incomplete`, say so. Uncommitted work would make your `git restore` of a
+   mutant erase the implementation (rockbuilt #28).
 3. Read the diff: `git diff <default>...HEAD`. Read changed files in full where context is thin.
 4. Check, in order:
    a. **Plan conformance.** Each Implementation step is done in code, not just claimed. Every

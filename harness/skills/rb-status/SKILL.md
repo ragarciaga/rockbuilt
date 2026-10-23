@@ -18,10 +18,11 @@ description: >
 The first command of every session. Read-only: you change no files and no GitHub state, except
 an optional `docs/progress.md` refresh the user approves and an `rb hours log` entry they ask for. This skill dispatches no agents.
 
-**Language.** Report in the user's conversation language; if they have not written yet, use
-`Docs language:` from AGENTS.md (fallback `CLAUDE.md` for v0.2 projects). In Spanish, address
-the user as tú (never vos; usted only if the user writes that way). Commands, labels and file
-names stay in English. Never use the em dash character; use commas or parentheses.
+**Language.** **Chat**: report in the language the user writes in; before they write, use `Docs
+language:` from AGENTS.md (fallback `CLAUDE.md` for v0.2 projects). Repository text (anything
+written to files or GitHub) uses `Docs language`. In Spanish, address the user as tú (never vos;
+usted only if the user writes that way). Commands, labels and file names stay in English. Never use
+the em dash character; use commas or parentheses.
 
 Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub reads go through `rb gh <op>` (REST, JSON); never `gh issue`, `gh pr` or `gh label`.

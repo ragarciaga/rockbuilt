@@ -14,6 +14,7 @@ import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, 
 import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
 import { qualityReport, qualityText } from './lib/quality.mjs';
 import { buildQueue, finishQueue } from './lib/queue.mjs';
+import { findBrowser } from './lib/browser.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
@@ -21,9 +22,9 @@ import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
-import { syncProject, syncText } from './lib/sync.mjs';
+import { claimIssue, syncProject, syncText } from './lib/sync.mjs';
 import { addRows, aggregate, appendEvent, localRow, markPublished, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, timingLine, writeProgressBlock } from './lib/timing.mjs';
-import { CliError, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, stringFlag } from './lib/util.mjs';
+import { CliError, git, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, sleepMs, stringFlag } from './lib/util.mjs';
 import { vendorProject, vendorText } from './lib/vendor.mjs';
 import { addWorktree, listWorktrees, removeWorktree } from './lib/worktree.mjs';
 
@@ -42,8 +43,11 @@ export const COMMANDS = {
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
   risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
+  ci: 'CI on a commit: wait <sha> [--timeout <min>] (until rockbuilt-ci, and rockbuilt-e2e when the project has E2E, exist and every check completed; exit 0 green, 1 red, 3 timed out) | logs <sha> [--job <name>] [--tail <n>] (log tail, or annotations when the log is not readable)',
+  browser: 'Print the Chromium executable for PW_CHROMIUM_PATH (exit 3 when none is found)',
   queue: 'Merge queue: build --run <id> --prs a,b,c (merge them onto the default branch as rb/queue-*, CI runs once) | done --run <id> (delete this run\'s queue branches)',
   quality: 'What escaped the reviews: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs  [--since d] [--until d]',
+  claim: 'Mark an issue as being worked on by this run or session: <issue> --run <id> [--release | --take] (exit 3: another run holds it; rb sync keeps claims active in the last 3 h; --take only after the user confirms)',
   sync: 'Mark tasks done from merged PRs, delete merged rb/* branches, repair labels  [--run <id>]',
   gh: `REST GitHub layer  <op> [--repo owner/name]; ops: ${Object.keys(GH_OPS).join(', ')}`,
   'merge-gate': 'Merge a PR only if every gate condition holds  <pr> --run <id> | --human-approved [--dry-run]',
@@ -522,6 +526,49 @@ const handlers = {
     return { data: r, text: riskText(r), code: 0 };
   },
 
+  ci({ cwd, positionals, flags, io }) {
+    const root = requireRepoRoot(cwd);
+    const c = client(root, flags, io);
+    const [op, sha] = positionals;
+    if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) throw new CliError('usage: rb ci wait|logs <sha>', 2);
+    const table = (checks) => checks.map((x) => `${x.name.padEnd(28)} ${(x.conclusion || x.status).padEnd(12)} ${x.minutes != null ? `${x.minutes} min` : ''}`.trimEnd()).join('\n');
+    if (op === 'wait') {
+      const tmin = Number(stringFlag(flags, 'timeout') ?? 30);
+      if (!Number.isFinite(tmin) || tmin < 0 || tmin > 360) throw new CliError('--timeout must be minutes, 0 to 360', 2);
+      const limit = Date.now() + tmin * 60000;
+      const poll = Math.max(0, Number(process.env.RB_CI_POLL_S ?? 60) || 0) * 1000;
+      // The aggregate checks are created after their jobs, so "every present check completed" can be
+      // true before rockbuilt-ci or rockbuilt-e2e exists: wait for the required ones too.
+      let required = ['rockbuilt-ci'];
+      try { if (e2ePlan(readContract(root).text).has) required.push('rockbuilt-e2e'); } catch { required = ['rockbuilt-ci']; }
+      for (;;) {
+        const checks = ops.checks(c, sha);
+        const done = checks.length > 0 && required.every((n) => checks.some((x) => x.name === n)) && checks.every((x) => x.status === 'completed');
+        if (done) {
+          const red = checks.filter((x) => !['success', 'neutral', 'skipped'].includes(x.conclusion));
+          return { data: { sha, checks, green: !red.length }, text: `${red.length ? 'RED' : 'green'} on ${sha.slice(0, 7)}\n${table(checks)}`, code: red.length ? 1 : 0 };
+        }
+        if (Date.now() + poll > limit) return { data: { sha, checks, timedOut: true }, text: `still running on ${sha.slice(0, 7)} after the timeout\n${table(checks)}`, code: 3 };
+        sleepMs(poll);
+      }
+    }
+    if (op === 'logs') {
+      const checks = ops.checks(c, sha).filter((x) => x.source === 'check-run' && x.id);
+      const job = stringFlag(flags, 'job');
+      const pickList = job ? checks.filter((x) => x.name === job || x.name.includes(job)) : checks.filter((x) => x.conclusion && !['success', 'neutral', 'skipped'].includes(x.conclusion));
+      if (!pickList.length) return { data: { sha, jobs: [] }, text: job ? `no job named ${job} on ${sha.slice(0, 7)}` : `no failed job on ${sha.slice(0, 7)}`, code: 3 };
+      const tail = Number(stringFlag(flags, 'tail') || 200);
+      const jobs = pickList.map((x) => ({ name: x.name, conclusion: x.conclusion, minutes: x.minutes ?? null, ...ops.jobLog(c, x.id, { tail }) }));
+      return { data: { sha, jobs }, text: jobs.map((j) => `== ${j.name} (${j.conclusion || 'running'}${j.minutes != null ? `, ${j.minutes} min` : ''}) [${j.source}${j.note ? `: ${j.note}` : ''}]\n${j.lines.join('\n')}`).join('\n\n'), code: 0 };
+    }
+    throw new CliError('usage: rb ci wait|logs <sha>', 2);
+  },
+
+  browser() {
+    const r = findBrowser();
+    return { data: r, text: r.path || `no Chromium executable found (tried ${r.tried.join(', ') || 'nothing'}); run npx playwright install chromium`, code: r.path ? 0 : 3 };
+  },
+
   queue({ cwd, positionals, flags, io }) {
     const root = requireRepoRoot(cwd);
     const c = client(root, flags, io);
@@ -566,6 +613,13 @@ const handlers = {
     throw new CliError('usage: rb bookkeeping carry|save --run <id> [--final]', 2);
   },
 
+  claim({ cwd, positionals, flags, io }) {
+    const root = requireRepoRoot(cwd);
+    const r = claimIssue(client(root, flags, io), positionals[0], { run: flags.run, release: Boolean(flags.release), take: Boolean(flags.take) });
+    const text = r.released === false ? `#${r.issue} is claimed by ${r.holder}: not released` : r.released ? `released #${r.issue}` : r.claimed ? `#${r.issue} claimed by ${r.run}` : `#${r.issue} is claimed by ${r.holder} since ${r.since}: leave it`;
+    return { data: r, text, code: r.claimed === false || r.released === false ? 3 : 0 };
+  },
+
   sync({ cwd, flags, io }) {
     const root = requireRepoRoot(cwd);
     let c = null;
@@ -584,7 +638,32 @@ const handlers = {
     const [op, ...rest] = positionals;
     if (!op) throw new CliError(`usage: rb gh <op>; ops: ${Object.keys(GH_OPS).join(', ')}`, 2);
     const root = projectRoot(cwd);
+    // pr-create: the tier comes from the real diff too, not only from the plan (rockbuilt #29: a
+    // PR labelled B waited a full CI before the gate said rb risk is C). On the head branch, the
+    // body's tier line and the tier label rise to rb risk's tier when it is higher.
+    let raised = null;
+    if (op === 'pr-create' && typeof flags.head === 'string') {
+      const cur = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+      if (cur.ok && cur.stdout === flags.head) {
+        const base = typeof flags.base === 'string' ? flags.base : defaultBranch(root);
+        let risk = null;
+        try { risk = computeRisk(root, { base: `origin/${base}` }); } catch { risk = null; }
+        const file = typeof flags['body-file'] === 'string' ? path.resolve(cwd, flags['body-file']) : null;
+        const text = file ? readText(file) : typeof flags.body === 'string' ? flags.body : null;
+        const declared = text && (text.match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
+        const rank = (t) => 'ABC'.indexOf(String(t || 'A').toUpperCase());
+        if (risk && text !== null && rank(risk.tier) > rank(declared)) {
+          raised = { from: declared ? declared.toUpperCase() : null, to: risk.tier, reasons: risk.reasons.filter((r) => r.rule !== 'tier-b').slice(0, 5).map((r) => `${r.rule} ${r.path} ${r.detail || ''}`.trim()) };
+          const marker = `<!-- rockbuilt:tier ${risk.tier} -->`;
+          flags.body = declared ? text.replace(/<!--\s*rockbuilt:tier\s+[ABC]\s*-->/i, marker) : `${text.trimEnd()}\n${marker}\n`;
+          delete flags['body-file'];
+          if (typeof flags.label === 'string') flags.label = flags.label.split(',').filter((l) => !/^rb:tier-[abc]$/i.test(l.trim())).join(',') || undefined;
+          if (flags.label === undefined) delete flags.label;
+        }
+      }
+    }
     const data = runGhOp(client(root, flags, io), op, rest, flags, { cwd, defaultBranch: () => defaultBranch(root) });
+    if (raised) data.tierRaised = raised;
     return { data, text: json(data), code: 0 };
   },
 
@@ -674,9 +753,15 @@ const handlers = {
     const root = projectRoot(cwd);
     const c = client(root, flags, io);
     const branch = stringFlag(flags, 'branch') || defaultBranch(root);
+    // Required checks, never "branches must be up to date" (strict): the merge queue merges PRs
+    // that are behind the base once GitHub's test merge equals their tested step (DESIGN 8.4), and
+    // strict would refuse each of them and bring back one CI run per PR. The gate enforces the
+    // up-to-date rule itself. rockbuilt-e2e too when the project has E2E, so the GitHub button
+    // cannot merge while E2E still runs (3d_brain #266).
+    const contexts = ['rockbuilt-ci', ...(e2ePlan(readContract(root).text || '').has ? ['rockbuilt-e2e'] : [])];
     try {
       c.api('PUT', `{repo}/branches/${encodeURIComponent(branch)}/protection`, {
-        body: { required_status_checks: { strict: true, contexts: ['rockbuilt-ci'] }, enforce_admins: false, required_pull_request_reviews: null, restrictions: null },
+        body: { required_status_checks: { strict: false, contexts }, enforce_admins: false, required_pull_request_reviews: null, restrictions: null },
       });
     } catch (e) {
       if (e instanceof GhError && (e.status === 403 || /upgrade|pro|public/i.test(e.message))) {
@@ -685,7 +770,7 @@ const handlers = {
       }
       throw e;
     }
-    return { data: { protected: true, mode: 'github', branch, requiredChecks: ['rockbuilt-ci'] }, text: `${branch}: rockbuilt-ci is now a required status check (no required reviews)`, code: 0 };
+    return { data: { protected: true, mode: 'github', branch, requiredChecks: contexts, strict: false }, text: `${branch}: ${contexts.join(' and ')} required (not "up to date": the merge queue and rb merge-gate handle that); no required reviews`, code: 0 };
   },
 };
 handlers.init = handlers.vendor;

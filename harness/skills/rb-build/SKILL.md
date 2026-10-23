@@ -19,12 +19,13 @@ one-character finding: you re-dispatch the implementer. You never verify your ow
 merge only through `rb merge-gate`. Read `AGENTS.md` (fallback `CLAUDE.md`), `docs/progress.md`
 and `.claude/LESSONS.md` first. `/rb-cycle` runs this same loop unattended.
 
-**Language.** Human-facing text (issue comments, plans you post, PR bodies, escalations,
-progress.md, the final report) uses the `Docs language` from AGENTS.md, or the language of the
-current request if the user writes in another language; existing documents keep their language.
-In Spanish, address the user as tú (never vos; usted only if the user writes that way). Agent
-prompts are in English and carry `Docs language: <code>`. Code identifiers, commit types, labels,
-branch and file names stay in English. Never use the em dash character; use commas or parentheses.
+**Language.** **Repository text** (files, commits, plans, issue and PR comments, PR bodies,
+escalations, progress.md) uses the `Docs language` from AGENTS.md (fallback CLAUDE.md); existing
+documents keep their language unless AGENTS.md says otherwise. **Chat** with the user (questions,
+the final report) uses the language the user writes in (before they write: `Docs language`). In
+Spanish, address the user as tú (never vos; usted only if the user writes that way). Agent prompts
+are in English and carry `Docs language: <code>`. Code identifiers, commit types, labels, branch and
+file names stay in English. Never use the em dash character; use commas or parentheses.
 
 **Invoking rb.** Every `rb <cmd>` below means `node tools/rockbuilt/rb.mjs <cmd>` (plugin-only
 fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" <cmd>`). Never rely on PATH. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All GitHub work
@@ -87,12 +88,15 @@ failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
 pr, ci, merge): every review and every wait, not only plan and implement; the retro reads them.
 
 ### 1. Claim and stale check
-`rb gh label-add <n> rb:in-progress`; tasks.md `Status: in-progress`. Read the issue
+`rb claim <n> --run <run id>` (exit 3: another run holds it, skip the task; this session under an
+older run id: `--take` once the user confirms; re-run it before each review); tasks.md `Status: in-progress`. Read the issue
 (`rb gh issue-view <n>`) and decide whether the newest trusted plan comment (`<!-- rockbuilt:plan
 base=<sha> tier=<x> -->`) can be reused, by the rules in `references/plan.md` ("Stale check").
 Bookkeeping commits never make a plan stale; a human approval of the posted plan keeps it.
 
 ### 2. Plan and tier
+Layout task (criteria name a viewport, layout, header, menu, dialog or "phone"): first
+`rb-implementer` in `Mode: measure`; its table goes to the planner as `Layout measurements`.
 Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
 "standalone: derive criteria from the issue body"), spec paths (requirements.md, design.md, ADRs
 it cites), matching LESSONS entries, `Docs language`, the issue body and trusted human comments
@@ -164,9 +168,10 @@ instead: only local commits squash, each fix is one commit on top (no force push
 Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
-- **Verifier** (all tiers): task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the
-  implementer report, `git diff origin/<default>...HEAD --stat`, the default branch, the working
-  directory, `Docs language`, `Dispatch attempt: <k>`.
+- **Verifier** (all tiers), on the committed head of step 8 (it stops on uncommitted changes):
+  task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the implementer report, `git diff
+  origin/<default>...HEAD --stat`, the default branch, the working directory, `Docs language`,
+  `Dispatch attempt: <k>`, and `Browser path: <rb browser output>` for browser work.
 - **Blind auditor** (tiers B and C), after the verifier passes: follow `references/audit.md`
   (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
@@ -178,7 +183,9 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
   triggers, `.claude/skills/rb-verify/references/security.md`, `Reviewed head: <sha>`. Blocker or
   major: kickback; minors go to the PR under Risks.
 
-Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
+**Post every verdict**, pass or fail, on the task issue as it returns (`rb gh issue-comment <n>
+--body-file <its saved report>`): the gate refuses a PR line without its posted verdict, and
+`rb quality` counts kickbacks from them. Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
 finding from any reviewer: kickback, budget 2 shared, then the blocked path plus an escalation.
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 
@@ -225,15 +232,9 @@ PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
 
 ## Bookkeeping files
 
-`docs/specs/*/tasks.md`, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits:
-after every `git add -A` or `git reset --soft`, `git restore --staged` them. They stay uncommitted
-and follow you across branches. With GitHub reachable, `rb bookkeeping save --run <run id>` after
-each task pushes them to the day's `rb/bookkeeping-<YYYY-MM-DD>` PR from a temporary worktree (a
-session that ends early loses nothing; a stop hook asking to commit them gets this, never a task
-commit). At run end `--final` also restores them in the checkout; tell the user in one line.
-`/rb-cycle` merges that PR through the gate, or the user with `/rb-merge`. In tasks.md change only
-`Status:` lines and add one-line decision-log entries (`- YYYY-MM-DD: ...`): the gate refuses
-any other edit in a bookkeeping PR.
+tasks.md, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits: after every `git
+add -A` or `git reset --soft`, `git restore --staged` them. They go to the day's bookkeeping PR with
+`rb bookkeeping save --run <run id>` (details in `references/bookkeeping.md`).
 
 ## Hard rules
 

@@ -263,6 +263,20 @@ export const ops = {
     }
     return results;
   },
+  // A project label (issue forms, triage), created or updated idempotently (rockbuilt #27).
+  labelCreate(c, name, { color, description } = {}) {
+    if (!name || name.startsWith('rb:')) throw new CliError('label-create is for project labels; rb:* labels come from labels-ensure', 2);
+    const hex = color ? String(color).replace(/^#/, '') : 'ededed';
+    if (!/^[0-9a-f]{6}$/i.test(hex)) throw new CliError('--color must be a 6-digit hex color', 2);
+    const want = { name, color: hex.toLowerCase(), description: description || '' };
+    const have = c.paged('{repo}/labels').find((l) => l.name === name);
+    if (!have) { c.api('POST', '{repo}/labels', { body: want }); return { name, action: 'created' }; }
+    if (have.color !== want.color || (have.description || '') !== want.description) {
+      c.api('PATCH', `{repo}/labels/${encodeURIComponent(name)}`, { body: { color: want.color, description: want.description } });
+      return { name, action: 'updated' };
+    }
+    return { name, action: 'ok' };
+  },
   missingLabels(c) {
     const names = new Set(c.paged('{repo}/labels').map((l) => l.name));
     return LABELS.map((l) => l.name).filter((n) => !names.has(n));
@@ -346,7 +360,8 @@ export const ops = {
       const prev = latest.get(r.name);
       if (!prev || String(r.started_at || '') > String(prev.started_at || '')) latest.set(r.name, r);
     }
-    const out = [...latest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion || null, source: 'check-run', app: (r.app && r.app.slug) || null }));
+    const minutes = (r) => (r.started_at && r.completed_at ? Math.round((Date.parse(r.completed_at) - Date.parse(r.started_at)) / 6000) / 10 : null);
+    const out = [...latest.values()].map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion || null, source: 'check-run', app: (r.app && r.app.slug) || null, ...(r.id ? { id: r.id } : {}), ...(r.started_at ? { started_at: r.started_at } : {}), ...(r.completed_at ? { completed_at: r.completed_at, minutes: minutes(r) } : {}) }));
     const combined = c.api('GET', `{repo}/commits/${sha}/status`, { params: { per_page: 100 } }) || {};
     for (const s of combined.statuses || []) {
       const pending = s.state === 'pending';
@@ -358,6 +373,18 @@ export const ops = {
       });
     }
     return out;
+  },
+  // A CI job's log tail (Actions job id = check run id). Cloud sessions may get 403 on the log
+  // download; then the check run's annotations (failed assertions, timeouts) are the evidence.
+  jobLog(c, checkRunId, { tail = 200 } = {}) {
+    try {
+      const text = c.api('GET', `{repo}/actions/jobs/${num(checkRunId)}/logs`, { raw: true });
+      const lines = (typeof text === 'string' ? text : JSON.stringify(text ?? '')).split(/\r?\n/);
+      return { source: 'log', lines: lines.slice(-tail) };
+    } catch (e) {
+      const ann = c.paged(`{repo}/check-runs/${num(checkRunId)}/annotations`).map((a) => `${a.annotation_level}: ${a.path || ''}${a.start_line ? `:${a.start_line}` : ''} ${a.title ? `${a.title}: ` : ''}${a.message}`);
+      return { source: 'annotations', note: `log not readable here (${e.message.split('\n')[0]})`, lines: ann.slice(-tail) };
+    }
   },
   // Branch protection read: { available, protected, mode, requiredChecks, detail }.
   protection(c, branch) {
@@ -422,6 +449,7 @@ export const GH_OPS = {
   'label-add': '<n> <label[,label]>',
   'label-remove': '<n> <label>',
   'labels-ensure': '',
+  'label-create': '<name> [--color <hex>] [--description <text>]',
   'pr-create': '--head <b> --base <b> --title <t> --body-file <f> [--label a,b] [--draft]',
   'pr-view': '<n>',
   'pr-list': '[--state open|closed|all] [--head-prefix rb/]',
@@ -429,7 +457,7 @@ export const GH_OPS = {
   'pr-comment': '<n> --body-file <f>',
   'pr-update-branch': '<n>',
   'pr-edit': '<n> --body-file <f>',
-  'pr-line': '<n> --line <machine line>',
+  'pr-line': '<n> --line <machine line> | --stage <rb-agent> --outcome <o> --head <sha> [--task <id>] [--identical-to <sha>] [--app-identical-to <sha>] [--mode <m>]',
   checks: '<sha>',
   whoami: '',
   protection: '[--branch <b>]',
@@ -467,6 +495,26 @@ function checkFlags(op, flags) {
 }
 
 const TIER_MARKER = /<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i;
+
+// rb gh pr-line --stage ... : builds the status line from its parts, so a session never hand-types
+// one (rockbuilt #38: a hand-written helper failed on a missing line; a wrong head blocks the gate).
+export function statusLineFrom(flags) {
+  const v = (k) => (typeof flags[k] === 'string' ? flags[k] : null);
+  const stage = v('stage');
+  const outcome = v('outcome');
+  const head = v('head');
+  if (!stage || !outcome) throw new CliError('rb gh pr-line needs --line, or --stage and --outcome (and --head)', 2);
+  if (!/^rb-[a-z-]+$/.test(stage)) throw new CliError('--stage must be an rb agent, e.g. rb-verifier', 2);
+  if (!['pass', 'fail', 'needs-local', 'incomplete'].includes(outcome)) throw new CliError('--outcome must be pass, fail, needs-local or incomplete', 2);
+  const sha = (x, k) => { if (x && !/^[0-9a-f]{7,40}$/i.test(x)) throw new CliError(`--${k} must be a commit sha`, 2); return x; };
+  if (!head && outcome !== 'incomplete') throw new CliError('--head <sha> is required', 2);
+  const task = v('task');
+  if (task && !/^[A-Za-z0-9_-]+$/.test(task)) throw new CliError('--task must be a task id', 2);
+  const parts = [`stage=${stage}`, ...(task ? [`task=${task}`] : []), `outcome=${outcome}`, ...(head ? [`head=${sha(head, 'head')}`] : [])];
+  for (const k of ['identical-to', 'app-identical-to']) if (v(k)) parts.push(`${k}=${sha(v(k), k)}`);
+  if (v('mode')) parts.push(`mode=${v('mode').replace(/[^\w-]/g, '')}`);
+  return `<!-- rockbuilt:status ${parts.join(' ')} -->`;
+}
 
 // rb gh pr-line: replaces one machine line in a PR body without rewriting the rest (3d_brain
 // cycle-4889aa8-pwzk rewrote six bodies by hand after update-branch). A status line replaces the
@@ -543,6 +591,7 @@ export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
     case 'label-add': return ops.labelAdd(c, req(a, op), labelsFlag(req(b, op)));
     case 'label-remove': return ops.labelRemove(c, req(a, op), req(b, op));
     case 'labels-ensure': return ops.labelsEnsure(c);
+    case 'label-create': return ops.labelCreate(c, req(a, op), { color: str('color'), description: str('description') });
     case 'pr-create': {
       const body = bodyFrom(flags, cwd);
       return ops.prCreate(c, { head: str('head'), base: str('base') || defaultBranch(), title: str('title'), body, labels: prLabels(body, labelsFlag(flags.label)), draft: Boolean(flags.draft) });
@@ -555,9 +604,10 @@ export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
     case 'pr-edit': return ops.issueEdit(c, req(a, op), { body: bodyFrom(flags, cwd) });
     case 'pr-line': {
       const n = req(a, op);
-      const body = replaceMachineLine(ops.prView(c, n).body, str('line'));
+      const line = str('line') || statusLineFrom(flags);
+      const body = replaceMachineLine(ops.prView(c, n).body, line);
       const edited = ops.issueEdit(c, n, { body });
-      return { number: edited.number, line: str('line').trim() };
+      return { number: edited.number, line: line.trim() };
     }
     case 'checks': return ops.checks(c, req(a, op));
     case 'whoami': return ops.whoami(c);
