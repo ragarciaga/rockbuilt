@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1 (2026-10-31)
+
+- **CI uses the project's Node version.** The vendored `rockbuilt-ci.yml` reads `.nvmrc` (or
+  `.node-version`) and falls back to Node 22 when neither exists. Before, every job ran Node 22 even
+  when the project pinned another version, so something exclusive to the pinned Node could pass
+  locally and fail in CI (evidence: ragarciaga/maysa-shop-ops#7, `.nvmrc` 26.13.0).
+
 ## 0.10.0 (2026-10-23)
 
 Mechanical bookkeeping: the steps an interactive session skipped are now commands that the gate or
