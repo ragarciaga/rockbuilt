@@ -806,6 +806,17 @@ documents it.
    reviewers re-confirmed (#44). Small tasks paid the whole review (#41); the reviewers still
    found real defects in small tasks (T5, T11), so the blind audit stays on every tier B task and
    only the task count shrinks. Section 25.
+21. 2026-11-01, the F4 and F5 retro of the same project (97 PRs, no revert, no escaped defect;
+   the blind auditor caught real defects the verifier passed, T16 the most serious), issues #45 to
+   #49 and new evidence on #42 and #43: four bookkeeping PRs needed a manual base retarget (#45);
+   the cloud stop hook fired more than 30 times for tasks.md alone, each answered with another
+   save (#46); a `task=F5-T14` prefix made the gate refuse an approved PR (#47); the verifier
+   failed 5 of 12 tasks for guards no test exercised (#48); timing was empty for 40 tasks because
+   the orchestrator never called `rb timing` (#49). On #42: 9 security reviews in F5 returned
+   notes, no blocker; 23 security kickbacks in 97 PRs, mostly in auth and installer features. On
+   #43: a bookkeeping merge forced the auditor and security reviewer to restate verdicts on a task
+   whose diff had not changed. Also PR #40: the CI template ran Node 22 whatever `.nvmrc` said.
+   Section 25.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -821,7 +832,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `tasks <spec-dir>` | Parse tasks.md strictly (Spanish synonyms accepted), coverage vs requirements |
 | `parallel <spec-dir> [--ids] [--max]` | Disjoint batches |
 | `worktree add|remove|list` | As in v0.2 |
-| `timing start|end <task> <phase> \| line <task> [--est <hours>] [--pr <n>] \| report [--write]` | Phase minutes (`kickback` is stored as `fix`); `line` prints the PR machine line with the minutes since the last printed line (`--pr` adds them to the line already in that PR's body), with the planner's Human estimate as `est=`; `report` merges progress.md, rb/* PR bodies and the local log |
+| `timing start|end <task> <phase> \| line <task> [--est <hours>] [--pr <n>] \| report [--write]` | Phase minutes (`kickback` is stored as `fix`; a start of a phase already open is a no-op; `claim`, `gh pr-create` and a merge also record phases, section 25.8); `line` prints the PR machine line with the minutes since the last printed line (`--pr` adds them to the line already in that PR's body), with the planner's Human estimate as `est=`; `report` merges progress.md, rb/* PR bodies and the local log |
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
 | `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
@@ -1041,4 +1052,21 @@ which reviewers a diff needs (evidence 20.20).
    manifest, an auth path) are never paired. A lighter review for small tasks (no auditor) was
    proposed and declined: the F4 reviewers found real defects in small tasks; rb-retro measures
    the effect of 1 to 3 first.
+5. **Bookkeeping without manual steps** (#45, #46). A bookkeeping PR whose GitHub file list lags
+   behind the base (task PRs merged after the save) is checked against the live compare of the
+   base tip and the head, which is what a squash lands. `rb bookkeeping save` pushes nothing when
+   the edits equal the last save; the files stay modified in the checkout until the PR merges.
+   Hiding them from git (skip-worktree) to silence the cloud stop hook was declined: a later
+   `git pull` would fail on a file `git status` does not show.
+6. **Task ids** (#47). The gate matches a status line's `task=` case-insensitively and accepts a
+   run prefix (`F5-T14` for `T14`); the reviewers are told to write the spec id.
+7. **Safety steps** (#48). The plan has a `Safety steps` section: each guard, refusal or
+   validation with the test that fails when it is deleted. The implementer deletes each step in
+   its evidence pass (a step whose deletion passes needs a test first) and the verifier adds one
+   mutant per step.
+8. **Timing without the orchestrator** (#49). `rb claim` opens the task's plan phase, `rb gh
+   pr-create` (body task marker) closes the open phases and opens ci, and a merge by `rb
+   merge-gate` closes the rest. A start of a phase already open is a no-op, so explicit `rb timing`
+   calls refine these marks without doubling them. `rb timing report` warns about merged task PRs
+   with no timing line.
 

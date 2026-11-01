@@ -400,6 +400,10 @@ secrets, auth, new hosts or dependencies), decided by `rb risk` instead of the p
 Secret-shaped test fixtures are caught before the first push, and `rb tasks` asks to merge small
 tasks of the same module. The blind audit still runs on every task: it found real defects in small
 ones.
+The retro of the next two features added the rest: bookkeeping PRs that merge without a manual
+retarget, task ids with a run prefix that no longer block a merge, every safety step in a plan
+tested by deleting it, timing that records itself when the session never calls `rb timing`, and
+CI on the Node version the project pins in `.nvmrc`.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not

@@ -162,6 +162,9 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 
 ## El merge
 
+El CI corre con la versión de Node que fije el proyecto en `.nvmrc` o `.node-version` (si no hay
+ninguno, Node 22), la misma que usas en tu computador.
+
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
 (`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
 el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
@@ -197,6 +200,10 @@ nuevos, variables con forma de secreto, o agrega código que recibe datos de una
 procesos, escribe o borra archivos, arma consultas SQL a mano, inserta HTML o maneja contraseñas y
 tokens. Una función pura o un parser de flags no la necesitan. El planner puede pedirla de más,
 nunca quitarla, y el merge gate no fusiona sin ella cuando `rb risk` la pide.
+
+**Protecciones probadas.** El plan lista cada protección (saltar symlinks, rechazar una ruta de
+secretos, validar una copia) con la prueba que falla si se borra. El implementador borra cada una
+para comprobarlo y el verificador también.
 
 **Secretos antes del push.** El CI corre gitleaks sobre cada commit del PR, no solo el último, así
 que una clave de prueba escrita literal obliga a rehacer el PR. `rb secrets` revisa los commits
@@ -293,6 +300,10 @@ Al cerrar una funcionalidad, `/rb-verify` termina con el **chequeo del objetivo*
 no vio las tareas ni el código lee el objetivo del brief y usa la funcionalidad como lo haría ese
 usuario. Si no cumple lo prometido y los requisitos sí lo pedían, se vuelve una tarea; si los
 requisitos no lo cubrían, te llega como pregunta, porque cambiar el spec es decisión tuya.
+
+**Tiempos aunque nadie llame a `rb timing`.** `rb claim`, la creación del PR y el merge dejan
+marcas de tiempo solos, así que la retro siempre tiene minutos por tarea. `rb timing report`
+avisa cuando un PR fusionado no tiene ninguno.
 
 **Tamaño de las tareas.** `rb tasks` rechaza tareas con más de 8 archivos o más de 4 criterios, y
 una de tamaño L sin la razón por la que no se puede partir. Una tarea que nadie puede revisar
