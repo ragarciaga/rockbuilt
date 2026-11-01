@@ -79,6 +79,7 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
     const before = ops.compareFiles(c, baseRef, reviewedHead);
     const after = ops.compareFiles(c, baseRef, head);
     if (before.truncated || after.truncated) return { class: 'different', detail: 'too many files to compare (300+)' };
+    if (!before.files.length) return { class: 'different', detail: `the reviewed head ${String(reviewedHead).slice(0, 7)} has no diff against the base (or is unknown)` };
     const blob = (f) => (f.status === 'removed' ? null : f.sha || undefined);
     // A rename removes the previous path on that side: it is a touched path too (moving app code
     // under tests/ must not read as test-only).
@@ -303,19 +304,27 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // test-only carries the auditor (it judged the running app, unchanged) but never the security
   // review: test code runs in CI with the workflow's secrets and was not looked at.
   const ver = body.status['rb-verifier'];
-  const verOk = ver && ver.outcome === 'pass' && shaMatches(ver.head, head);
+  const identity = new Map();
+  const changeSince = (from) => {
+    if (!identity.has(from)) identity.set(from, reviewedChange(c, view.base.ref, from, head));
+    return identity.get(from);
+  };
+  // rockbuilt #43: a review line on an older head still describes the PR when the gate itself finds
+  // the task's change identical since that head (only merges from the base that touch none of the
+  // task's files). No agent re-confirms it and nobody edits the line; CI on the new head covers the
+  // merged result.
+  const sameChange = (lineHead) => Boolean(lineHead) && !shaMatches(lineHead, head) && changeSince(lineHead).class === 'identical';
+  const verOk = ver && ver.outcome === 'pass' && (shaMatches(ver.head, head) || sameChange(ver.head));
   const carryFor = (stage, lineHead) => {
     if (!verOk) return null;
     if (ver['identical-to'] && sameSha(lineHead, ver['identical-to'])) return { from: ver['identical-to'], allowed: ['identical'] };
     if (ver['app-identical-to'] && sameSha(lineHead, ver['app-identical-to'])) return { from: ver['app-identical-to'], allowed: stage === 'rb-security-reviewer' ? ['identical'] : ['identical', 'test-only'] };
     return null;
   };
-  const identity = new Map();
   // An `identical-to` verifier line (written by the verifier's identity check or by
   // `rb review-delta --line`) is checked even when no other line sits on that head (tier A).
   if (verOk && ver['identical-to']) {
-    const id = reviewedChange(c, view.base.ref, ver['identical-to'], head);
-    identity.set(ver['identical-to'], id);
+    const id = changeSince(ver['identical-to']);
     if (id.class !== 'identical') no('stale-head', `the verifier line says identical to ${ver['identical-to']}, but the gate finds the change ${id.class} (${id.detail}): re-review`);
   }
   for (const stage of need) {
@@ -326,9 +335,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     else if (s.outcome !== 'pass' && !(stage === 'rb-auditor' && s.outcome === 'needs-local' && humanApproved)) no('status-line', `${stage} outcome=${s.outcome}`);
     else if (!shaMatches(s.head, head)) {
       const carry = stage !== 'rb-verifier' ? carryFor(stage, s.head) : null;
+      if (sameChange(s.head)) continue;
       if (carry) {
-        if (!identity.has(carry.from)) identity.set(carry.from, reviewedChange(c, view.base.ref, carry.from, head));
-        const id = identity.get(carry.from);
+        const id = changeSince(carry.from);
         if (!carry.allowed.includes(id.class)) no('stale-head', `${stage} reviewed ${s.head}; the verifier carries it forward, but the gate finds the change ${id.class} (${id.detail}): re-review`);
       } else no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
     }

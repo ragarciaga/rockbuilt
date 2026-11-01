@@ -723,8 +723,11 @@ test('merge-gate: auditor and security lines on an earlier head hold only when t
   assert.equal(r.code, 3, 'contents differ from the reviewed blob: different');
   r = await run('identical-to', [app, { ...baseFile, sha: `blob-${Buffer.from('same').toString('hex')}` }], [app], { [`${HEAD}:src/base.js`]: 'same' });
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
-  // Without a carry key the old lines are stale, as before.
+  // Without a carry key (rockbuilt #43): the gate confirms the change itself, so the old auditor and
+  // security lines hold when nothing the task touched changed, and are stale when something did.
   r = await run('', [app], [app]);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  r = await run('', [app], [{ ...app, sha: 'blob-app-2' }]);
   assert.deepEqual([...new Set(reasonRules(r))], ['stale-head']);
   assert.equal(parseBody('<!-- rockbuilt:status stage=rb-verifier outcome=pass head=abc1234 app-identical-to=def5678 -->').status['rb-verifier']['app-identical-to'], 'def5678');
 });
@@ -818,4 +821,24 @@ test('merge-gate: an identity line holds when the task patch is unchanged though
   r = await run('@@ -14,3 +14,4 @@ ctx\n a\n+other\n b');
   assert.equal(r.code, 3);
   assert.ok(r.json.reasons.some((x) => x.rule === 'stale-head'), JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate (#43): every review line on the pre-update head holds when the task change is identical', async () => {
+  const OLD = `eeeeeee${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const app = { filename: 'src/feature.js', status: 'added', sha: 'blob-app-1' };
+  const root = project();
+  const run = async (after) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: [statusLine('rb-verifier', OLD), statusLine('rb-auditor', OLD), '<!-- rockbuilt:security required -->', statusLine('rb-security-reviewer', OLD), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh.state.compareFiles = { [OLD]: [app], [HEAD]: after };
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  let r = await run([app]);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  r = await run([{ ...app, sha: 'blob-app-2' }]);
+  assert.equal(r.code, 3);
+  assert.deepEqual([...new Set(r.json.reasons.map((x) => x.rule))], ['stale-head']);
+  r = await run([app, { filename: 'src/extra.js', status: 'added', sha: 'blob-extra' }]);
+  assert.equal(r.code, 3, 'a new task file after the review is a change');
 });
