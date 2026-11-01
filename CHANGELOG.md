@@ -7,11 +7,18 @@ Two guard weaknesses the 2brain-logic security reviewer found; both predate 0.11
 - **Wildcard refspecs (#51).** `git push origin refs/heads/*:refs/heads/*` could update the default
   branch without naming it. The guard now denies any wildcard refspec, reads `heads/main` as main,
   and denies a push without a branch name when `push.default=matching` or a `remote.<name>.push`
-  refspec is configured. Branch protection on GitHub (`rb protect`) still covers the server side.
+  refspec is configured. It also denies the matching refspec `:`, a refspec that starts with `-`,
+  `git --git-dir= / --work-tree=` with push, and any `GIT_*` variable set or exported in front of a
+  command (`GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`...: a `git -c` the guard could not
+  see). Branch protection on GitHub (`rb protect`) still covers the server side.
 - **Secret scan on push runs nothing from the repository (#52).** The scan's git calls use
   `--no-textconv --no-ext-diff`, `core.fsmonitor=false` and no pager, so a crafted
-  `.gitattributes` or git config cannot run code inside the hook, and the hook scans only the
-  session's project and its worktrees.
+  `.gitattributes` or git config cannot run code inside the hook; signature programs
+  (`log.showSignature`, `gpg.program`) are off too, and the hook scans only the session's project
+  and its worktrees. No tool may write a `.git` directory or the user's git config any more, main
+  session included (removing a stale `*.lock` stays allowed).
+- An independent security review of the first draft found five more bypasses; all are closed and
+  each has a guard test.
 - Update a project with `rb vendor`.
 
 ## 0.11.0 (2026-11-01)

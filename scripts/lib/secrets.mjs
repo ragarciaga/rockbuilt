@@ -54,7 +54,7 @@ export function scanLine(line) {
 // The guard runs this inside a hook, on a repository a command names: nothing the repository's
 // own config or attributes define may run (rockbuilt #52). Textconv drivers and external diff tools
 // come from .gitattributes plus config, fsmonitor from config, a pager from config: all off.
-const SAFE = ['-c', 'core.fsmonitor=false', '-c', 'core.pager=cat', '-c', 'diff.external=', '-c', 'core.quotepath=false'];
+const SAFE = ['-c', 'core.fsmonitor=false', '-c', 'core.pager=cat', '-c', 'diff.external=', '-c', 'core.quotepath=false', '-c', 'log.showSignature=false', '-c', 'gpg.program=false', '-c', 'gpg.ssh.program=false', '-c', 'gpg.x509.program=false'];
 const NO_EXEC_DIFF = ['--no-textconv', '--no-ext-diff'];
 
 function git(cwd, args) {
@@ -110,6 +110,7 @@ function scanPatch(patch, commit, skip = new Set()) {
 // CI), plus, with `worktree`, what is staged or modified. Returns { commits, findings } or null when
 // git cannot answer.
 export function scanBranch(cwd, { base, ref = 'HEAD', worktree = false } = {}) {
+  if (String(ref).startsWith('-') || (base && String(base).startsWith('-'))) return null;
   // No remote-tracking refs at all (a repo not pushed yet): scan from the merge-base with the
   // default branch, not the whole history (an old key long removed must not block every push).
   const hasRemotes = git(cwd, ['for-each-ref', '--count=1', 'refs/remotes']).stdout.trim() !== '';
@@ -129,7 +130,7 @@ export function scanBranch(cwd, { base, ref = 'HEAD', worktree = false } = {}) {
   const commits = list.stdout.split('\n').filter(Boolean).slice(0, 200);
   const findings = [];
   for (const c of commits) {
-    const show = git(cwd, ['show', ...NO_EXEC_DIFF, '--format=', '--no-color', '--no-renames', '-U0', c]);
+    const show = git(cwd, ['show', ...NO_EXEC_DIFF, '--no-show-signature', '--format=', '--no-color', '--no-renames', '-U0', c]);
     if (show.ok) findings.push(...scanPatch(show.stdout, c.slice(0, 7), skip));
   }
   if (worktree) {

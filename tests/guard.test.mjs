@@ -57,6 +57,19 @@ const CASES = [
   ['main: wildcard refspec reaches main (#51)', bash('git push origin refs/heads/*:refs/heads/*'), true],
   ['main: wildcard refspec without colon', bash('git push origin "refs/heads/rb/*"'), true],
   ['main: heads/main is main', bash('git push origin HEAD:heads/main'), true],
+  ['main: matching refspec : (0.11.1 review)', bash('git push origin :'), true],
+  ['main: option smuggled as a refspec', bash('git push -- origin --output=/tmp/x:feat'), true],
+  ['main: GIT_CONFIG_COUNT prefix', bash('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=matching git push origin'), true],
+  ['main: GIT_CONFIG_PARAMETERS prefix', bash("GIT_CONFIG_PARAMETERS=\"'remote.origin.push'='refs/heads/feat:refs/heads/main'\" git push"), true],
+  ['main: GIT_DIR prefix', bash('GIT_DIR=/tmp/evil/.git git push origin HEAD'), true],
+  ['main: env GIT_DIR prefix', bash('env GIT_DIR=/tmp/evil/.git git push origin HEAD'), true],
+  ['main: export GIT_CONFIG_PARAMETERS', bash("export GIT_CONFIG_PARAMETERS=\"'push.default'='matching'\"; git push"), true],
+  ['main: --git-dir push', bash('git --git-dir=/tmp/evil/.git push'), true],
+  ['main: --git-dir push (separate value)', bash('git --git-dir /tmp/evil/.git push'), true],
+  ['main: GIT_TERMINAL_PROMPT stays allowed', bash('GIT_TERMINAL_PROMPT=0 git fetch origin'), false],
+  ['main: write ~/.gitconfig from the shell', bash('echo "[gpg]" >> ~/.gitconfig'), true],
+  ['implementer: write .git/config from the shell', bash('printf x > .git/config', IMPL), true],
+  ['main: remove a stale git lock', bash('rm -f .git/index.lock'), false],
   ['main: kill -9 pid, kill $PID, kill %1', bash('kill -9 12345 && kill "$PID" && kill %1'), false],
   ['main: kill by port through lsof', bash('lsof -ti:3000 | xargs kill'), false],
   ['main: kill $(lsof -ti:port)', bash('kill $(lsof -ti:5173)'), false],
@@ -704,6 +717,15 @@ test('guard (#52): the push scan runs no repository-defined program and stays in
     g(dir, 'add', '-A'); g(dir, 'commit', '-q', '-m', 'leak');
     const hook = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'guard.mjs');
     const run = (cmd, cwd) => spawnSync(process.execPath, [hook], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: cmd }, cwd }), encoding: 'utf8' });
+    // A signed-looking commit plus log.showSignature and gpg.program: git show would call gpg.
+    g(dir, 'config', 'log.showSignature', 'true');
+    g(dir, 'config', 'gpg.program', path.join(dir, 'gpg.sh'));
+    writeFileSync(path.join(dir, 'gpg.sh'), `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`, { mode: 0o755 });
+    const tree = g(dir, 'rev-parse', 'HEAD^{tree}').trim();
+    const parent = g(dir, 'rev-parse', 'HEAD').trim();
+    const raw = `tree ${tree}\nparent ${parent}\nauthor T <t@x> 1700000000 +0000\ncommitter T <t@x> 1700000000 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n AAAA\n -----END PGP SIGNATURE-----\n\nsigned\n`;
+    const signed = execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: dir, input: raw, encoding: 'utf8' }).trim();
+    g(dir, 'update-ref', 'refs/heads/rb/T1', signed);
     const r = run('git push -u origin rb/T1', dir);
     assert.equal(r.status, 2, 'still finds the literal');
     assert.equal(existsSync(marker), false, 'no textconv or external diff ran');
@@ -715,4 +737,14 @@ test('guard (#52): the push scan runs no repository-defined program and stays in
     rmSync(dir, { recursive: true, force: true });
     rmSync(other, { recursive: true, force: true });
   }
+});
+
+test('guard (0.11.1 review): no tool writes a .git directory or the git config, main session included', () => {
+  const w = (file, agent) => decide({ tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, agent_type: agent, cwd: '/repo' }, fakeEnv(), NO_ENV);
+  assert.equal(w('/repo/.git/config').deny, true);
+  assert.equal(w('/repo/.git/hooks/pre-push').deny, true);
+  assert.equal(w(path.join(os.homedir(), '.gitconfig'), 'rb-implementer').deny, true);
+  assert.equal(w(path.join(os.homedir(), '.config', 'git', 'config')).deny, true);
+  assert.equal(w('/repo/src/a.js').deny, false);
+  assert.equal(w('/repo/docs/.github-notes.md').deny, false);
 });
