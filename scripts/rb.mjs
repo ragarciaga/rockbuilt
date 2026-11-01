@@ -18,13 +18,13 @@ import { findBrowser } from './lib/browser.mjs';
 import { findingsText, scanBranch } from './lib/secrets.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
-import { mergeGate, revertPr } from './lib/merge.mjs';
+import { mergeGate, prKind, revertPr } from './lib/merge.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
 import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
 import { claimIssue, syncProject, syncText } from './lib/sync.mjs';
-import { addRows, aggregate, appendEvent, localRow, markPublished, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, timingLine, writeProgressBlock } from './lib/timing.mjs';
+import { addRows, aggregate, appendEvent, autoPhase, localRow, markPublished, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, taskMarker, timingLine, writeProgressBlock } from './lib/timing.mjs';
 import { CliError, git, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, sleepMs, stringFlag } from './lib/util.mjs';
 import { vendorProject, vendorText } from './lib/vendor.mjs';
 import { addWorktree, listWorktrees, removeWorktree } from './lib/worktree.mjs';
@@ -350,6 +350,9 @@ const handlers = {
         report = mergeReports(report.tasks, { tasks: rows, open: [] });
         github = `${rows.length} task(s) from PR bodies`;
         githubRead = true;
+        // rockbuilt #49: say so when merged task PRs carry no timing at all.
+        const silent = prs.filter((p) => p.merged_at && prKind(p.head.ref) === 'task' && !parseTimingLines(p.body).length).map((p) => `#${p.number}`);
+        if (silent.length) github += `; WARNING: ${silent.length} merged task PR(s) with no timing (${silent.slice(0, 8).join(', ')}): call rb timing, or claim and open PRs through rb so it records on its own`;
       } catch (e) {
         github = `not read (${e.message})`;
       }
@@ -626,6 +629,7 @@ const handlers = {
   claim({ cwd, positionals, flags, io }) {
     const root = requireRepoRoot(cwd);
     const r = claimIssue(client(root, flags, io), positionals[0], { run: flags.run, release: Boolean(flags.release), take: Boolean(flags.take) });
+    if (r.claimed && r.task) autoPhase(root, r.task, 'plan');
     const text = r.released === false ? `#${r.issue} is claimed by ${r.holder}: not released` : r.released ? `released #${r.issue}` : r.claimed ? `#${r.issue} claimed by ${r.run}` : `#${r.issue} is claimed by ${r.holder} since ${r.since}: leave it`;
     return { data: r, text, code: r.claimed === false || r.released === false ? 3 : 0 };
   },
@@ -674,6 +678,11 @@ const handlers = {
     }
     const data = runGhOp(client(root, flags, io), op, rest, flags, { cwd, defaultBranch: () => defaultBranch(root) });
     if (raised) data.tierRaised = raised;
+    if (op === 'pr-create') {
+      const bodyText = typeof flags.body === 'string' ? flags.body : typeof flags['body-file'] === 'string' ? readText(path.resolve(cwd, flags['body-file'])) : null;
+      const t = taskMarker(bodyText);
+      if (t) autoPhase(root, t, 'ci');
+    }
     return { data, text: json(data), code: 0 };
   },
 
@@ -682,6 +691,7 @@ const handlers = {
     const pr = positionals[0];
     if (!pr) throw new CliError('usage: rb merge-gate <pr> --run <id> | --human-approved [--dry-run]', 2);
     const r = mergeGate(root, client(root, flags, io), pr, { dryRun: Boolean(flags['dry-run']), run: stringFlag(flags, 'run') || null, humanApproved: Boolean(flags['human-approved']) });
+    if (r.merged && r.task) autoPhase(root, r.task, null);
     const lines = [];
     if (r.merged) lines.push(`merged #${r.pr} (tier ${r.tier}) as ${String(r.mergeSha).slice(0, 7)}; revert: node tools/rockbuilt/rb.mjs revert ${r.pr}`);
     else if (r.eligible) lines.push(`#${r.pr} eligible (tier ${r.tier}); dry run, not merged`);

@@ -352,7 +352,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // rb wrote itself (a `by=rb-review-delta` verifier line with `identical-to`) are re-checked
   // above, not posted. A task PR names its issue (`Closes #n`, or `Part of #n` for a partial PR).
   const taskIssues = body.closes.length ? body.closes : body.partOf;
-  const sameTask = (a, b) => !a || !b || String(a).toLowerCase() === String(b).toLowerCase();
+  // `F5-T14` (a run's own prefix) names the spec task `T14` (rockbuilt #47).
+  const sameTask = (a, b) => {
+    if (!a || !b) return true;
+    const x = String(a).toLowerCase();
+    const y = String(b).toLowerCase();
+    return x === y || x.endsWith(`-${y}`) || y.endsWith(`-${x}`);
+  };
   if (!taskIssues.length) no('verdicts', 'the body names no task issue (Closes #n or Part of #n): the verdicts are posted there');
   else {
     let posted = null;
@@ -399,7 +405,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the

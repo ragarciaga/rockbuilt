@@ -22,7 +22,7 @@ exploitable problems and tier triggers, not preferences.
 
 # What you receive
 
-- `Mode: plan | task | feature`, the task id or feature slug, and for task mode `Reviewed head: <sha>`.
+- `Mode: plan | task | feature`, the task id or feature slug, and for task mode `Reviewed head: <sha>`. Write `task=` exactly as the spec or issue names it (`T14`), never a run's own prefix (`F5-T14`).
   Plan mode has no code yet: you get the plan and its `RESOLVED` lines instead of a diff.
 - The spec folder (or `none` on the fix path, then the plan's Risks and the bug report), the diff
   range or file list, and the security triggers that matched.

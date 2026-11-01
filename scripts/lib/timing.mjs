@@ -18,6 +18,9 @@ export function appendEvent(root, event, task, rawPhase, now = new Date()) {
   if (!task) throw new CliError('usage: rb timing start|end <task> <phase>');
   const phase = ALIASES[rawPhase] || rawPhase;
   if (!PHASES.includes(phase)) throw new CliError(`unknown phase "${rawPhase}"; use one of ${[...PHASES, ...Object.keys(ALIASES)].join(', ')}`);
+  // A start of a phase already open is a no-op: rb commands open phases on their own (autoPhase)
+  // and an orchestrator that also calls `rb timing start` must not leave a dangling start.
+  if (event === 'start' && openPhases(readEvents(root), task).includes(phase)) return { task, phase, event, ts: now.toISOString(), already: true };
   const file = timingFile(root);
   mkdirSync(path.dirname(file), { recursive: true });
   const record = { task, phase, event, ts: now.toISOString() };
@@ -205,3 +208,28 @@ export function writeProgressBlock(root, table) {
   writeFileSync(file, next);
   return file;
 }
+
+// Phases of a task with a start and no end yet.
+export function openPhases(events, task) {
+  return aggregate(events.filter((e) => e && e.task === task && e.event !== 'published')).open.filter((o) => o.task === task).map((o) => o.phase);
+}
+
+// rockbuilt #49: commands the orchestrator cannot skip record coarse timing on their own, so a run
+// that never calls `rb timing` still has numbers. `rb claim` opens plan, `rb gh pr-create` closes
+// whatever is open and opens ci, a merge by `rb merge-gate` closes everything. Explicit
+// `rb timing start|end` calls refine these and are never doubled. Best effort: never fails.
+export function autoPhase(root, task, phase, now = new Date()) {
+  try {
+    if (!root || !task || !/^[A-Za-z0-9_-]+$/.test(task)) return;
+    const events = readEvents(root);
+    const open = openPhases(events, task);
+    if (phase && open.includes(phase)) return;
+    if (phase === 'plan' && events.some((e) => e && e.task === task && e.event === 'start')) return; // a re-claim mid-task
+    for (const p of open) appendEvent(root, 'end', task, p, now);
+    if (phase) appendEvent(root, 'start', task, phase, now);
+  } catch {
+    // timing never blocks a command
+  }
+}
+
+export const taskMarker = (text) => (String(text || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null;

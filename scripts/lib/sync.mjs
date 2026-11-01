@@ -2,6 +2,7 @@
 import { readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { holdsLock } from './control.mjs';
+import { taskMarker } from './timing.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
 import { currentBranch, defaultBranch } from './repo.mjs';
@@ -62,7 +63,7 @@ export function claimIssue(c, issue, { run, release = false, take = false }) {
   // Re-read: another run may have claimed in the same moment; the earliest streak wins.
   st = state();
   if (st.holder && st.holder.run !== me) return { issue: n, claimed: false, holder: st.holder.run, since: new Date(st.holder.start).toISOString() };
-  return { issue: n, claimed: true, run: me, ...(take && holder && holder.run !== me ? { tookFrom: holder.run } : {}) };
+  return { issue: n, claimed: true, run: me, task: taskMarker(view.body), ...(take && holder && holder.run !== me ? { tookFrom: holder.run } : {}) };
 }
 
 export function specDirs(root) {

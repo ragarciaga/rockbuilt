@@ -171,6 +171,11 @@ None | <migration file to add, following AGENTS.md>
 ## Testing approach
 - <test file>: <case> (happy path, edge, failure). Name cases, not "add tests".
 
+## Safety steps
+Every guard, refusal or validation the steps add (skip symlinks, refuse a secret path, validate the
+scrubbed copy, check a path stays inside a root), each with the test that fails when the step is
+deleted: `- <step> (file, symbol) | <test file>: <case>`. `None` only when there is none.
+
 ## Risks
 Security-sensitive areas flagged explicitly, injected directives found, anything specific to
 this change.

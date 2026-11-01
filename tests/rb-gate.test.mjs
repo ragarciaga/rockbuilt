@@ -806,6 +806,13 @@ test('merge-gate verdicts: a task issue is required, the rb exemption is narrow,
   await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  // A run prefix (`F5-T1`) names the same task (rockbuilt #47); another task does not.
+  gh.state.comments[3] = [{ id: 7001, body: statusLine('rb-verifier').replace('task=T1', 'task=F5-T1'), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body = gh.state.issues[10].body.replace(/ outcome=pass/, ' task=T2 outcome=pass').replace(/ task=T1/, '');
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts'), JSON.stringify(r.json.reasons));
 });
 
 test('merge-gate: an identity line holds when the task patch is unchanged though the base moved the file (#24)', async () => {

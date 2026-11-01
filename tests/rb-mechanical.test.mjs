@@ -432,3 +432,18 @@ test('rb secrets: a repo with no remote scans from the default branch, not the w
   const r = await rbJson(root, ['secrets']);
   assert.equal(r.code, 0, JSON.stringify(r.json.findings));
 });
+
+test('rb timing (#49): claim, pr-create and a merge record phases on their own; explicit starts are not doubled', async () => {
+  const { readEvents, appendEvent } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS() });
+  const gh = fakeGh();
+  gh.state.issues[3] = { number: 3, title: 'T3', body: '<!-- rockbuilt:task T3 spec=docs/specs/01-x -->\nx', state: 'open', labels: ['rb:task'] };
+  assert.equal((await rbJson(root, ['claim', '3', '--run', 'r1', ...repo], io(gh))).code, 0);
+  appendEvent(root, 'start', 'T3', 'plan');
+  const ev = () => readEvents(root).filter((e) => e.task === 'T3').map((e) => `${e.event}:${e.phase}`);
+  assert.deepEqual(ev(), ['start:plan'], 'the explicit start of an open phase is a no-op');
+  const dir = tmp();
+  write(dir, 'body.md', 'Closes #3\n<!-- rockbuilt:task T3 spec=docs/specs/01-x -->\n<!-- rockbuilt:tier A -->\n');
+  assert.equal((await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T3-x', '--base', 'main', '--title', 'T3', '--body-file', path.join(dir, 'body.md'), ...repo], io(gh))).code, 0);
+  assert.deepEqual(ev(), ['start:plan', 'end:plan', 'start:ci']);
+});

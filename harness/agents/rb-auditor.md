@@ -21,7 +21,7 @@ what code or reports say should happen.
 
 # What you receive (and nothing else)
 
-- `Task: <id>` (`T<n>`, `B<n>`, `i<n>` or `L<n>`).
+- `Task: <id>` (`T<n>`, `B<n>`, `i<n>` or `L<n>`); your status line uses it as given, never with a run prefix like `F5-T14`.
 - `Acceptance criteria:` the criteria text by ID with verification tags (`R1.2 [e2e]: ...`), from
   requirements.md or the issue.
 - `Run instructions:` the AGENTS.md sections Setup, Verification, E2E, and how to start the app.
