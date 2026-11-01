@@ -328,3 +328,22 @@ test('review-delta: a LESSONS.md change after the review is a change the reviewe
   r = await rbJson(root, ['review-delta', '--reviewed', reviewed, '--base', 'main']);
   assert.equal(r.json.identical, false, r.json.detail);
 });
+
+test('rb risk security (#42): the diff decides whether the security review runs', () => {
+  const sec = (p, lines) => classify({ files: [{ path: p, status: 'modified', additions: lines.length, deletions: 0, added: lines }] }).security;
+  // No attack surface: a pure function, a flag parser, tests, docs.
+  assert.equal(sec('src/install/args.ts', ['export function parseFlags(argv: string[]) {', "  return { dryRun: argv.includes('--dry-run') };", '}']).required, false);
+  assert.equal(sec('tests/auth.test.ts', ["const password = 'x'.repeat(3);"]).required, false);
+  assert.equal(sec('README.md', ['Set your API_KEY.']).required, false);
+  // Surface: each trigger with its reason.
+  const why = (p, lines) => sec(p, lines).reasons.map((r) => r.detail);
+  assert.deepEqual(why('src/install/run.ts', ["import { spawn } from 'node:child_process';"]), ['process spawn']);
+  assert.deepEqual(why('src/api/notes.ts', ['  const { title } = req.body;']), ['request input']);
+  assert.deepEqual(why('src/app/api/route.ts', ['export async function POST(request: Request) {']), ['request input']);
+  assert.deepEqual(why('src/store.ts', ['  await fs.writeFile(target, data);']), ['file write or delete']);
+  assert.deepEqual(why('src/db.ts', ['  await prisma.$queryRawUnsafe(q);']), ['raw query']);
+  assert.deepEqual(why('src/ui/Note.tsx', ['  <div dangerouslySetInnerHTML={{ __html: body }} />']), ['injection sink']);
+  assert.deepEqual(why('src/login.ts', ['  const ok = await bcrypt.compare(password, hash);']), ['auth or secrets']);
+  assert.match(why('src/auth/guard.ts', ['export const x = 1;'])[0], /^auth-permissions-payments/);
+  assert.equal(sec('src/client.ts', ["const u = 'https://api.acme-weather.io';"]).required, true, 'a new external host');
+});

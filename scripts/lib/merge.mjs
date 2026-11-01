@@ -294,7 +294,11 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // 4. Reviewer lines with head equal to the PR head.
   const need = ['rb-verifier'];
   if (tierRank(tier) >= 1) need.push('rb-auditor');
-  if (body.security) need.push('rb-security-reviewer');
+  // rockbuilt #42: the diff decides too. A PR that rb risk says needs the security review gets it
+  // whatever its body says; the plan can only add the review, never drop it.
+  const secByDiff = Boolean(risk && risk.security && risk.security.required);
+  if (body.security || secByDiff) need.push('rb-security-reviewer');
+  if (secByDiff && !body.security) no('security', `rb risk requires the security review (${risk.security.reasons.slice(0, 3).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')}): run rb-security-reviewer and add <!-- rockbuilt:security required --> with its line`);
   // A verifier pass on the current head may name the head the other reviewers saw:
   // `identical-to=<sha>` (no touched file changed since; the verifier ran its identity check) or
   // `app-identical-to=<sha>` (only test files changed; the verifier re-verified them). Auditor and

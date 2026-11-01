@@ -199,6 +199,11 @@ test('merge-gate --human-approved: tier C allowed without the lock; still needs 
   let r = await gate(root, gh, ['--run', 'run-1']);
   assert.equal(r.code, 3);
   assert.ok(reasonRules(r).includes('tier-c'));
+  // An auth path needs the security review whatever the body says (rockbuilt #42).
+  r = await gate(root, gh, ['--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('security'), JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body += `<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  gh.state.comments[3].push({ id: 4000, body: statusLine('rb-security-reviewer'), user: { login: 'rb-bot' }, author_association: 'OWNER' });
   r = await gate(root, gh, ['--human-approved']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
   assert.equal(r.json.merged, true);

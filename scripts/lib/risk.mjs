@@ -186,7 +186,47 @@ export function packageDepChanges(oldText, newText) {
 
 // Core classifier. input: { files: [{ path, status, previousPath, additions, deletions, added: [lines] | null }],
 // contentKnown, packageJson(path) -> { old, new }, baseHas(str) -> bool|null, autonomy }.
-export function classify({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+// rockbuilt #42: whether the task needs the security review, decided from the diff, never from the
+// planner's judgment alone (the planner may raise it, never lower it). Triggers: the floor paths
+// and project Sensitive paths, paid SDKs, new hosts and secret-like env vars, dependency changes,
+// and added production lines that open an attack surface: request input, process spawns, file
+// writes, raw queries, HTML or code injection sinks, uploads, auth and secret handling. A pure
+// function, a CLI flag parser or a test change does not.
+const SECURITY_LINE = [
+  ['request input', /\breq(uest)?\.(body|query|params|headers|cookies|files?|form|args|json)\b|\bsearchParams\b|\bformData\s*\(|\bnew\s+FormData\b|['"]use server['"]|\bexport\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b|\b(app|router|server|fastify)\.(get|post|put|patch|delete|all|use|route)\s*\(|\bcreateServer\s*\(|@(app|router)\.(get|post|put|patch|delete|route)\b|\brequest\.(form|args|json|files|data)\b/],
+  ['process spawn', /\bchild_process\b|\b(spawn|spawnSync|exec|execSync|execFile|execFileSync|fork)\s*\(|\bsubprocess\.\w+|\bos\.(system|popen)\b|\bPopen\s*\(|\bshell\s*=\s*True\b|\bDeno\.(Command|run)\b|\bBun\.spawn\b|\bexeca\b/],
+  ['file write or delete', /\b(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|rmSync|unlink|unlinkSync|rmdir|chmod|chmodSync)\s*\(|\bfs\.(rm|rename|copyFile|cp)\s*\(|\bshutil\.(rmtree|move|copy)\b|\bopen\s*\([^)]*['"][wa]b?\+?['"]/],
+  ['raw query', /\$(query|execute)Raw(Unsafe)?\b|\.raw\s*\(|\bsql`|\.(query|execute)\s*\(\s*[`'"](select|insert|update|delete|with)\b|\.rpc\s*\(|\bcursor\.execute\s*\(/i],
+  ['injection sink', /\bdangerouslySetInnerHTML\b|\.innerHTML\s*=|\bv-html\b|\beval\s*\(|\bnew\s+Function\s*\(|\bdocument\.write\s*\(|\|\s*safe\b|\bmark_safe\s*\(|\bpickle\.loads?\b|\byaml\.load\s*\(/],
+  ['upload', /\b(multer|formidable|busboy|multiparty)\b|\bmultipart\/form-data\b|\bUploadFile\b/],
+  ['auth or secrets', /\b(password|passwd|jwt|bearer|session(Id|Token)?|cookies?|csrf|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|bcrypt|argon2|signIn|signUp|signOut|getSession|getUser|createHash|createHmac|createCipheriv|timingSafeEqual)\b/i],
+];
+
+export function securityNeed(files, tier, autonomy = {}) {
+  const reasons = [];
+  const add = (p, detail) => { if (!reasons.some((r) => r.path === p && r.detail === detail)) reasons.push({ path: p, detail }); };
+  for (const r of tier.reasons) {
+    if (['auth-permissions-payments', 'data-schema', 'sensitive-path', 'dependency'].includes(r.rule)) add(r.path, r.rule === 'dependency' ? `dependency change (${r.detail})` : `${r.rule}: ${r.detail}`);
+    else if (r.rule === 'harness-secrets' && /(^|\/)\.env|\.env$|\.npmrc|\.mcp\.json/.test(r.path)) add(r.path, `secrets file: ${r.detail}`);
+    else if (r.rule === 'cost') add(r.path, r.detail);
+  }
+  for (const f of files) {
+    const p = normalizePath(f.path);
+    if (!f.added || !isSource(p) || isTestPath(p)) continue;
+    for (const line of f.added) {
+      if (isComment(line)) continue;
+      for (const [what, re] of SECURITY_LINE) if (re.test(line)) add(p, what);
+    }
+  }
+  return { required: reasons.length > 0, reasons: reasons.slice(0, 12) };
+}
+
+export function classify(input) {
+  const r = classifyTier(input);
+  return { ...r, security: securityNeed(input.files, r, input.autonomy) };
+}
+
+function classifyTier({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -386,5 +426,6 @@ function summary(files) {
 export function riskText(r) {
   const lines = [`tier ${r.tier}  (${r.source}${r.pr ? ` #${r.pr}` : ''}${r.base ? ` vs ${r.base}` : ''}, ${r.files.length} file(s), ${r.changedLines} changed lines)`];
   for (const x of r.reasons) lines.push(`  ${x.rule.padEnd(26)} ${x.path || '-'}  ${x.detail}`);
+  if (r.security) lines.push(r.security.required ? `security review: required (${r.security.reasons.slice(0, 4).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')})` : 'security review: not required by the diff');
   return lines.join('\n');
 }
