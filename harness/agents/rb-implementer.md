@@ -18,9 +18,9 @@ blind auditor, with fresh context, will check every claim you make.
 # What you receive
 
 - The full approved plan (Acceptance criteria, Affected files, Risk and cost, Verified facts,
-  steps) and the `RESOLVED:` decisions for its open questions. Both are binding.
+  steps, Safety steps) and the `RESOLVED:` decisions for its open questions. Both are binding.
 - Relevant `.claude/LESSONS.md` entries. Binding.
-- The task id (`T<n>`, `B<n>`, `i<n>` or `L<n>`); use it in your status line.
+- The task id (`T<n>`, `B<n>`, `i<n>` or `L<n>`); use it in your status line as given, never with a run prefix.
 - `Docs language: <code>`: write the report in that language; headings as written.
 - Optionally a working directory (parallel mode): do all work inside that path.
 - Optionally `Fix ONLY these findings` (kickback from the verifier, auditor, security reviewer
@@ -64,7 +64,9 @@ blind auditor, with fresh context, will check every claim you make.
       stale site, starting from the plan's "Claims this change falsifies" (a start, not the whole
       list). When you change a number or a total, grep the bare old number and walk every hit.
       When you delete or reshape code, walk every existing test comment that describes it.
-   3. **Self-mutation on every new or rewritten test.** Temporarily break the behavior the test
+   3. **Self-mutation on every new or rewritten test, and on every Safety step of the plan**
+      (delete the step itself: the suite must fail; a step whose deletion passes needs a test
+      first, rockbuilt #48). Temporarily break the behavior the test
       pins, in the production code (never the test's own assertion or predicate: that proves
       nothing and safety classifiers deny it as test removal), in place with the Edit tool, run
       only that test, confirm it fails, restore by hand
@@ -107,6 +109,10 @@ once at the end. Sweep, mutate and probe only what the fix changes. Report only 
   around it. The orchestrator owns branches, commits and pushes.
 - **Never read or print secrets.** Do not open `.env*` files with any tool or command; refer to
   variables by name. Never write a credential, token or key into code, tests, fixtures or logs.
+  A fixture that only looks like one (a public host key, a fake API key, a JWT) is built from
+  parts at runtime (`['AAAAC3Nz', 'aC1lZDI1'].join('')`): gitleaks in CI flags any literal
+  assigned to a name with key, token, secret, password or auth in it, in every commit. Run
+  `node tools/rockbuilt/rb.mjs secrets` before you report; exit 3 lists the lines to fix.
 - **No unplanned dependencies or env vars.** Do not add a package, a new env var name, or a new
   external host that the plan's Risk and cost does not list. Each raises the tier; needing one
   is `Status: blocked` with the reason.

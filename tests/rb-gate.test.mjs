@@ -199,6 +199,11 @@ test('merge-gate --human-approved: tier C allowed without the lock; still needs 
   let r = await gate(root, gh, ['--run', 'run-1']);
   assert.equal(r.code, 3);
   assert.ok(reasonRules(r).includes('tier-c'));
+  // An auth path needs the security review whatever the body says (rockbuilt #42).
+  r = await gate(root, gh, ['--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('security'), JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body += `<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  gh.state.comments[3].push({ id: 4000, body: statusLine('rb-security-reviewer'), user: { login: 'rb-bot' }, author_association: 'OWNER' });
   r = await gate(root, gh, ['--human-approved']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
   assert.equal(r.json.merged, true);
@@ -454,9 +459,20 @@ test('merge-gate: bookkeeping PR merges unattended only when LESSONS.md just gro
   ] });
   gh.state.pulls[10].head = 'rb/bookkeeping-cycle-abc';
   await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1']);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 3);
   assert.ok(reasonRules(r).includes('bookkeeping'));
+  // rockbuilt #45: the PR file list still shows a task that merged into main after the save; the
+  // live compare of the base tip and the head (what a squash lands) has only bookkeeping.
+  gh.state.compareFiles = { [HEAD]: [{ filename: 'docs/specs/01-x/tasks.md', status: 'modified', sha: 'b1', patch: '@@\n-Status: todo\n+Status: done' }] };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  gh.state.compareFiles = { [HEAD]: [{ filename: 'src/app.js', status: 'modified', sha: 'b2', patch: '@@\n+x' }] };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3, 'a live compare with code still refuses');
+  gh.state.compareFiles = { [HEAD]: Array.from({ length: 300 }, (_, i) => ({ filename: 'docs/specs/01-x/tasks.md', status: 'modified', sha: `b${i}`, patch: '@@\n-Status: todo\n+Status: done' })) };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3, 'a truncated compare decides nothing');
 });
 
 test('merge-gate: revert and spec PRs never merge unattended, but do with --human-approved', async () => {
@@ -723,8 +739,11 @@ test('merge-gate: auditor and security lines on an earlier head hold only when t
   assert.equal(r.code, 3, 'contents differ from the reviewed blob: different');
   r = await run('identical-to', [app, { ...baseFile, sha: `blob-${Buffer.from('same').toString('hex')}` }], [app], { [`${HEAD}:src/base.js`]: 'same' });
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
-  // Without a carry key the old lines are stale, as before.
+  // Without a carry key (rockbuilt #43): the gate confirms the change itself, so the old auditor and
+  // security lines hold when nothing the task touched changed, and are stale when something did.
   r = await run('', [app], [app]);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  r = await run('', [app], [{ ...app, sha: 'blob-app-2' }]);
   assert.deepEqual([...new Set(reasonRules(r))], ['stale-head']);
   assert.equal(parseBody('<!-- rockbuilt:status stage=rb-verifier outcome=pass head=abc1234 app-identical-to=def5678 -->').status['rb-verifier']['app-identical-to'], 'def5678');
 });
@@ -798,6 +817,21 @@ test('merge-gate verdicts: a task issue is required, the rb exemption is narrow,
   await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  // A run prefix (`F5-T1`) names the same task (rockbuilt #47); T11 or F5-T11 never stand for T1.
+  const keep = gh.state.issues[10].body;
+  gh.state.issues[10].body = `Closes #3\n${statusLine('rb-verifier')}\n<!-- rockbuilt:tier A -->\n`;
+  for (const other of ['T11', 'F5-T11']) {
+    gh.state.comments[3] = [{ id: 7002, body: statusLine('rb-verifier').replace('task=T1', `task=${other}`), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
+    r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+    assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts'), other);
+  }
+  gh.state.issues[10].body = keep;
+  gh.state.comments[3] = [{ id: 7001, body: statusLine('rb-verifier').replace('task=T1', 'task=F5-T1'), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body = gh.state.issues[10].body.replace(/ outcome=pass/, ' task=T2 outcome=pass').replace(/ task=T1/, '');
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts'), JSON.stringify(r.json.reasons));
 });
 
 test('merge-gate: an identity line holds when the task patch is unchanged though the base moved the file (#24)', async () => {
@@ -818,4 +852,56 @@ test('merge-gate: an identity line holds when the task patch is unchanged though
   r = await run('@@ -14,3 +14,4 @@ ctx\n a\n+other\n b');
   assert.equal(r.code, 3);
   assert.ok(r.json.reasons.some((x) => x.rule === 'stale-head'), JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate (#43): every review line on the pre-update head holds when the task change is identical', async () => {
+  const OLD = `eeeeeee${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const app = { filename: 'src/feature.js', status: 'added', sha: 'blob-app-1' };
+  const root = project();
+  const run = async (after) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: [statusLine('rb-verifier', OLD), statusLine('rb-auditor', OLD), '<!-- rockbuilt:security required -->', statusLine('rb-security-reviewer', OLD), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh.state.compareFiles = { [OLD]: [app], [HEAD]: after };
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  let r = await run([app]);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  r = await run([{ ...app, sha: 'blob-app-2' }]);
+  assert.equal(r.code, 3);
+  assert.deepEqual([...new Set(r.json.reasons.map((x) => x.rule))], ['stale-head']);
+  r = await run([app, { filename: 'src/extra.js', status: 'added', sha: 'blob-extra' }]);
+  assert.equal(r.code, 3, 'a new task file after the review is a change');
+});
+
+test('merge-gate (#42): an added line with attack surface needs the security review on tier B', async () => {
+  const root = project();
+  const gh = fakeGh();
+  seed(gh, { tier: 'B', files: [{ filename: 'src/run.js', status: 'added', additions: 1, deletions: 0, patch: "@@\n+import { spawn } from 'node:child_process';" }] });
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'security' && /process spawn src\/run\.js/.test(x.detail)), JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body += `\n<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  gh.state.comments[3].push({ id: 4100, body: statusLine('rb-security-reviewer'), user: { login: 'rb-bot' }, author_association: 'OWNER' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate (#43): no carry from a reviewed head GitHub cannot compare, or one with no diff', async () => {
+  const OLD = `fffffff${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const app = { filename: 'src/feature.js', status: 'added', sha: 'blob-app-1' };
+  const root = project();
+  const run = async (compareFiles, patchNow) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: [statusLine('rb-verifier', OLD), statusLine('rb-auditor', OLD), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh.state.compareFiles = compareFiles;
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  let r = await run({ [OLD]: [], [HEAD]: [app] });
+  assert.equal(r.code, 3, 'a reviewed head with no diff against the base');
+  assert.match(r.json.reasons.find((x) => x.rule === 'stale-head').detail, /reviewed/);
+  // Patch fallback: the base changed another part of the task's file, the task's own patch is the same.
+  r = await run({ [OLD]: [{ ...app, status: 'modified', patch: '@@ -1,2 +1,3 @@\n a\n+task\n b' }], [HEAD]: [{ ...app, status: 'modified', sha: 'blob-app-2', patch: '@@ -5,2 +5,3 @@\n a\n+task\n b' }] });
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 });

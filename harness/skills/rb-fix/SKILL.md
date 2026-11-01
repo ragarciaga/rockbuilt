@@ -119,7 +119,7 @@ the reproduction test. Do not refactor beyond the plan. Return your report." Che
 ## 5. Mechanical check and tier recompute
 
 `rb baseline --check` on the branch: no failure outside known-failures; the reproduction test is
-among the passing tests; counts not lower than baseline. The reproduction test must not be weakened
+among the passing tests; counts not lower than baseline; `rb secrets` exits 0. The reproduction test must not be weakened
 (`git diff <reproduce sha> HEAD -- <test file>`). UI bugs also run the E2E commands when a browser
 exists. Any failure: kickback. Then `rb risk --base origin/<default> --json`; risen to C and not
 approved: `wip: escalated: tier C (B<n>)`, push, escalate (`tier-c-diff`), move on.
@@ -141,8 +141,8 @@ push; later fixes are commits on top); record the reviewed head. Then, serially:
   reports, the verifier verdict or the diff. After the verifier, or in its own copy
   (rb-build `references/audit.md`, "Own copy"): never in the directory the verifier is mutating.
   Keep its verdict as `audit.md` "Keep the verdict" says.
-- `rb-security-reviewer` when the plan flags auth, permissions, payments, personal data, secrets,
-  file upload or external input: `Mode: task`, spec folder `none`, the bug report, diff range
+- `rb-security-reviewer` when `rb risk --json` says `security.required` (the gate enforces it),
+  or the plan raises it: `Mode: task`, spec folder `none`, the bug report, diff range
   `origin/<default>...HEAD`, the triggers, `.claude/skills/rb-verify/references/security.md`,
   `Reviewed head: <sha>`.
 

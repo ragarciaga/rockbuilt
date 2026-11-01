@@ -1,11 +1,50 @@
 # Changelog
 
-## 0.10.1 (2026-10-31)
+## 0.11.0 (2026-11-01)
 
-- **CI uses the project's Node version.** The vendored `rockbuilt-ci.yml` reads `.nvmrc` (or
-  `.node-version`) and falls back to Node 22 when neither exists. Before, every job ran Node 22 even
-  when the project pinned another version, so something exclusive to the pinned Node could pass
-  locally and fail in CI (evidence: ragarciaga/maysa-shop-ops#7, `.nvmrc` 26.13.0).
+Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #49 from
+2brain-logic F4 and F5 on 0.10.0; DESIGN 20.20, 20.21 and 25).
+
+- **Reviews carry across a base merge, decided by the gate (#43).** When an update from main leaves
+  the task's files identical, `rb merge-gate` accepts the verifier, auditor and security lines on
+  the old head by itself: no agent, no PR edit, only CI on the new head. `/rb-merge` and the
+  interactive path no longer send the session back to the reviewers. This was the largest cost
+  in F4.
+- **Security review decided from the diff (#42).** `rb risk --json` gives
+  `security.required` with reasons (auth and schema paths, Sensitive paths, dependencies, hosts,
+  secret-like env vars, and added production lines with request input, process spawns, file
+  writes, raw queries, injection sinks, uploads, auth or secrets). rb-build and rb-fix run the
+  security reviewer when it says yes, the gate refuses a PR without the review when it says yes
+  (reason `security`), and the planner can only add it. A pure function or a flag parser no
+  longer gets one.
+- **Secrets caught before the push (#44).** `rb secrets` scans unpushed commits and the working
+  tree with gitleaks-shaped rules (generic-api-key with entropy, private keys, token formats,
+  JWTs; `gitleaks:allow` respected). It is part of the mechanical check, and the guard denies
+  `git push` while an unpushed commit has a hit, so a fixture is fixed before CI sees it instead of
+  replacing the PR. The implementer builds secret-shaped fixtures from parts.
+- **Minimum task size (#41).** `rb tasks` fails on two not-started `S` tasks in the same directory
+  that fit one task (8 files, 4 criteria), unless one says why they stay apart
+  (`Size: S (<reason>)`); never across a tier floor. The blind audit stays on every tier B task:
+  F4's reviewers found real defects in small tasks.
+- **Bookkeeping PRs (#45, #46).** The gate checks a bookkeeping PR against the live compare of the
+  base tip and the head when GitHub's file list still shows task PRs merged after the save, so no
+  manual retarget. A save with nothing new pushes nothing (it answered the cloud stop hook with a
+  new commit and CI run every turn); the files stay modified until the PR merges, by design.
+- **Task ids with a run prefix (#47).** The gate matches `task=F5-T14` to the spec's `T14`, and the
+  reviewers write the id as tasks.md has it.
+- **Safety steps are mutation-tested (#48).** The plan lists every guard, refusal or validation
+  with the test that fails when it is deleted; the implementer deletes each one in its evidence
+  pass and the verifier probes each one.
+- **Timing records itself (#49).** `rb claim` opens the plan phase, `rb gh pr-create` closes what is
+  open and opens ci, a merge by `rb merge-gate` closes the rest; explicit `rb timing` calls refine
+  it and are never doubled; after a merge the gate writes the minutes into the PR's timing line.
+  `rb timing report` warns about recent merged task PRs with no minutes.
+- **CI uses the project's Node version** from `.nvmrc` or `.node-version` (first non-comment line,
+  default 22; a pin below 20, the harness minimum, runs 22 with a warning) in every job of the
+  workflow template (PR #40, merged as 0.10.1 without a release of its own; it ships here).
+- **Upgrading:** an open PR whose diff now requires the security review and that never had one
+  is refused with reason `security`; the merge train and `/rb-merge` run the reviewer once on its
+  head and add its line. Update a project with `rb vendor`.
 
 ## 0.10.0 (2026-10-23)
 

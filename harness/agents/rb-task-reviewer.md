@@ -40,7 +40,9 @@ output is a verdict the orchestrator can apply mechanically.
    outcome, and then the Size line says why (`Size: L (<reason>)`). Too big (several independent
    outcomes, more than 8 files, more than 4 criteria, mixes schema + API + UI that could ship
    separately) means split; `rb tasks` fails on those limits. Too small (no verifiable outcome alone, only
-   meaningful together with a neighbor) means merge.
+   meaningful together with a neighbor, or an S that shares a directory with another S and fits
+   the limits with it) means merge: each task pays a planner, an implementer, a verifier, an
+   auditor and a CI run, so the review must be worth the change.
 2. **Alignment.** Every claim traces to `requirements.md` or `design.md`. `Covers` lists real
    criterion IDs that this task actually satisfies. Nothing the spec does not ask for.
 3. **Completeness.** The task fully satisfies the criteria it claims: error cases, the

@@ -162,6 +162,9 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 
 ## El merge
 
+El CI corre con la versión de Node que fije el proyecto en `.nvmrc` o `.node-version` (si no hay
+ninguno, Node 22), la misma que usas en tu computador.
+
 Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
 (`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
 el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
@@ -178,8 +181,9 @@ Fuera de la cola, los PRs se fusionan uno por uno. Si después de un merge lo ú
 vuelta de CI. Si `main` trajo código, el PR se actualiza y el CI corre de nuevo.
 
 Después de esa actualización no siempre se repite toda la revisión. Si los archivos de la tarea
-quedaron iguales (solo entró lo nuevo de `main`), `rb` lo confirma sin despachar ningún agente y
-el CI vuelve a correr las pruebas, sin repetir al auditor. Lo mismo pasa cuando una devolución solo cambió
+quedaron iguales (solo entró lo nuevo de `main`), el merge gate lo comprueba solo y conserva los
+veredictos del verificador, del auditor y de seguridad, sin despachar ningún agente ni editar el
+PR; solo vuelve a correr el CI. Lo mismo pasa cuando una devolución solo cambió
 archivos de prueba: la app que vio el auditor no cambió, así que su resultado se conserva. El gate
 no le cree al verificador: compara él mismo el contenido en GitHub antes de aceptar la revisión
 anterior. Si cambió cualquier archivo de la app, la revisión completa se repite. Una corrección
@@ -189,6 +193,22 @@ un PR nuevo.
 En local, los agentes corren solo las pruebas E2E que la tarea tocó; la suite completa la corre
 el CI. Una prueba que falla y pasa al repetirla queda registrada como posible inestable
 (`rb flaky list`) para la retro, nunca se salta.
+
+**Cuándo corre la revisión de seguridad.** La decide el diff, no el criterio del planner:
+`rb risk` la pide cuando el cambio toca rutas de auth, pagos o esquema, dependencias, hosts
+nuevos, variables con forma de secreto, o agrega código que recibe datos de una petición, lanza
+procesos, escribe o borra archivos, arma consultas SQL a mano, inserta HTML o maneja contraseñas y
+tokens. Una función pura o un parser de flags no la necesitan. El planner puede pedirla de más,
+nunca quitarla, y el merge gate no fusiona sin ella cuando `rb risk` la pide.
+
+**Protecciones probadas.** El plan lista cada protección (saltar symlinks, rechazar una ruta de
+secretos, validar una copia) con la prueba que falla si se borra. El implementador borra cada una
+para comprobarlo y el verificador también.
+
+**Secretos antes del push.** El CI corre gitleaks sobre cada commit del PR, no solo el último, así
+que una clave de prueba escrita literal obliga a rehacer el PR. `rb secrets` revisa los commits
+que aún no se subieron, y el guard bloquea el `git push` si encuentra algo con forma de secreto.
+Las claves de prueba se arman por partes en tiempo de ejecución.
 
 Los PRs de nivel C los fusionas tú en GitHub, o le dices a Claude "haz merge del PR 12". Cada
 merge deja en el PR el comando para revertirlo.
@@ -281,9 +301,15 @@ no vio las tareas ni el código lee el objetivo del brief y usa la funcionalidad
 usuario. Si no cumple lo prometido y los requisitos sí lo pedían, se vuelve una tarea; si los
 requisitos no lo cubrían, te llega como pregunta, porque cambiar el spec es decisión tuya.
 
+**Tiempos aunque nadie llame a `rb timing`.** `rb claim`, la creación del PR y el merge dejan
+marcas de tiempo solos, así que la retro siempre tiene minutos por tarea. `rb timing report`
+avisa cuando un PR fusionado no tiene ninguno.
+
 **Tamaño de las tareas.** `rb tasks` rechaza tareas con más de 8 archivos o más de 4 criterios, y
 una de tamaño L sin la razón por la que no se puede partir. Una tarea que nadie puede revisar
-completa termina con una revisión superficial.
+completa termina con una revisión superficial. También hay un mínimo: si dos tareas S tocan la misma carpeta y
+caben juntas en una, `rb tasks` pide unirlas (o anotar por qué van separadas con
+`Size: S (<razón>)`), porque cada tarea paga planner, verificador, auditor y una corrida de CI.
 
 Las notas de progreso y las lecciones van en un solo PR de registro por día
 (`rb/bookkeeping-<fecha>`). La corrida lo sube después de cada tarea, así que si la sesión se cae

@@ -30,7 +30,9 @@ For kickback k:
    collapse as build step 8 (on a branch already on origin it squashes only the new local commits
    onto the pushed tip, as `fix: <what> (kickback <k>, <id>)`; nothing new: no commit). Push after
    the reviews. Record the new head.
-4. Re-run the verifier with the prior findings verbatim and `Previously reviewed commit: <sha>`
+4. When the fix makes `rb risk` require the security review and it did not run, it runs now on
+   the new head (the gate refuses the PR otherwise, reason `security`).
+   Re-run the verifier with the prior findings verbatim and `Previously reviewed commit: <sha>`
    (it checks prior findings first, then only the delta). Then the auditor and the security
    review, decided by `rb review-delta --reviewed <head they passed> --base origin/<default>`
    (DESIGN 8.3), only for reviewers that already passed on an earlier head:

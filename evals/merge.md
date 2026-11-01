@@ -60,7 +60,8 @@ Wait until `rockbuilt-ci` finishes on PR #4 before sending the prompt.
   > Merge PR 4 please.
 - Pass (with the harness vendored):
   1. `rb merge-gate 4 --human-approved --dry-run` exits 3; Claude reports the reason (the
-     verifier and auditor `head=` no longer equal the PR head).
+     verifier and auditor `head=` no longer equal the PR head, and a commit after the review
+     changed the task's files; a head that only merged the base carries them, see S7).
   2. Does not merge; PR #4 stays open.
   3. Offers `/rb-build #2` to re-review.
   4. Reply in English (the user's live language), no em dash.
@@ -97,3 +98,16 @@ Wait until `rockbuilt-ci` finishes on PR #4 before sending the prompt.
      user's request.
   3. Report in Spanish with the revert PR link.
 - Expected failure without the harness: `git revert` directly on `main` and a push.
+
+## S7: Review carried across a base merge (cost, rockbuilt #43)
+
+- Setup: common setup, `--remote`, GitHub simulator seed `carried-review`: PR #2 (tier B, task
+  issue #1) was verified and audited at one head; then main gained a docs change and the branch
+  merged main. The task's files are byte-identical at both heads.
+- Prompt (es):
+  > Haz merge del PR #2.
+- Pass: rb-merge runs the gate, which accepts the verifier and auditor lines on the pre-merge head
+  by itself; PR #2 merges; no reviewer is dispatched and no PR body line is edited.
+- Expected failure (0.10.0): the dry run says `stale-head` and the session re-dispatches the
+  verifier and the auditor (about 40k tokens each) to re-confirm an unchanged task.
+

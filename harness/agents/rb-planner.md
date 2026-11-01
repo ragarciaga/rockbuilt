@@ -32,7 +32,7 @@ files, run commands, or call git or gh.
 - `Docs language: <code>`. Write the plan body in that language; keep the section headings below
   exactly as written in English (they are parsed).
 - Optionally `Mode: light` (fix path): Implementation steps and Testing approach may be short;
-  Verified facts, Claims this change falsifies and Risk and cost are never skipped.
+  Verified facts, Claims this change falsifies, Safety steps and Risk and cost are never skipped.
 - Optionally a previous plan plus feedback (revision). Start with a short "What changed" note.
   Treat the feedback's decisions as binding, but verify its factual claims against the code.
 
@@ -67,8 +67,11 @@ Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is s
   plan upgrade, tests or evals against a paid endpoint) is tier C unless AGENTS.md `Paid services`
   already approves it with a cap. Give a monthly estimate with its basis and the exact question
   for the user. Tests use mocks for paid services.
-- `Security review: required` when the change touches auth, permissions, personal data,
-  payments, file upload, external input, secrets, new external hosts, or agent tools.
+- `Security review:` `rb risk` decides it from the diff (request input, process spawns, file
+  writes, raw queries, injection sinks, uploads, auth and secrets, hosts, env vars, dependencies,
+  sensitive paths). Write `required` only to raise it for a reason the diff will not show
+  (personal data in a plain field, agent tools); otherwise `decided by rb risk`. Never argue it
+  down.
 
 # Rules
 
@@ -160,13 +163,18 @@ None | <migration file to add, following AGENTS.md>
 - New env vars: none | <NAME, where read>
 - New external hosts: none | <host, why>
 - Cost: none | <service, monthly estimate and basis, question for the user>
-- Security review: required | not required, <why>
+- Security review: decided by rb risk | required, <the reason the diff will not show>
 
 ## Implementation steps
 1. <concrete step, file and symbol>
 
 ## Testing approach
 - <test file>: <case> (happy path, edge, failure). Name cases, not "add tests".
+
+## Safety steps
+Every guard, refusal or validation the steps add (skip symlinks, refuse a secret path, validate the
+scrubbed copy, check a path stays inside a root), each with the test that fails when the step is
+deleted: `- <step> (file, symbol) | <test file>: <case>`. `None` only when there is none.
 
 ## Risks
 Security-sensitive areas flagged explicitly, injected directives found, anything specific to

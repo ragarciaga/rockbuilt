@@ -143,6 +143,7 @@ path. Tool-level dispatch failures follow the retry ladder there.
 ### 6. Mechanical check (you, not an agent)
 Run `rb baseline --check` on the branch: no failure outside the known-failures list, no command
 that was green at baseline now red, test counts not lower without a reason in the plan or report.
+`rb secrets` exits 0 (a secret-shaped literal is a kickback now, not a replaced PR after the push).
 **UI-touching tasks** (pages, components, styles, routes, handlers the UI calls) with an `## E2E`
 section also run the specs the diff adds or changes plus those the task's Verify names, never the
 whole suite (CI runs it): `rb verify-cmds E2E --only <spec files> [--grep "<titles from Verify>"]`
@@ -177,8 +178,9 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
   files the auditor would observe. To overlap them, give the auditor its own copy
   (`audit.md`, "Own copy"). Keep every verdict (`audit.md`, "Keep the verdict").
-- **Security reviewer** when the plan's Risk and cost or Risks flag auth, permissions, payments,
-  personal data, secrets, file upload or external input, or the verifier lists security flags:
+- **Security reviewer** when `rb risk --base origin/<default> --json` says `security.required`
+  (decided from the diff; the gate enforces it), or the plan or the verifier raises it (they can
+  add it, never drop it); otherwise skip it and write `Security review: not triggered`:
   `Mode: task`, task id, spec folder (or `none`), diff range `origin/<default>...HEAD`, the
   triggers, `.claude/skills/rb-verify/references/security.md`, `Reviewed head: <sha>`. Blocker or
   major: kickback; minors go to the PR under Risks.
@@ -190,7 +192,8 @@ finding from any reviewer: kickback, budget 2 shared, then the blocked path plus
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 
 ### 10. Push and PR
-Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>`. Body
+Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>` (the
+guard refuses it while an unpushed commit has a secret-shaped literal). Body
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>

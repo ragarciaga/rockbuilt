@@ -7,7 +7,18 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+// Secret scan on push (rockbuilt #44): lib/secrets.mjs next to the vendored guard, or
+// scripts/lib/secrets.mjs in the plugin. Missing or broken: no scan (the guard is a tripwire).
+let secretsLib = null;
+{
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const p of [path.join(here, 'lib', 'secrets.mjs'), path.join(here, '..', 'scripts', 'lib', 'secrets.mjs')]) {
+    if (!existsSync(p)) continue;
+    try { secretsLib = await import(pathToFileURL(p).href); break; } catch { secretsLib = null; }
+  }
+}
 
 // ---------- roles ----------
 
@@ -23,7 +34,7 @@ const PRIVILEGED_RB = new Set([
   'merge-gate', 'gh', 'lock', 'control', 'digest', 'escalate', 'revert', 'protect', 'vendor', 'init', 'flaky', 'hours', 'bookkeeping', 'quality', 'queue', 'claim',
 ]);
 // rb subcommands a read-only role may run (they only read).
-const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan', 'browser', 'ci']);
+const READONLY_RB = new Set(['verify-cmds', 'tasks', 'parallel', 'risk', 'doctor', 'stop', 'help', '--help', 'review-delta', 'e2e-plan', 'browser', 'ci', 'secrets']);
 
 // "rb-implementer", "rockbuilt:rb-implementer", "implementer" -> "implementer".
 export function roleOf(agentType) {
@@ -511,6 +522,13 @@ export function checkPush(args, ctx) {
     if (!d) continue; // unknown current branch: no opinion
     const branch = normalizeBranch(d).toLowerCase();
     if (defaults.includes(branch)) return `push to the default branch (${branch}) is not allowed; open a PR`;
+  }
+  // Commits no remote has yet must not carry secret-shaped literals: CI's gitleaks scans every
+  // commit, and a later fix commit does not clear an earlier one (rockbuilt #44).
+  const sources = refspecs.length ? refspecs.map((r) => (r.indexOf(':') === -1 ? r : r.slice(0, r.indexOf(':'))) || 'HEAD') : ['HEAD'];
+  for (const src of sources) {
+    const hits = typeof ctx.secretScan === 'function' ? ctx.secretScan(src) : null;
+    if (hits && hits.length) return `secret-shaped literal in a commit that is not pushed yet: ${hits.slice(0, 5).map((f) => `${f.file}:${f.line} (${f.rule}, ${f.commit})`).join('; ')}. gitleaks in CI scans every commit: build the value from parts (or add a gitleaks:allow comment when it is public), then rewrite only the unpushed commits (git reset --soft @{u} when the branch is already on origin, or git reset --soft origin/<default> when it is not, and commit again) before pushing`;
   }
   return null;
 }
@@ -1018,6 +1036,10 @@ export const realEnv = {
     if (b && b !== 'HEAD') return b;
     return runGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   },
+  secretScan(dir, ref) {
+    if (!secretsLib) return null;
+    try { const r = secretsLib.scanBranch(dir, { ref }); return r ? r.findings : null; } catch { return null; }
+  },
   defaultBranches(dir) {
     const m = (contractText(dir) || '').match(/^Default branch:\s*([^\s#]+)/m);
     if (m) return [m[1]];
@@ -1048,6 +1070,7 @@ function makeCtx(cwd, env) {
     withContractWhole: () => build(dir, true),
     currentBranch: () => cached(`cur:${dir}`, () => env.currentBranch(dir)),
     defaultBranches: () => cached(`def:${dir}`, () => env.defaultBranches(dir) || ['main', 'master']),
+    secretScan: (ref) => (typeof env.secretScan === 'function' ? env.secretScan(dir, ref) : null),
     contractCommand: (text) => {
       if (typeof env.contractCommands !== 'function') return false;
       const cmds = cached(`contract:${cwd}`, () => (env.contractCommands(cwd) || []).map(squash));

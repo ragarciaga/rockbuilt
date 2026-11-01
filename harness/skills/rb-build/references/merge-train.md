@@ -67,9 +67,10 @@ serial path below: the queue only skips work when GitHub shows the result is the
 5. **Gate.** `rb merge-gate <pr> --run <run id> --json` (the run id that holds the lock). Exit 0: merged. Exit 3: read the reasons.
    - The only reasons are `behind` (and the checks it implies): update the branch as in step 2,
      then continue with the next PR; this one is re-evaluated after its CI finishes.
-   - The only reason is `stale-head` (a review line whose `head=` is older than the PR head) after
-     step 2's update-branch (the update added only a base merge): re-review once per PR per run,
-     light or full (DESIGN 8.3). In a checkout of the new head (`git fetch origin`, then the PR
+   - After an update that changed none of the task's files the gate accepts every review line on
+     the old head by itself (it compares the task's files at both heads through GitHub, rockbuilt
+     #43): no agent, no line to edit, only CI on the new head. So `stale-head` means the task's
+     change is no longer identical. Then re-review once per PR per run, light or full (DESIGN 8.3). In a checkout of the new head (`git fetch origin`, then the PR
      branch at the new head, fast-forward only), run
      `rb review-delta --reviewed <head of the auditor line> --base origin/<default>`, and again for
      the security line's head when it differs (after a test-only kickback it does). Use those
@@ -77,12 +78,10 @@ serial path below: the queue only skips work when GitHub shows the result is the
      `identical-to=<security head> app-identical-to=<auditor head>`.
      It compares content: every file the task touched then or touches now, at the old and the new
      head (a stacked base task that was squash-merged meanwhile does not count as a change).
-     - **`identical`:** no agent. `rb review-delta --reviewed <old head> --base
-       origin/<default> --line --task <id>` prints the verifier line for the new head with
-       `identical-to=<old head>` (it also checks that only merges follow the old head). Replace
-       only the verifier line in the body; the auditor and security lines keep their old
-       `head=`. CI on the new head runs the Verification and E2E; the gate re-checks identity
-       through GitHub. Exit 3: treat as `different`.
+     - **`identical`** (the local check and GitHub disagree, for example a file GitHub could not
+       compare): no agent. `rb review-delta --reviewed <old head> --base origin/<default>
+       --line --task <id>` prints the verifier line for the new head with `identical-to=<old head>`;
+       replace only the verifier line. Exit 3: treat as `different`.
      - **`test-only`:** only test files differ. Dispatch the verifier with
        `Previously reviewed commit: <old head>`, `Reviewed head: <new head>` and
        `Carry: <old head>`; its pass line carries `app-identical-to=<old head>`. The auditor line
@@ -95,6 +94,12 @@ serial path below: the queue only skips work when GitHub shows the result is the
      Then apply the new lines with `rb gh pr-line <pr> --stage <rb-agent> --task <id> --outcome
      <o> --head <sha>` (one call per line; the flags build and validate the line, rockbuilt #38) and run
      the gate once more.
+   - `security` (rb risk says the diff needs the security review and the body lacks it: a PR
+     opened before 0.11.0, or a kickback that added such a line): dispatch `rb-security-reviewer`
+     once on the PR head (`Mode: task`, `Reviewed head: <head>`, the reasons the gate printed),
+     post its verdict on the task issue, add `<!-- rockbuilt:security required -->` and its line
+     (`rb gh pr-edit` for the flag, `rb gh pr-line` for the line), run the gate again. A blocker:
+     kickback as in `kickback.md`.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
    - Anything else: hold with the reasons verbatim in the digest; next PR.

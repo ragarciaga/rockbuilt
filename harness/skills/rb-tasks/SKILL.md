@@ -40,7 +40,9 @@ pendiente, en progreso, en revisión, bloqueado), but you always write the canon
 `Purpose`, `Covers`, `Size`, `Depends on`, `Files`, `Verify`, `Issue`, `Status` and statuses
 `todo`, `in-progress`, `in-review`, `done`, `blocked`. Task IDs, labels and file names stay in
 English. Size limits (`rb tasks` fails on them): at most 8 Files and 4 Covers per task, and
-`Size: L` only with its reason (`Size: L (<why it cannot be split>)`).
+`Size: L` only with its reason (`Size: L (<why it cannot be split>)`). A minimum too: two `S`
+tasks with files in the same directory that fit one task's limits are merged (every task pays the
+whole review), unless one says why they stay apart (`Size: S (<reason>)`); `rb tasks` lists them.
 
 Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs <cmd>`. Write every command out in full, one per call or chained with `&&`: no shell variables, aliases or functions standing for `rb`, `git` or `gh` (unattended runs allow only commands that literally match the permission list). All
 GitHub operations go through `rb gh <op>`; never `gh issue`, `gh pr` or `gh label`. Agent

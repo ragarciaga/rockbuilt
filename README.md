@@ -108,7 +108,8 @@ after the other. Outside the
 queue, merges go one at a time, so after each one the next PR can be behind `main`. If all `main` gained
 is bookkeeping (task status, progress notes, lessons), the PR merges as it is. If `main` gained
 code, the PR is updated and CI runs again; when the update changed nothing in the task's own files,
-`rb` confirms it mechanically, with no agent, instead of repeating the whole review. If a fix after a review touched only test files, the
+the merge gate confirms it itself and keeps every reviewer's verdict, with no agent and nothing to
+edit, instead of repeating the review. If a fix after a review touched only test files, the
 auditor's verdict stands, because the app it judged did not change. Anything else runs the full
 review again, and a fix after the PR exists goes on top as one more commit (the merge squashes),
 never a new PR. The auditor's verdict stays on the task issue, so a re-audit in another session
@@ -227,7 +228,7 @@ and the higher wins: a model can raise a tier, never lower it.
 | Tier | Typical change | Plan | Reviews | Merge |
 |---|---|---|---|---|
 | **A** | Tests, docs, styles, copy | Automatic | Verifier | Automatic |
-| **B** | Product code from an approved spec, an `rb:task` or an `rb:bug` | Automatic | Verifier, blind auditor, security review when flagged | Automatic |
+| **B** | Product code from an approved spec, an `rb:task` or an `rb:bug` | Automatic | Verifier, blind auditor, security review when the diff needs it (`rb risk`) | Automatic |
 | **C** | Architecture, dependencies, anything that costs money, data and schema, auth, payments, CI and deploy, secrets, large deletions | **You approve** | Same as B | **You merge** |
 
 Tier C cannot be configured away. Anything that can cost money (paid APIs, new services, deploys,
@@ -347,7 +348,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.10.1. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.11.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything
@@ -390,6 +391,19 @@ nightly run leaves it alone, status lines are built by `rb gh pr-line` flags ins
 Chromium instead of a hard-coded path. It also fixes the false positives that sent PRs to me for
 nothing (a URL inside a test, a base change only in progress notes), separates the repository
 language from the chat language, and checks screen layouts on a phone size matrix.
+
+0.11.0 comes from a feature of 24 small tasks on another project where the reviews cost more than
+the code. The biggest waste was re-running the auditor and the security reviewer after every merge
+from `main` that did not touch the task; now the merge gate checks that and keeps their verdicts.
+The security review runs when the diff needs it (request input, process spawns, file writes,
+secrets, auth, new hosts or dependencies), decided by `rb risk` instead of the planner's judgment.
+Secret-shaped test fixtures are caught before the first push, and `rb tasks` asks to merge small
+tasks of the same module. The blind audit still runs on every task: it found real defects in small
+ones.
+The retro of the next two features added the rest: bookkeeping PRs that merge without a manual
+retarget, task ids with a run prefix that no longer block a merge, every safety step in a plan
+tested by deleting it, timing that records itself when the session never calls `rb timing`, and
+CI on the Node version the project pins in `.nvmrc`.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not

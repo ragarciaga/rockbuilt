@@ -79,6 +79,7 @@ export function reviewedChange(c, baseRef, reviewedHead, head) {
     const before = ops.compareFiles(c, baseRef, reviewedHead);
     const after = ops.compareFiles(c, baseRef, head);
     if (before.truncated || after.truncated) return { class: 'different', detail: 'too many files to compare (300+)' };
+    if (!before.files.length) return { class: 'different', detail: `the reviewed head ${String(reviewedHead).slice(0, 7)} has no diff against the base (or is unknown)` };
     const blob = (f) => (f.status === 'removed' ? null : f.sha || undefined);
     // A rename removes the previous path on that side: it is a touched path too (moving app code
     // under tests/ must not read as test-only).
@@ -293,7 +294,11 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // 4. Reviewer lines with head equal to the PR head.
   const need = ['rb-verifier'];
   if (tierRank(tier) >= 1) need.push('rb-auditor');
-  if (body.security) need.push('rb-security-reviewer');
+  // rockbuilt #42: the diff decides too. A PR that rb risk says needs the security review gets it
+  // whatever its body says; the plan can only add the review, never drop it.
+  const secByDiff = Boolean(risk && risk.security && risk.security.required);
+  if (body.security || secByDiff) need.push('rb-security-reviewer');
+  if (secByDiff && !body.security) no('security', `rb risk requires the security review (${risk.security.reasons.slice(0, 3).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')}): run rb-security-reviewer and add <!-- rockbuilt:security required --> with its line`);
   // A verifier pass on the current head may name the head the other reviewers saw:
   // `identical-to=<sha>` (no touched file changed since; the verifier ran its identity check) or
   // `app-identical-to=<sha>` (only test files changed; the verifier re-verified them). Auditor and
@@ -303,19 +308,27 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // test-only carries the auditor (it judged the running app, unchanged) but never the security
   // review: test code runs in CI with the workflow's secrets and was not looked at.
   const ver = body.status['rb-verifier'];
-  const verOk = ver && ver.outcome === 'pass' && shaMatches(ver.head, head);
+  const identity = new Map();
+  const changeSince = (from) => {
+    if (!identity.has(from)) identity.set(from, reviewedChange(c, view.base.ref, from, head));
+    return identity.get(from);
+  };
+  // rockbuilt #43: a review line on an older head still describes the PR when the gate itself finds
+  // the task's change identical since that head (only merges from the base that touch none of the
+  // task's files). No agent re-confirms it and nobody edits the line; CI on the new head covers the
+  // merged result.
+  const sameChange = (lineHead) => Boolean(lineHead) && !shaMatches(lineHead, head) && changeSince(lineHead).class === 'identical';
+  const verOk = ver && ver.outcome === 'pass' && (shaMatches(ver.head, head) || sameChange(ver.head));
   const carryFor = (stage, lineHead) => {
     if (!verOk) return null;
     if (ver['identical-to'] && sameSha(lineHead, ver['identical-to'])) return { from: ver['identical-to'], allowed: ['identical'] };
     if (ver['app-identical-to'] && sameSha(lineHead, ver['app-identical-to'])) return { from: ver['app-identical-to'], allowed: stage === 'rb-security-reviewer' ? ['identical'] : ['identical', 'test-only'] };
     return null;
   };
-  const identity = new Map();
   // An `identical-to` verifier line (written by the verifier's identity check or by
   // `rb review-delta --line`) is checked even when no other line sits on that head (tier A).
   if (verOk && ver['identical-to']) {
-    const id = reviewedChange(c, view.base.ref, ver['identical-to'], head);
-    identity.set(ver['identical-to'], id);
+    const id = changeSince(ver['identical-to']);
     if (id.class !== 'identical') no('stale-head', `the verifier line says identical to ${ver['identical-to']}, but the gate finds the change ${id.class} (${id.detail}): re-review`);
   }
   for (const stage of need) {
@@ -326,9 +339,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     else if (s.outcome !== 'pass' && !(stage === 'rb-auditor' && s.outcome === 'needs-local' && humanApproved)) no('status-line', `${stage} outcome=${s.outcome}`);
     else if (!shaMatches(s.head, head)) {
       const carry = stage !== 'rb-verifier' ? carryFor(stage, s.head) : null;
+      if (sameChange(s.head)) continue;
       if (carry) {
-        if (!identity.has(carry.from)) identity.set(carry.from, reviewedChange(c, view.base.ref, carry.from, head));
-        const id = identity.get(carry.from);
+        const id = changeSince(carry.from);
         if (!carry.allowed.includes(id.class)) no('stale-head', `${stage} reviewed ${s.head}; the verifier carries it forward, but the gate finds the change ${id.class} (${id.detail}): re-review`);
       } else no('stale-head', `${stage} reviewed ${s.head || '?'}, PR head is ${head}`);
     }
@@ -339,7 +352,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // rb wrote itself (a `by=rb-review-delta` verifier line with `identical-to`) are re-checked
   // above, not posted. A task PR names its issue (`Closes #n`, or `Part of #n` for a partial PR).
   const taskIssues = body.closes.length ? body.closes : body.partOf;
-  const sameTask = (a, b) => !a || !b || String(a).toLowerCase() === String(b).toLowerCase();
+  // `F5-T14` (a run's own prefix) names the spec task `T14` (rockbuilt #47).
+  const sameTask = (a, b) => {
+    if (!a || !b) return true;
+    const x = String(a).toLowerCase();
+    const y = String(b).toLowerCase();
+    return x === y || x.endsWith(`-${y}`) || y.endsWith(`-${x}`);
+  };
   if (!taskIssues.length) no('verdicts', 'the body names no task issue (Closes #n or Part of #n): the verdicts are posted there');
   else {
     let posted = null;
@@ -386,7 +405,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
@@ -402,7 +421,17 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
     } catch (e) {
       no('files', `could not read files: ${e.message}`);
     }
-    if (!bookkeepingOnly(files)) no('bookkeeping', 'a bookkeeping PR may only touch tasks.md, docs/progress.md and append to .claude/LESSONS.md');
+    // GitHub's PR file list can lag behind a base that moved (rockbuilt #45: task PRs merged after
+    // the bookkeeping branch was saved, and the list showed their files). The live compare of the
+    // base tip and the head is what a squash lands; it decides when the list disagrees.
+    let ok = bookkeepingOnly(files);
+    if (!ok && view.base && head) {
+      try {
+        const live = ops.compareFiles(c, view.base.ref, head);
+        if (!live.truncated) ok = bookkeepingOnly(live.files.map((f) => ({ filename: f.filename, status: f.status, previous_filename: f.previous, patch: f.patch })));
+      } catch { /* keep the refusal */ }
+    }
+    if (!ok) no('bookkeeping', 'a bookkeeping PR may only touch tasks.md, docs/progress.md and append to .claude/LESSONS.md');
   }
   let checks = [];
   try {

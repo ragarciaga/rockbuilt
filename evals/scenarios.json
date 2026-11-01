@@ -158,6 +158,12 @@
           "type": "oneCommitOnRbBranch"
         },
         {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-security-reviewer"
+          ]
+        },
+        {
           "type": "noEmDash"
         }
       ]
@@ -488,6 +494,56 @@
         {
           "type": "bashExcludes",
           "pattern": "gh pr merge|pkill|killall"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-security-reviewer"
+          ]
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "merge-carried-review",
+      "source": "merge.md#S7",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "carried-review"
+      },
+      "prompt": "Haz merge del PR #2.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-merge"
+        },
+        {
+          "type": "ghMerged",
+          "prs": [
+            2
+          ]
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-verifier",
+            "rb-auditor",
+            "rb-security-reviewer"
+          ]
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "pr-line|pr-edit|gh pr merge"
         },
         {
           "type": "noEmDash"

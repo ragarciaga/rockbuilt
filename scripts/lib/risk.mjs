@@ -186,7 +186,66 @@ export function packageDepChanges(oldText, newText) {
 
 // Core classifier. input: { files: [{ path, status, previousPath, additions, deletions, added: [lines] | null }],
 // contentKnown, packageJson(path) -> { old, new }, baseHas(str) -> bool|null, autonomy }.
-export function classify({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+// rockbuilt #42: whether the task needs the security review, decided from the diff, never from the
+// planner's judgment alone (the planner may raise it, never lower it). Triggers: the floor paths
+// and project Sensitive paths, paid SDKs, new hosts and secret-like env vars, dependency changes,
+// and added production lines that open an attack surface: request input, process spawns, file
+// writes, raw queries, HTML or code injection sinks, uploads, auth and secret handling. A pure
+// function, a CLI flag parser or a test change does not.
+const SECURITY_LINE = [
+  // Server-side request input: handlers and the request object of common frameworks. Client-side
+  // URL parsing (`new URL(...).searchParams`) and middleware setup (`app.use(express.json())`) are not.
+  ['request input', new RegExp([
+    String.raw`\breq(uest)?\.(body|query|params|headers|cookies|files?|form|args|values|data|POST|GET|FILES|get_json|json)\b`,
+    String.raw`\bc\.req\.(param|query|json|parseBody|formData|header)\b`,
+    String.raw`\bawait\s+(request|req)\.(json|formData|text)\s*\(`,
+    String.raw`['"]use server['"]`,
+    String.raw`\bexport\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b|\bexport\s+const\s+(GET|POST|PUT|PATCH|DELETE)\s*=`,
+    String.raw`\b(?!(axios|api|apiClient|client|http|https|httpClient|ky|got|superagent|request|fetcher|this)\.)\w+\.(get|post|put|patch|delete|all|route)\s*\(\s*['"\x60]\/[^'"\x60]*['"\x60]\s*,\s*(async\s*)?(\(|function\b|\w+\s*(,|\)|=>))`,
+    String.raw`@\w+\.(get|post|put|patch|delete|route|api_route|websocket)\s*\(`,
+    String.raw`\bcreateServer\s*\(|\bhttp\.HandleFunc\s*\(|\br\.(FormValue|URL\.Query|Body)\b`,
+  ].join('|'))],
+  // Process spawns. A regex's `.exec(` is not one.
+  ['process spawn', new RegExp([
+    String.raw`\bchild_process\b|\bexeca\b`,
+    String.raw`(^|[^.\w])(spawn|spawnSync|exec|execSync|execFile|execFileSync)\s*\(`,
+    String.raw`\b(cp|childProcess|child)\.(spawn|exec|execFile|fork)\w*\s*\(`,
+    String.raw`\bsubprocess\.\w+|\bos\.(system|popen|exec\w*)\b|\bPopen\s*\(|\bshell\s*=\s*True\b`,
+    String.raw`\bDeno\.(Command|run)\b|\bBun\.spawn\b|\bexec\.Command\s*\(`,
+  ].join('|'))],
+  ['file write or delete', /\b(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|rmSync|unlink|unlinkSync|rmdir|chmod|chmodSync)\s*\(|\bfs\.(rm|rename|copyFile|cp)\s*\(|\bshutil\.(rmtree|move|copy)\b|\bopen\s*\([^)]*['"][wa]b?\+?['"]|\bos\.(Create|WriteFile|Remove|RemoveAll)\s*\(/],
+  ['raw query', /\$(query|execute)Raw(Unsafe)?\b|\.raw\s*\(|\bsql`|\.(query|execute)\s*\(\s*(f?["'`]\s*(select|insert|update|delete|with)\b|\w+\s*[,)])|\bcursor\.execute\s*\(|\.rpc\s*\(\s*['"]|\bdb\.(Query|Exec)\s*\(/i],
+  ['injection sink', /\bdangerouslySetInnerHTML\b|\.innerHTML\s*=|\bv-html\b|(^|[^.\w])eval\s*\(|\bnew\s+Function\s*\(|\bdocument\.write\s*\(|\|\s*safe\b|\bmark_safe\s*\(|\bpickle\.loads?\b|\byaml\.load\s*\(|\bvm\.runIn\w+\s*\(|\bunserialize\s*\(/],
+  ['upload', /\b(multer|formidable|busboy|multiparty)\b|\bmultipart\/form-data\b|\bUploadFile\b/],
+  // Handling credentials, not mentioning them: hashing passwords, signing tokens, setting cookies.
+  ['auth or secrets', /\b(bcrypt|argon2|scrypt|pbkdf2(Sync)?|timingSafeEqual|createHmac|createCipheriv|createDecipheriv|setCookie|getServerSession|signIn|signOut|signUp)\b|\bjwt\.(sign|verify|decode)\b|\bjose\.\w+|\bcookies\(\)\.set\b|\bres\.cookie\s*\(|\bAuthorization['"]?\s*:\s*[`'"]Bearer\b/],
+];
+
+export function securityNeed(files, tier, autonomy = {}) {
+  const reasons = [];
+  const add = (p, detail) => { if (!reasons.some((r) => r.path === p && r.detail === detail)) reasons.push({ path: p, detail }); };
+  for (const r of tier.reasons) {
+    if (['auth-permissions-payments', 'data-schema', 'sensitive-path', 'dependency'].includes(r.rule)) add(r.path, r.rule === 'dependency' ? `dependency change (${r.detail})` : `${r.rule}: ${r.detail}`);
+    else if (r.rule === 'harness-secrets' && /(^|\/)\.env|\.env$|\.npmrc|\.mcp\.json/.test(r.path)) add(r.path, `secrets file: ${r.detail}`);
+    else if (r.rule === 'cost') add(r.path, r.detail);
+  }
+  for (const f of files) {
+    const p = normalizePath(f.path);
+    if (!f.added || !isSource(p) || isTestPath(p)) continue;
+    for (const line of f.added) {
+      if (isComment(line)) continue;
+      for (const [what, re] of SECURITY_LINE) if (re.test(line)) add(p, what);
+    }
+  }
+  return { required: reasons.length > 0, reasons: reasons.slice(0, 12) };
+}
+
+export function classify(input) {
+  const r = classifyTier(input);
+  return { ...r, security: securityNeed(input.files, r, input.autonomy) };
+}
+
+function classifyTier({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -386,5 +445,6 @@ function summary(files) {
 export function riskText(r) {
   const lines = [`tier ${r.tier}  (${r.source}${r.pr ? ` #${r.pr}` : ''}${r.base ? ` vs ${r.base}` : ''}, ${r.files.length} file(s), ${r.changedLines} changed lines)`];
   for (const x of r.reasons) lines.push(`  ${x.rule.padEnd(26)} ${x.path || '-'}  ${x.detail}`);
+  if (r.security) lines.push(r.security.required ? `security review: required (${r.security.reasons.slice(0, 4).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')})` : 'security review: not required by the diff');
   return lines.join('\n');
 }

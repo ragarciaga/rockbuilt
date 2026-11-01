@@ -35,7 +35,7 @@ Known failures (pre-existing, from docs/rockbuilt/known-failures.json): <none | 
 Tier: <A|B|C>. Reasons: <rb risk reasons and the planner's Risk and cost, one line each>.
 Verifier: pass after <k> kickbacks. Mutation probe: <k/n killed; survivors>.
 Auditor (B and C): <n> criteria pass, <m> not observable (<why>).
-Security review: <not triggered | pass, minors under Risks>.
+Security review: <not triggered by rb risk | pass, minors under Risks>, <the rb risk security reasons, or the plan's>.
 Cost: <none | estimate approved in #<n>>.
 <Verifier notes for the reader, verbatim.>
 

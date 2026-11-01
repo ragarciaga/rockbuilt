@@ -51,13 +51,17 @@ their yes.
 handle what the user can fix and the gate cannot:
 
 - **Behind the default branch**: `rb gh pr-update-branch <pr>`, then wait for CI on the new head
-  (`rb ci wait <sha> --timeout 30`, tell the user you are waiting). A review line
-  that no longer matches the head after the update: offer `/rb-build #<issue>` to re-review; never
-  edit the lines yourself.
+  (`rb ci wait <sha> --timeout 30`, tell the user you are waiting), then the dry run again. Review
+  lines on the old head still hold when the update changed none of the task's files (the gate
+  checks it). Only a `stale-head` reason after that means the task's change differs: offer
+  `/rb-build #<issue>` to re-review; never edit the lines yourself.
 - **Conflict**: stop; offer to rebuild the task (`/rb-build #<issue>`).
 - **CI pending or red**: say which check; offer to wait or to run the CI fix via `/rb-build`.
 - **Stop switch on**: say where it is set (`rb stop status`); the user removes `rb:stop` first.
 - **Missing review lines** on a code PR: not eligible; offer `/rb-build #<issue>`.
+- **`security`** (the diff needs the security review and the PR never had it, typical for PRs
+  opened before 0.11.0): offer to run `rb-security-reviewer` on the head and add its line, as
+  `.claude/skills/rb-build/references/merge-train.md` step 5 says.
 - **`verdicts`** (a review line with no matching verdict on the task issue, typical for PRs
   reviewed before 0.10.0): if the reviewer's report is at hand, post it there
   (`rb gh issue-comment <n> --body-file <f>`); otherwise offer `/rb-build #<issue>` to re-review.

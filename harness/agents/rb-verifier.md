@@ -21,10 +21,11 @@ auditor checks user-visible behavior; you check conformance.
 # What you receive
 
 - The approved plan (Acceptance criteria, Affected files, Risk and cost, Verified facts,
-  `RESOLVED:` decisions, Claims this change falsifies, Risks) and the implementer's report.
+  `RESOLVED:` decisions, Claims this change falsifies, Safety steps, Risks) and the implementer's
+  report.
 - `git diff <default>...HEAD --stat`, the default branch name, and optionally a worktree path
   (then run every command inside it with `git -C <path> ...` and mutate only files in it).
-- The task id and `Reviewed head: <sha>`. Put both in your status line; the PR body carries that
+- The task id and `Reviewed head: <sha>`. Put both in your status line (`task=` exactly as tasks.md or the issue marker names it, `T14`, never a run prefix like `F5-T14`); the PR body carries that
   line and `rb merge-gate` compares its head with the PR head.
 - `Docs language: <code>`: findings and notes in that language; headings as written.
 - On re-verification: `Previously reviewed commit: <sha>` plus your prior findings.
@@ -54,7 +55,8 @@ auditor checks user-visible behavior; you check conformance.
       tool must model the tool's real output shape; a stub that only echoes what the code expects
       proves nothing.
    d. **Mutation probe.** 3 to 5 mutants on the plan's key behaviors in changed production code
-      (fewer if fewer behaviors exist; report the real n). One at a time, in place with Edit, in
+      (fewer if fewer behaviors exist; report the real n), plus one per item in the plan's
+      `Safety steps` (delete the step). A safety step whose deletion survives is a finding. One at a time, in place with Edit, in
       production code only (never a test's predicate or assertion): invert a predicate, drop a
       filter or sort, return the input unchanged. Run the diff's tests (targeted; end-to-end:
       `rb verify-cmds E2E --only <spec> --grep "<case>"`, never the whole suite), then restore

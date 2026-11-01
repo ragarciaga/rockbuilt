@@ -10,7 +10,8 @@
 // `carry` is run start: the open bookkeeping PR from an earlier run that did not merge is applied
 // to the checkout, and `save` then pushes on top of that PR (merge -s ours keeps this tree and makes
 // its tip an ancestor), so there is one bookkeeping PR per day.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ops } from './gh.mjs';
@@ -101,6 +102,16 @@ export function saveBookkeeping(root, c, { run, final = false }) {
   mkdirSync(path.dirname(patch), { recursive: true });
   const diff = gitRaw(root, ['diff', '--binary', `--output=${patch}`, 'HEAD', '--', ...files]);
   if (!diff.ok) throw new CliError(`git diff failed: ${diff.stderr}`);
+  // The same edits already pushed (a stop hook answered with another save, rockbuilt #46): no new
+  // commit, no CI run. The tree still shows them until the PR merges or `--final` restores them.
+  const digest = createHash('sha256').update(readFileSync(patch)).digest('hex');
+  // Only while that exact push is still what an open PR carries: a closed PR, or a branch someone
+  // else pushed to, gets a real save.
+  const remoteTip = () => { const r = git(root, ['ls-remote', '--heads', 'origin', `refs/heads/${st.branch}`]); return r.ok ? (r.stdout.trim().split(/\s+/)[0] || null) : null; };
+  const prOpen = () => { try { return ops.prList(c, { state: 'open', headPrefix: st.branch }).some((p) => p.head.ref === st.branch && p.number === st.pr); } catch { return false; } };
+  if (!final && st.run === id && st.patch === digest && st.branch && st.sha && remoteTip() === st.sha && prOpen()) {
+    return { saved: false, files, branch: st.branch, pr: st.pr || null, unchanged: true, detail: `already saved to ${st.branch} (PR #${st.pr}): nothing new; these files stay modified in the checkout until that PR merges or save --final restores them` };
+  }
 
   let branch = st.run === id && st.branch ? st.branch : null;
   if (!branch && st.run === id && st.carry) branch = st.carry.branch;
@@ -146,7 +157,7 @@ export function saveBookkeeping(root, c, { run, final = false }) {
     pr = ops.prCreate(c, { head: branch, base: d, title: `docs: progress ${today()}`, body }).number;
     created = true;
   }
-  writeState(root, { run: id, date: today(), carry: st.run === id ? st.carry || null : null, branch, pr, sha });
+  writeState(root, { run: id, date: today(), carry: st.run === id ? st.carry || null : null, branch, pr, sha, patch: digest });
 
   const restored = [];
   if (final) {

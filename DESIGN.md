@@ -320,7 +320,17 @@ change, or when only its tests changed. Rule, by content rather than diff text:
   shas, contents API for paths only one side lists; 300 files or more than 40 lookups means not
   confirmed). `identical-to` needs `identical`; `app-identical-to` accepts `identical` or
   `test-only` for the auditor and `identical` for security. Mode changes are not visible through the API (the local check sees them).
-- The verifier line itself is always on the current head, and CI must be green on it. It may
+- Since 0.11.0 the gate does this for every line by itself (rockbuilt #43): a verifier,
+  auditor or security line on an older head holds when the gate finds the task's change
+  `identical` since that head, with no `identical-to` key, no agent and no edit to the PR body.
+  Identical means the task's files have the same content at both heads, or, when the base changed
+  other parts of those files, the task's own per-file patch is unchanged. It is a content check:
+  the gate does not require that only merges follow the old head, since any commit that changes
+  the task's change makes it `different`. A reviewed head with no diff against the base, or one
+  GitHub cannot compare, is never identical. So `identical` costs only the
+  CI run on the new head; `rb review-delta --line` remains for the rare case the local check sees
+  identity and GitHub cannot compare.
+- With a carry key the verifier line is on the current head, and CI must be green on it. It may
   carry both keys when the auditor and the security review sit on different heads (after a
   test-only kickback the security review ran again): `identical-to=<security head>
   app-identical-to=<auditor head>`; the gate checks each line against the key that names its head.
@@ -784,6 +794,29 @@ documents it.
    layout tasks were planned without measuring and judged at one viewport (#36). Also seen:
    `/opt/pw-browsers/chromium` does not exist in every cloud image, and `rb protect` set
    `strict`, which would block the merge queue. All of it is section 24.
+20. 2026-11-01, 2brain-logic F4 (installer) on 0.10.0, issues #41 to #44: 24 tasks, almost all S
+   or M with 3 to 5 h estimates, each with planner, implementer, verifier, auditor and in practice
+   the security reviewer (35k to 75k tokens per agent, 300k to 450k per task). The largest cost
+   was re-confirming the auditor and the security review after every merge from main that did not
+   touch the task (T6, T9, T11, T14): the merge train already carried them, but `/rb-merge` and
+   the interactive path sent the session back to the reviewers (#43). The security reviewer ran
+   on almost every task because the planner flagged anything touching git, ssh, env or stdin,
+   and passed every time (#42). A public ed25519 key literal in a test failed gitleaks on a pushed
+   commit, and the force push to replace it was denied, so the PR was replaced and all three
+   reviewers re-confirmed (#44). Small tasks paid the whole review (#41); the reviewers still
+   found real defects in small tasks (T5, T11), so the blind audit stays on every tier B task and
+   only the task count shrinks. Section 25.
+21. 2026-11-01, the F4 and F5 retro of the same project (97 PRs, no revert, no escaped defect;
+   the blind auditor caught real defects the verifier passed, T16 the most serious), issues #45 to
+   #49 and new evidence on #42 and #43: four bookkeeping PRs needed a manual base retarget (#45);
+   the cloud stop hook fired more than 30 times for tasks.md alone, each answered with another
+   save (#46); a `task=F5-T14` prefix made the gate refuse an approved PR (#47); the verifier
+   failed 5 of 12 tasks for guards no test exercised (#48); timing was empty for 40 tasks because
+   the orchestrator never called `rb timing` (#49). On #42: 9 security reviews in F5 returned
+   notes, no blocker; 23 security kickbacks in 97 PRs, mostly in auth and installer features. On
+   #43: a bookkeeping merge forced the auditor and security reviewer to restate verdicts on a task
+   whose diff had not changed. Also PR #40: the CI template ran Node 22 whatever `.nvmrc` said.
+   Section 25.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -799,18 +832,19 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `tasks <spec-dir>` | Parse tasks.md strictly (Spanish synonyms accepted), coverage vs requirements |
 | `parallel <spec-dir> [--ids] [--max]` | Disjoint batches |
 | `worktree add|remove|list` | As in v0.2 |
-| `timing start|end <task> <phase> \| line <task> [--est <hours>] [--pr <n>] \| report [--write]` | Phase minutes (`kickback` is stored as `fix`); `line` prints the PR machine line with the minutes since the last printed line (`--pr` adds them to the line already in that PR's body), with the planner's Human estimate as `est=`; `report` merges progress.md, rb/* PR bodies and the local log |
+| `timing start|end <task> <phase> \| line <task> [--est <hours>] [--pr <n>] \| report [--write]` | Phase minutes (`kickback` is stored as `fix`; a start of a phase already open is a no-op; `claim`, `gh pr-create` and a merge also record phases, section 25.8); `line` prints the PR machine line with the minutes since the last printed line (`--pr` adds them to the line already in that PR's body), with the planner's Human estimate as `est=`; `report` merges progress.md, rb/* PR bodies and the local log |
 | `hours [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] \| log <minutes> [--ref] [--spec] [--at] [--note] \| mark\|flush --hook` | Section 22: the owner's attention hours by repo, feature and task, with agent minutes and baselines |
 | `verify-cmds E2E --shard <i/n>` | The E2E commands with Playwright's `--shard=i/n` on the suite line(s): `npx`/`pnpm exec`/`yarn playwright test` (optional `VAR=x` prefixes) or an npm/pnpm/yarn/bun script named `test:e2e`, `e2e`, `test:playwright` or `playwright`. Other lines (install, build, seed) run unchanged; a suite command inside a compound line (`&&`, `;`, `|`) is refused |
 | `e2e-plan` | CI plan job: `has`, `total`, `shards` (key=value lines for `$GITHUB_OUTPUT`) from the `## E2E` section and the header `E2E shards: <1-8>` (default 1) |
 | `review-delta --reviewed <sha> [--base <ref>] [--line --task <id>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched (tasks.md and progress.md differences ignored, LESSONS.md not), then the task's own per-file patches (section 24.5). `--line` prints the verifier identity line when identical and only merges follow the old head (exit 3 otherwise) |
 | `verify-cmds E2E --only <specs> [--grep <t>]` | Local runs: the suite command with only those spec files and title pattern (never the whole suite locally; CI runs it) |
 | `flaky record <test> [--pr <n>] [--note t] \| list` | Flaky candidates as marked comments on the control issue; `list` counts them across rotated control issues |
-| `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}]}` |
+| `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}],"security":{"required","reasons":[{"path","detail"}]}}` (section 25.2) |
 | `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims with no activity since the lock and none in the last 3 hours (section 24.1) |
 | `claim <issue> --run <id> [--release \| --take]` | Section 24.1: label plus claim comment; exit 3 when another run holds a fresh claim (or, for `--release`, when this run is not the holder). `--take` only after the user confirmed |
 | `ci wait <sha> [--timeout <min>] \| logs <sha> [--job <name>] [--tail <n>]` | `wait`: until `rockbuilt-ci` (and `rockbuilt-e2e` when the project has E2E) exist and every check completed; exit 0 green, 1 red, 3 still running. `logs`: the failing job's log tail, or its annotations when the log is not readable |
 | `browser` | Path of a preinstalled Chromium (`PW_CHROMIUM_PATH`, then `PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers`); exit 3 when none |
+| `secrets [--ref <branch>]` | Section 25.3: secret-shaped literals in the commits no remote has yet and in the working tree; exit 3 with `file:line (rule, commit)` |
 | `bookkeeping carry --run <id>` | Run start: apply the open `rb/bookkeeping-*` PR to the checkout (plain `git apply`; exit 3 and untouched when it does not apply) |
 | `bookkeeping save --run <id> [--final]` | Needs GitHub (exit 3 without it). The checkout's edits to tracked tasks.md, progress.md and LESSONS.md (a patch against its HEAD, never whole files or untracked files) applied in a temporary worktree at the default branch, `merge -s ours` the day's branch when it exists, push, open the PR when none is open; exit 3 when the patch no longer applies; `--final` restores those files in the checkout |
 | `gh <op> [flags]` | REST GitHub layer, ops below |
@@ -981,3 +1015,62 @@ checks it.
    selfcheck. `rb protect` requires
    `rockbuilt-ci` (and `rockbuilt-e2e` when the project has E2E) without `strict`, which would
    block the merge queue (section 8.4).
+
+## 25. Proportional review (0.11.0)
+
+The review stays the same for every task that gets one; what changes is how often it runs and
+which reviewers a diff needs (evidence 20.20).
+
+1. **Carried reviews** (section 8.3, #43). The gate accepts any review line on an older head when
+   the task's change is identical since then (same content, or the same per-file patch when the
+   base changed other parts of the task's files). An update from the base that leaves the task's
+   change alone costs one CI run, no reviewer.
+2. **Security review from the diff** (#42). `rb risk --json` returns `security: { required,
+   reasons }`. It is required by the floor paths (auth, permissions, payments, schema), project
+   Sensitive paths, `.env` and similar files, dependency changes, paid SDKs, new external hosts,
+   new secret-like env vars, and by added production lines that open an attack surface: request
+   input, process spawns, file writes and deletes, raw queries, HTML or code injection sinks,
+   uploads, and credential handling (hashing passwords, signing tokens, setting cookies). Mentions
+   are not surface: a variable named `session`, a `Password` label, a regex `.exec(`, a client
+   `api.get('/x')`, `express.json()` middleware. Test files, docs, a pure function or a CLI flag
+   parser do not require it. A PR opened before 0.11.0 whose diff requires it gets the reviewer
+   once on its head (merge train step 5). The gate refuses a PR that rb risk says needs it and whose body lacks
+   `<!-- rockbuilt:security required -->` (reason `security`). The planner may add the review for
+   a reason the diff does not show (personal data in a plain field, agent tools), never drop it.
+3. **Secrets before the push** (#44). `rb secrets` scans the commits no remote has yet and the
+   working tree, untracked files included, with gitleaks-shaped rules: private keys (a header
+   with a key body, on one line or the next), cloud and SaaS token formats, JWTs, and
+   generic-api-key (a key, token, secret, password or auth name assigned a value with entropy
+   above 3.5, every match on the line, minus gitleaks' placeholder stopwords). Like gitleaks it
+   skips `gitleaks:allow` lines, lockfiles and media, and the fingerprints in `.gitleaksignore`.
+   A repo with no remote-tracking refs is scanned from the merge-base with the default branch. It runs in the mechanical check of rb-build and
+   rb-fix, and the guard runs it on every `git push` (a hit denies the push: rewrite the unpushed
+   commits). Commits already on a remote are not rescanned.
+4. **A minimum task size** (#41). `rb tasks` fails on two `S` tasks not started whose files share
+   a directory and that fit one task's limits (8 files, 4 criteria), unless one carries
+   `Size: S (<why they stay apart>)`. Tasks on different sides of a tier floor (a dependency
+   manifest, an auth path) are never paired. A lighter review for small tasks (no auditor) was
+   proposed and declined: the F4 reviewers found real defects in small tasks; rb-retro measures
+   the effect of 1 to 3 first.
+5. **Bookkeeping without manual steps** (#45, #46). A bookkeeping PR whose GitHub file list lags
+   behind the base (task PRs merged after the save) is checked against the live compare of the
+   base tip and the head, which is what a squash lands. `rb bookkeeping save` pushes nothing when
+   the edits equal the last save and that push is still the tip of an open PR; the files stay
+   modified in the checkout until the PR merges.
+   Hiding them from git (skip-worktree) to silence the cloud stop hook was declined: a later
+   `git pull` would fail on a file `git status` does not show.
+6. **Task ids** (#47). The gate matches a status line's `task=` case-insensitively and accepts a
+   run prefix (`F5-T14` for `T14`); the reviewers are told to write the spec id.
+7. **Safety steps** (#48). The plan has a `Safety steps` section: each guard, refusal or
+   validation with the test that fails when it is deleted. The implementer deletes each step in
+   its evidence pass (a step whose deletion passes needs a test first) and the verifier adds one
+   mutant per step.
+8. **Timing without the orchestrator** (#49). `rb claim` opens the task's plan phase, `rb gh
+   pr-create` (body task marker) closes the open phases and opens ci, and a merge by `rb
+   merge-gate` closes the rest. A start of a phase already open is a no-op, so explicit `rb timing`
+   calls refine these marks without doubling them; a start older than 24 hours is left over (a PR
+   closed unmerged, another spec's task with the same id) and is never reused or closed. All of it
+   goes to the main checkout's log, also from a worktree. After a merge, `rb merge-gate` writes the
+   task's minutes as the PR's timing line, so they reach GitHub without `rb timing line`.
+   `rb timing report` warns about task PRs merged in the last 14 days with no minutes anywhere.
+

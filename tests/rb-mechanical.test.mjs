@@ -328,3 +328,170 @@ test('review-delta: a LESSONS.md change after the review is a change the reviewe
   r = await rbJson(root, ['review-delta', '--reviewed', reviewed, '--base', 'main']);
   assert.equal(r.json.identical, false, r.json.detail);
 });
+
+test('rb risk security (#42): the diff decides whether the security review runs', () => {
+  const sec = (p, lines) => classify({ files: [{ path: p, status: 'modified', additions: lines.length, deletions: 0, added: lines }] }).security;
+  // No attack surface: a pure function, a flag parser, tests, docs.
+  assert.equal(sec('src/install/args.ts', ['export function parseFlags(argv: string[]) {', "  return { dryRun: argv.includes('--dry-run') };", '}']).required, false);
+  assert.equal(sec('tests/auth.test.ts', ["const password = 'x'.repeat(3);"]).required, false);
+  assert.equal(sec('README.md', ['Set your API_KEY.']).required, false);
+  // Surface: each trigger with its reason.
+  const why = (p, lines) => sec(p, lines).reasons.map((r) => r.detail);
+  assert.deepEqual(why('src/install/run.ts', ["import { spawn } from 'node:child_process';"]), ['process spawn']);
+  assert.deepEqual(why('src/api/notes.ts', ['  const { title } = req.body;']), ['request input']);
+  assert.deepEqual(why('src/app/api/route.ts', ['export async function POST(request: Request) {']), ['request input']);
+  assert.deepEqual(why('src/store.ts', ['  await fs.writeFile(target, data);']), ['file write or delete']);
+  assert.deepEqual(why('src/db.ts', ['  await prisma.$queryRawUnsafe(q);']), ['raw query']);
+  assert.deepEqual(why('src/ui/Note.tsx', ['  <div dangerouslySetInnerHTML={{ __html: body }} />']), ['injection sink']);
+  assert.deepEqual(why('src/login.ts', ['  const ok = await bcrypt.compare(password, hash);']), ['auth or secrets']);
+  assert.match(why('src/auth/guard.ts', ['export const x = 1;'])[0], /^auth-permissions-payments/);
+  assert.equal(sec('src/client.ts', ["const u = 'https://api.acme-weather.io';"]).required, true, 'a new external host');
+  // 0.11 review: lines that mention a word but open no surface stay quiet.
+  for (const l of ['const m = /^--(\\w+)=(.*)$/.exec(arg);', 'app.use(express.json());', 'const u = new URL(href).searchParams;',
+    'const session = getSession();', "label: 'Password'", "const h = createHash('sha256').update(k).digest('hex');", 'const user = getUser(id);',
+    "const r = await api.get('/users');", "axios.post('/x', body);", 'const cookies = parse(header);']) {
+    assert.deepEqual(why('src/x.ts', [l]), [], l);
+  }
+  // ...and handlers of other frameworks and languages are seen.
+  for (const [l, w] of [['export const POST = async (req) => {}', 'request input'], ["const id = c.req.param('id');", 'request input'],
+    ["instance.post('/notes', handler)", 'request input'], ["@bp.route('/x')", 'request input'], ['data = request.get_json()', 'request input'],
+    ["@api_router.get('/items')", 'request input'], ["x = request.POST['a']", 'request input'], ["notes.post('/a', auth, h)", 'request input'],
+    ['cur.execute(f"SELECT * FROM t WHERE id={i}")', 'raw query'], ['await sequelize.query(q);', 'raw query'], ['cmd := exec.Command("ls")', 'process spawn'],
+    ['v := r.FormValue("a")', 'request input'], ['vm.runInNewContext(code)', 'injection sink'], ["res.cookie('sid', s)", 'auth or secrets'], ['const t = jwt.sign(p, k);', 'auth or secrets']]) {
+    assert.deepEqual(why('src/x.ts', [l]), [w], l);
+  }
+});
+
+test('rb secrets (#44): gitleaks-shaped literals in unpushed commits and the working tree', async () => {
+  const { scanLine } = await import('../scripts/lib/secrets.mjs');
+  const rules = (l) => scanLine(l).map((f) => f.rule);
+  // F4 T8: public ed25519 host keys assigned to KEY and KEY2 tripped generic-api-key.
+  assert.deepEqual(rules('const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";'), ['generic-api-key']);
+  assert.deepEqual(rules('const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";'), ['generic-api-key']);
+  assert.deepEqual(rules('-----BEGIN OPENSSH PRIVATE KEY-----'), [], 'code that looks for the header is not a key');
+  assert.deepEqual(rules('const pem = "-----BEGIN RSA PRIVATE KEY-----\\nMIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gunVTLw";'), ['private-key']);
+  assert.deepEqual(rules('{ authMode: "standard_mode1", apiKey: "Zx81kqP0mWv7RtY3nB5c" }'), ['generic-api-key'], 'every match on the line');
+  assert.deepEqual(rules('const k = "test_api_key_9xQ2mZ";'), [], 'gitleaks stopwords');
+  assert.deepEqual(rules('const t = "example-token-5f3a9c1d";'), []);
+  assert.deepEqual(rules('token: ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'), ['github-token']);
+  assert.deepEqual(rules('aws = "AKIA' + 'IOSFODNN7EXAMPLE"'), ['aws-access-token']);
+  // Not secrets: plain words, short values, env reads, parts joined at runtime, allow comments.
+  assert.deepEqual(rules("const key = 'category';"), []);
+  assert.deepEqual(rules('const token = process.env.API_TOKEN;'), []);
+  assert.deepEqual(rules("const KEY = ['AAAAC3NzaC1l', 'ZDI1NTE5AAAAI'].join('');"), []);
+  assert.deepEqual(rules('const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"; // gitleaks:allow'), []);
+
+  const root = repoWith({ 'src/a.js': 'a\n' });
+  const bare = tmp();
+  sh(bare, 'git', ['init', '-q', '--bare', '-b', 'main']);
+  sh(root, 'git', ['remote', 'add', 'origin', bare]);
+  sh(root, 'git', ['push', '-q', 'origin', 'main']);
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T8-ssh']);
+  write(root, 'tests/ssh.test.js', 'const host = "github.com";\nconst KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+  commitAll(root, 'test with a key');
+  write(root, 'tests/ssh.test.js', 'const host = "github.com";\nconst KEY = ["AAAAC3NzaC1l", "ZDI1NTE5"].join("");\n');
+  commitAll(root, 'fix the fixture in a later commit');
+  let r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 3, 'the earlier commit still has it, as gitleaks would see');
+  assert.deepEqual(r.json.findings.map((f) => `${f.file}:${f.line}`), ['tests/ssh.test.js:2']);
+  sh(root, 'git', ['reset', '-q', '--soft', 'main']);
+  commitAll(root, 'one clean commit');
+  r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 0, r.out);
+  // A commit already on a remote is not rescanned (CI already saw it; the push adds nothing new).
+  write(root, 'tests/other.test.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  commitAll(root, 'leak');
+  sh(root, 'git', ['push', '-q', 'origin', 'rb/T8-ssh']);
+  sh(root, 'git', ['fetch', '-q', 'origin']);
+  assert.equal((await rbJson(root, ['secrets'])).code, 0);
+
+  // New files count before they are staged; lockfiles and .gitleaksignore entries do not.
+  write(root, 'tests/new.test.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  r = await rbJson(root, ['secrets']);
+  assert.deepEqual(r.json.findings.map((f) => `${f.commit} ${f.file}:${f.line}`), ['untracked tests/new.test.js:1']);
+  write(root, '.gitleaksignore', 'tests/new.test.js:generic-api-key:1\n');
+  assert.equal((await rbJson(root, ['secrets'])).code, 0, 'a fingerprint in .gitleaksignore');
+  write(root, 'package-lock.json', '{"integrity": "sha512-Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA"}\n');
+  assert.equal((await rbJson(root, ['secrets'])).code, 0, 'lockfiles are allowlisted');
+  // A PEM block over two lines.
+  write(root, 'tests/pem.txt', '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gunVTLw\n');
+  sh(root, 'git', ['add', 'tests/pem.txt']);
+  r = await rbJson(root, ['secrets']);
+  assert.ok(r.json.findings.some((f) => f.file === 'tests/pem.txt' && f.rule === 'private-key'), JSON.stringify(r.json.findings));
+});
+
+test('rb secrets: a repo with no remote scans from the default branch, not the whole history', async () => {
+  const root = repoWith({ 'src/a.js': 'a\n' });
+  write(root, 'old.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  commitAll(root, 'old leak');
+  sh(root, 'git', ['rm', '-q', 'old.js']);
+  commitAll(root, 'removed long ago');
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T1-x']);
+  write(root, 'src/b.js', 'export const b = 1;\n');
+  commitAll(root, 'task');
+  const r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.findings));
+});
+
+test('rb timing (#49): claim, pr-create and a merge record phases on their own; explicit starts are not doubled', async () => {
+  const { readEvents, appendEvent } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS() });
+  const gh = fakeGh();
+  gh.state.issues[3] = { number: 3, title: 'T3', body: '<!-- rockbuilt:task T3 spec=docs/specs/01-x -->\nx', state: 'open', labels: ['rb:task'] };
+  assert.equal((await rbJson(root, ['claim', '3', '--run', 'r1', ...repo], io(gh))).code, 0);
+  appendEvent(root, 'start', 'T3', 'plan');
+  const ev = () => readEvents(root).filter((e) => e.task === 'T3').map((e) => `${e.event}:${e.phase}`);
+  assert.deepEqual(ev(), ['start:plan'], 'the explicit start of an open phase is a no-op');
+  const dir = tmp();
+  write(dir, 'body.md', 'Closes #3\n<!-- rockbuilt:task T3 spec=docs/specs/01-x -->\n<!-- rockbuilt:tier A -->\n');
+  assert.equal((await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T3-x', '--base', 'main', '--title', 'T3', '--body-file', path.join(dir, 'body.md'), ...repo], io(gh))).code, 0);
+  assert.deepEqual(ev(), ['start:plan', 'end:plan', 'start:ci']);
+});
+
+test('rb timing: a start left over from weeks ago is never reused or closed into a huge duration', async () => {
+  const { appendEvent, autoPhase, aggregate, readEvents } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS() });
+  appendEvent(root, 'start', 'T1', 'ci', new Date('2026-10-01T10:00:00Z'));
+  appendEvent(root, 'start', 'T1', 'ci', new Date('2026-10-20T10:00:00Z'));
+  appendEvent(root, 'end', 'T1', 'ci', new Date('2026-10-20T10:10:00Z'));
+  let t = aggregate(readEvents(root)).tasks.find((x) => x.task === 'T1');
+  assert.equal(Math.round(t.phases.ci / 60000), 10);
+  // A later task reusing the id gets its own plan phase; the stale start is not closed by it.
+  autoPhase(root, 'T1', 'plan', new Date('2026-10-25T09:00:00Z'));
+  autoPhase(root, 'T1', 'ci', new Date('2026-10-25T09:30:00Z'));
+  t = aggregate(readEvents(root)).tasks.find((x) => x.task === 'T1');
+  assert.equal(Math.round(t.phases.plan / 60000), 30);
+  assert.equal(Math.round(t.phases.ci / 60000), 10, 'the 10-01 start stayed out of it');
+});
+
+test('rb merge-gate publishes the task minutes recorded on its own (#49)', async () => {
+  const { appendEvent } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS(), 'src/a.test.js': 'x\n' });
+  sh(root, 'git', ['remote', 'add', 'origin', `https://github.com/${REPO}.git`]);
+  const gh = fakeGh();
+  const s = gh.state;
+  const head = 'a'.repeat(40);
+  s.issues[3] = { number: 3, title: 'T7', body: '<!-- rockbuilt:task T7 spec=none -->', state: 'open', labels: ['rb:task'] };
+  const line = `<!-- rockbuilt:status stage=rb-verifier task=T7 outcome=pass head=${head} -->`;
+  s.issues[10] = { number: 10, title: 'T7', body: `Closes #3\n<!-- rockbuilt:task T7 spec=none -->\n${line}\n<!-- rockbuilt:tier A -->\n`, state: 'open', labels: ['rb:tier-a', 'rb:pr-open'], isPr: true };
+  s.pulls[10] = { number: 10, head: 'rb/T7-x', base: 'main', headSha: head };
+  s.files[10] = [{ filename: 'src/a.test.js', status: 'modified', additions: 1, deletions: 0, patch: '@@\n+y' }];
+  s.checkRuns[head] = [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' }];
+  s.comments[3] = [{ id: 1, body: line, user: { login: 'b' }, author_association: 'OWNER' }];
+  const now = Date.now();
+  appendEvent(root, 'start', 'T7', 'plan', new Date(now - 50 * 60000));
+  appendEvent(root, 'end', 'T7', 'plan', new Date(now - 30 * 60000));
+  appendEvent(root, 'start', 'T7', 'ci', new Date(now - 20 * 60000));
+  assert.equal((await rbJson(root, ['lock', 'acquire', '--run', 'r1'], io(gh))).code, 0);
+  const r = await rbJson(root, ['merge-gate', '10', '--run', 'r1'], io(gh));
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.match(s.issues[10].body, /<!-- rockbuilt:timing task=T7 [^>]*plan=20[^>]*ci=20/);
+  // The report does not warn about a merged PR whose minutes it has.
+  let rep = await rb(root, ['timing', 'report'], io(gh));
+  assert.doesNotMatch(rep.out, /WARNING/);
+  // A recent merged task PR with no minutes anywhere is named.
+  s.issues[11] = { number: 11, title: 'T8', body: '<!-- rockbuilt:task T8 spec=none -->', state: 'closed', labels: [], isPr: true };
+  s.pulls[11] = { number: 11, head: 'rb/T8-y', base: 'main', headSha: 'b'.repeat(40), merged_at: new Date().toISOString() };
+  rep = await rb(root, ['timing', 'report'], io(gh));
+  assert.match(rep.out, /WARNING: 1 merged task PR\(s\) with no timing \(#11\)/);
+});
