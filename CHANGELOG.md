@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.0 (unreleased)
+## 0.11.0 (2026-11-01)
 
 Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #49 from
 2brain-logic F4 and F5 on 0.10.0; DESIGN 20.20, 20.21 and 25).
