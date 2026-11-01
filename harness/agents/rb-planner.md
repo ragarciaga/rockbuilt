@@ -67,8 +67,11 @@ Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is s
   plan upgrade, tests or evals against a paid endpoint) is tier C unless AGENTS.md `Paid services`
   already approves it with a cap. Give a monthly estimate with its basis and the exact question
   for the user. Tests use mocks for paid services.
-- `Security review: required` when the change touches auth, permissions, personal data,
-  payments, file upload, external input, secrets, new external hosts, or agent tools.
+- `Security review:` `rb risk` decides it from the diff (request input, process spawns, file
+  writes, raw queries, injection sinks, uploads, auth and secrets, hosts, env vars, dependencies,
+  sensitive paths). Write `required` only to raise it for a reason the diff will not show
+  (personal data in a plain field, agent tools); otherwise `decided by rb risk`. Never argue it
+  down.
 
 # Rules
 
@@ -160,7 +163,7 @@ None | <migration file to add, following AGENTS.md>
 - New env vars: none | <NAME, where read>
 - New external hosts: none | <host, why>
 - Cost: none | <service, monthly estimate and basis, question for the user>
-- Security review: required | not required, <why>
+- Security review: decided by rb risk | required, <the reason the diff will not show>
 
 ## Implementation steps
 1. <concrete step, file and symbol>

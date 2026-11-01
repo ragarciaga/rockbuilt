@@ -141,8 +141,8 @@ push; later fixes are commits on top); record the reviewed head. Then, serially:
   reports, the verifier verdict or the diff. After the verifier, or in its own copy
   (rb-build `references/audit.md`, "Own copy"): never in the directory the verifier is mutating.
   Keep its verdict as `audit.md` "Keep the verdict" says.
-- `rb-security-reviewer` when the plan flags auth, permissions, payments, personal data, secrets,
-  file upload or external input: `Mode: task`, spec folder `none`, the bug report, diff range
+- `rb-security-reviewer` when `rb risk --json` says `security.required` (the gate enforces it),
+  or the plan raises it: `Mode: task`, spec folder `none`, the bug report, diff range
   `origin/<default>...HEAD`, the triggers, `.claude/skills/rb-verify/references/security.md`,
   `Reviewed head: <sha>`.
 

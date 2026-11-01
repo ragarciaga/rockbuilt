@@ -177,8 +177,9 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
   files the auditor would observe. To overlap them, give the auditor its own copy
   (`audit.md`, "Own copy"). Keep every verdict (`audit.md`, "Keep the verdict").
-- **Security reviewer** when the plan's Risk and cost or Risks flag auth, permissions, payments,
-  personal data, secrets, file upload or external input, or the verifier lists security flags:
+- **Security reviewer** when `rb risk --base origin/<default> --json` says `security.required`
+  (decided from the diff; the gate enforces it), or the plan or the verifier raises it (they can
+  add it, never drop it); otherwise skip it and write `Security review: not triggered`:
   `Mode: task`, task id, spec folder (or `none`), diff range `origin/<default>...HEAD`, the
   triggers, `.claude/skills/rb-verify/references/security.md`, `Reviewed head: <sha>`. Blocker or
   major: kickback; minors go to the PR under Risks.
