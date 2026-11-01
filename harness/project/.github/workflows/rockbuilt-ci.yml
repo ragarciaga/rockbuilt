@@ -52,9 +52,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      - name: Node version
+        id: node
+        shell: bash
+        run: |
+          v=22
+          for f in .nvmrc .node-version; do
+            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+          done
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ steps.node.outputs.version }}
           # setup-node's npm cache needs a lockfile; projects without one (pnpm, Python, new repos) skip it.
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
@@ -99,9 +110,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      - name: Node version
+        id: node
+        shell: bash
+        run: |
+          v=22
+          for f in .nvmrc .node-version; do
+            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+          done
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ steps.node.outputs.version }}
 
       - name: Plan
         id: plan
@@ -121,9 +143,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      - name: Node version
+        id: node
+        shell: bash
+        run: |
+          v=22
+          for f in .nvmrc .node-version; do
+            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+          done
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ steps.node.outputs.version }}
           # setup-node's npm cache needs a lockfile; projects without one (pnpm, Python, new repos) skip it.
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
