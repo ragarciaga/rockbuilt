@@ -2,8 +2,8 @@
 
 ## 0.11.0 (unreleased)
 
-Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #44 from
-2brain-logic F4 on 0.10.0; DESIGN 20.20 and 25).
+Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #49 from
+2brain-logic F4 and F5 on 0.10.0; DESIGN 20.20, 20.21 and 25).
 
 - **Reviews carry across a base merge, decided by the gate (#43).** When an update from main leaves
   the task's files identical, `rb merge-gate` accepts the verifier, auditor and security lines on
@@ -26,6 +26,20 @@ Proportional review: a task pays for the reviewers its diff needs, once (issues 
   that fit one task (8 files, 4 criteria), unless one says why they stay apart
   (`Size: S (<reason>)`); never across a tier floor. The blind audit stays on every tier B task:
   F4's reviewers found real defects in small tasks.
+- **Bookkeeping PRs (#45, #46).** The gate checks a bookkeeping PR against the live compare of the
+  base tip and the head when GitHub's file list still shows task PRs merged after the save, so no
+  manual retarget. A save with nothing new pushes nothing (it answered the cloud stop hook with a
+  new commit and CI run every turn); the files stay modified until the PR merges, by design.
+- **Task ids with a run prefix (#47).** The gate matches `task=F5-T14` to the spec's `T14`, and the
+  reviewers write the id as tasks.md has it.
+- **Safety steps are mutation-tested (#48).** The plan lists every guard, refusal or validation
+  with the test that fails when it is deleted; the implementer deletes each one in its evidence
+  pass and the verifier probes each one.
+- **Timing records itself (#49).** `rb claim` opens the plan phase, `rb gh pr-create` closes what is
+  open and opens ci, a merge by `rb merge-gate` closes the rest; explicit `rb timing` calls refine
+  it and are never doubled. `rb timing report` warns about merged task PRs with no timing.
+- **CI uses the project's Node version** from `.nvmrc` or `.node-version` (default 22) in every
+  job of the workflow template (was PR #40, 0.10.1, folded into this release).
 - **Upgrading:** an open PR whose diff now requires the security review and that never had one
   is refused with reason `security`; the merge train and `/rb-merge` run the reviewer once on its
   head and add its line. Update a project with `rb vendor`.
