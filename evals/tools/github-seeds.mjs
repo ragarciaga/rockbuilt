@@ -77,4 +77,40 @@ export function bugIssue() {
   return s;
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue };
+// One reviewed tier B PR (#2, task issue #1) whose branch then merged main after main gained a
+// docs change that touches none of the task's files: its verifier and auditor lines name the
+// pre-merge head. 0.10.0 re-dispatched both reviewers here (rockbuilt #43); the gate now confirms
+// the task's change is identical and merges with the old lines, no agent.
+export function carriedReview(ws) {
+  const s = baseState();
+  const n = s.nextNumber++;
+  s.issues[n] = { number: n, title: 'Redondear totales a miles', body: `<!-- rockbuilt:task i${n} spec=none -->\nRedondear totales a miles.`, state: 'open', labels: ['rb:task', 'rb:pr-open'], author: 'rb-bot', author_association: 'OWNER', created_at: now() };
+  const branch = `rb/i${n}-redondear-totales`;
+  git(ws, ['checkout', '-q', '-b', branch, 'main']);
+  write(ws, 'src/round.js', 'export function roundThousands(amount) {\n  return Math.round(amount / 1000) * 1000;\n}\n');
+  write(ws, 'tests/round.test.js', "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { roundThousands } from '../src/round.js';\n\ntest('rounds', () => { assert.equal(roundThousands(12345), 12000); });\n");
+  git(ws, ['add', '-A']);
+  git(ws, ['commit', '-q', '-m', `feat: redondear totales (i${n})`]);
+  const reviewed = git(ws, ['rev-parse', 'HEAD']);
+  git(ws, ['checkout', '-q', 'main']);
+  write(ws, 'docs/notas.md', '# Notas\n\nOtra tarea cambió solo esta nota.\n');
+  git(ws, ['add', '-A']);
+  git(ws, ['commit', '-q', '-m', 'docs: notas (otra tarea)']);
+  git(ws, ['push', '-q', 'origin', 'main']);
+  git(ws, ['checkout', '-q', branch]);
+  git(ws, ['merge', '-q', '--no-edit', 'main']);
+  const head = git(ws, ['rev-parse', 'HEAD']);
+  git(ws, ['push', '-q', 'origin', branch]);
+  git(ws, ['checkout', '-q', 'main']);
+  const pr = s.nextNumber++;
+  const line = (stage) => `<!-- rockbuilt:status stage=${stage} task=i${n} outcome=pass head=${reviewed} -->`;
+  s.issues[pr] = {
+    number: pr, title: 'feat: redondear totales (i1)', state: 'open', labels: ['rb:tier-b', 'rb:pr-open'], isPr: true, author: 'rb-bot', author_association: 'OWNER', created_at: now(),
+    body: ['## Problem\nRedondear totales a miles.', '', `Closes #${n}`, '', `<!-- rockbuilt:task i${n} spec=none -->`, '<!-- rockbuilt:tier B -->', line('rb-verifier'), line('rb-auditor')].join('\n'),
+  };
+  s.pulls[pr] = { number: pr, head: branch, base: 'main', headSha: head };
+  s.comments[n] = ['rb-verifier', 'rb-auditor'].map((stage) => ({ id: s.nextComment++, body: `## ${stage}\n\nNo findings.\n\n${line(stage)}`, user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: now() }));
+  return s;
+}
+
+export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview };
