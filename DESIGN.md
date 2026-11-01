@@ -508,8 +508,10 @@ Layers, from strongest to weakest:
    by default.
 3. **Guard hook** (`tools/rockbuilt/guard.mjs`, one script, payload normalizers for Claude Code,
    Cursor and Codex). Rules:
-   - Everyone: no push to the default branch, no force push, no `git push --all/--mirror`, no
-     reading `.env*` through shell commands (`cat`, `less`, `type`, `Get-Content`, `node -e`
+   - Everyone: no push to the default branch (also written `heads/main` or reached by a wildcard
+     refspec, or by `push.default=matching` or a configured `remote.<name>.push` when no branch is
+     named, rockbuilt #51), no force push, no `git push --all/--mirror`, no push of an unpushed
+     commit with a secret-shaped literal (section 25.3), no reading `.env*` through shell commands (`cat`, `less`, `type`, `Get-Content`, `node -e`
      readers mentioning `.env`).
    - Write roles (rb-implementer, rb-e2e-writer): deny any command that mentions `git` or `gh`
      as a word anywhere (catches `node -e`, `npm exec -c`, `cmd /c`, `pwsh -c`, `bash -c`),
@@ -1045,7 +1047,10 @@ which reviewers a diff needs (evidence 20.20).
    skips `gitleaks:allow` lines, lockfiles and media, and the fingerprints in `.gitleaksignore`.
    A repo with no remote-tracking refs is scanned from the merge-base with the default branch. It runs in the mechanical check of rb-build and
    rb-fix, and the guard runs it on every `git push` (a hit denies the push: rewrite the unpushed
-   commits). Commits already on a remote are not rescanned.
+   commits). Inside the hook nothing the scanned repository defines may run (rockbuilt #52): git
+   runs with `--no-textconv --no-ext-diff`, `core.fsmonitor=false` and no pager, and only the
+   session's project and its worktrees (same git common dir) are scanned, never a repository a
+   `git -C` names elsewhere. Commits already on a remote are not rescanned.
 4. **A minimum task size** (#41). `rb tasks` fails on two `S` tasks not started whose files share
    a directory and that fit one task's limits (8 files, 4 criteria), unless one carries
    `Size: S (<why they stay apart>)`. Tasks on different sides of a tier floor (a dependency

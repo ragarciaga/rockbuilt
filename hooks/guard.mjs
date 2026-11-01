@@ -478,7 +478,9 @@ export function isGhMerge(words) {
 
 function normalizeBranch(ref) {
   let r = ref.trim();
-  if (r.startsWith('refs/heads/')) r = r.slice('refs/heads/'.length);
+  // git resolves a short destination by its ref rules: `heads/main` and `refs/heads/main` are main.
+  if (r.startsWith('refs/')) r = r.slice('refs/'.length);
+  if (r.startsWith('heads/')) r = r.slice('heads/'.length);
   return r;
 }
 
@@ -504,6 +506,16 @@ export function checkPush(args, ctx) {
   const refspecs = positionals.slice(1);
   if (refspecs.some((r) => r.startsWith('+'))) return 'force push (+refspec) is not allowed';
   if (all) return 'git push --all/--mirror is not allowed (it would push the default branch)';
+  // A wildcard refspec (`refs/heads/*:refs/heads/*`) can update the default branch without naming
+  // it (rockbuilt #51): push one named branch.
+  if (refspecs.some((r) => r.includes('*'))) return 'a wildcard refspec is not allowed: push one named branch (git push -u origin <branch>)';
+  // Without a refspec, the repository's push config decides: `push.default=matching` or a
+  // configured `remote.<name>.push` can send the default branch too.
+  if (refspecs.length === 0 && typeof ctx.pushConfig === 'function') {
+    const pc = ctx.pushConfig(positionals[0] || null) || {};
+    if (pc.pushDefault === 'matching') return 'push.default=matching would push every matching branch, the default one included: name the branch (git push -u origin <branch>)';
+    if (pc.remotePush) return `remote push refspec configured (${pc.remotePush}): name the branch (git push -u origin <branch>)`;
+  }
 
   const defaults = ctx.defaultBranches().map((b) => b.toLowerCase());
   const destinations = [];
@@ -1036,8 +1048,18 @@ export const realEnv = {
     if (b && b !== 'HEAD') return b;
     return runGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   },
-  secretScan(dir, ref) {
+  // Only the session's project and its worktrees (same git common dir): a `git -C` or `cd` into
+  // some other repository is not scanned, so its config never runs in this hook (rockbuilt #52).
+  pushConfig(dir, remote) {
+    const name = remote && /^[\w.-]+$/.test(remote) ? remote : 'origin';
+    return { pushDefault: (runGit(dir, ['config', '--get', 'push.default']) || '').toLowerCase() || null, remotePush: runGit(dir, ['config', '--get-all', `remote.${name}.push`]) || null };
+  },
+  secretScan(dir, ref, projectDir) {
     if (!secretsLib) return null;
+    const common = (d) => runGit(d, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    const here = common(dir);
+    const home = common(projectDir || dir);
+    if (!here || !home || path.resolve(here).toLowerCase() !== path.resolve(home).toLowerCase()) return null;
     try { const r = secretsLib.scanBranch(dir, { ref }); return r ? r.findings : null; } catch { return null; }
   },
   defaultBranches(dir) {
@@ -1070,7 +1092,8 @@ function makeCtx(cwd, env) {
     withContractWhole: () => build(dir, true),
     currentBranch: () => cached(`cur:${dir}`, () => env.currentBranch(dir)),
     defaultBranches: () => cached(`def:${dir}`, () => env.defaultBranches(dir) || ['main', 'master']),
-    secretScan: (ref) => (typeof env.secretScan === 'function' ? env.secretScan(dir, ref) : null),
+    secretScan: (ref) => (typeof env.secretScan === 'function' ? env.secretScan(dir, ref, cwd) : null),
+    pushConfig: (remote) => (typeof env.pushConfig === 'function' ? env.pushConfig(dir, remote) : null),
     contractCommand: (text) => {
       if (typeof env.contractCommands !== 'function') return false;
       const cmds = cached(`contract:${cwd}`, () => (env.contractCommands(cwd) || []).map(squash));

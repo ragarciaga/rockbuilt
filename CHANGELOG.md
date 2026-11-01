@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.1 (2026-11-01)
+
+Two guard weaknesses the 2brain-logic security reviewer found; both predate 0.11.0.
+
+- **Wildcard refspecs (#51).** `git push origin refs/heads/*:refs/heads/*` could update the default
+  branch without naming it. The guard now denies any wildcard refspec, reads `heads/main` as main,
+  and denies a push without a branch name when `push.default=matching` or a `remote.<name>.push`
+  refspec is configured. Branch protection on GitHub (`rb protect`) still covers the server side.
+- **Secret scan on push runs nothing from the repository (#52).** The scan's git calls use
+  `--no-textconv --no-ext-diff`, `core.fsmonitor=false` and no pager, so a crafted
+  `.gitattributes` or git config cannot run code inside the hook, and the hook scans only the
+  session's project and its worktrees.
+- Update a project with `rb vendor`.
+
 ## 0.11.0 (2026-11-01)
 
 Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #49 from

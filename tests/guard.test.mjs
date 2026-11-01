@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -54,6 +54,9 @@ const CASES = [
   ['main: pkill -f', bash('pkill -f vite'), true],
   ['implementer killall', bash('killall node', IMPL), true],
   ['main: kill by pid', bash('kill 12345'), false],
+  ['main: wildcard refspec reaches main (#51)', bash('git push origin refs/heads/*:refs/heads/*'), true],
+  ['main: wildcard refspec without colon', bash('git push origin "refs/heads/rb/*"'), true],
+  ['main: heads/main is main', bash('git push origin HEAD:heads/main'), true],
   ['main: kill -9 pid, kill $PID, kill %1', bash('kill -9 12345 && kill "$PID" && kill %1'), false],
   ['main: kill by port through lsof', bash('lsof -ti:3000 | xargs kill'), false],
   ['main: kill $(lsof -ti:port)', bash('kill $(lsof -ti:5173)'), false],
@@ -673,5 +676,43 @@ test('guard (#44) end to end: the real hook loads the scanner and blocks the pus
     assert.equal(r.status, 0, r.stderr);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard (#51): without a refspec, push.default=matching or a remote push refspec is denied', () => {
+  const env = (pc) => ({ ...fakeEnv(), pushConfig: () => pc });
+  assert.equal(decide(bash('git push'), env({ pushDefault: 'matching' }), NO_ENV).deny, true);
+  assert.equal(decide(bash('git push origin'), env({ remotePush: 'refs/heads/*:refs/heads/*' }), NO_ENV).deny, true);
+  assert.equal(decide(bash('git push'), env({ pushDefault: 'simple' }), NO_ENV).deny, false);
+  assert.equal(decide(bash('git push -u origin rb/T1-login'), env({ pushDefault: 'matching' }), NO_ENV).deny, false, 'a named branch decides itself');
+});
+
+test('guard (#52): the push scan runs no repository-defined program and stays in the project', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-tc-'));
+  const other = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-other-'));
+  try {
+    const marker = path.join(dir, 'PWNED');
+    const g = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' });
+    for (const d of [dir, other]) { g(d, 'init', '-q', '-b', 'main'); g(d, 'config', 'user.email', 't@x'); g(d, 'config', 'user.name', 'T'); }
+    // A textconv driver and an external diff that would run on `git show` without the flags.
+    g(dir, 'config', 'diff.evil.textconv', `node -e "require('fs').writeFileSync(process.argv[1],'x')" ${JSON.stringify(marker)}`);
+    g(dir, 'config', 'diff.external', `node -e "require('fs').writeFileSync(process.argv[1],'x')" ${JSON.stringify(marker)}`);
+    writeFileSync(path.join(dir, '.gitattributes'), '*.js diff=evil\n');
+    writeFileSync(path.join(dir, 'a.js'), 'a\n'); g(dir, 'add', '-A'); g(dir, 'commit', '-q', '-m', 'i');
+    g(dir, 'checkout', '-q', '-b', 'rb/T1');
+    writeFileSync(path.join(dir, 'a.js'), 'const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+    g(dir, 'add', '-A'); g(dir, 'commit', '-q', '-m', 'leak');
+    const hook = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'guard.mjs');
+    const run = (cmd, cwd) => spawnSync(process.execPath, [hook], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: cmd }, cwd }), encoding: 'utf8' });
+    const r = run('git push -u origin rb/T1', dir);
+    assert.equal(r.status, 2, 'still finds the literal');
+    assert.equal(existsSync(marker), false, 'no textconv or external diff ran');
+    // A push into another repository through git -C is not scanned by this project's hook.
+    writeFileSync(path.join(other, 'b.js'), 'const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+    g(other, 'checkout', '-q', '-b', 'feat'); g(other, 'add', '-A'); g(other, 'commit', '-q', '-m', 'x');
+    assert.equal(run(`git -C ${other} push -u origin feat`, dir).status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
   }
 });
