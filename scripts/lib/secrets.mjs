@@ -51,8 +51,14 @@ export function scanLine(line) {
   return out;
 }
 
+// The guard runs this inside a hook, on a repository a command names: nothing the repository's
+// own config or attributes define may run (rockbuilt #52). Textconv drivers and external diff tools
+// come from .gitattributes plus config, fsmonitor from config, a pager from config: all off.
+const SAFE = ['-c', 'core.fsmonitor=false', '-c', 'core.pager=cat', '-c', 'diff.external=', '-c', 'core.quotepath=false', '-c', 'log.showSignature=false', '-c', 'gpg.program=false', '-c', 'gpg.ssh.program=false', '-c', 'gpg.x509.program=false'];
+const NO_EXEC_DIFF = ['--no-textconv', '--no-ext-diff'];
+
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', [...SAFE, ...args], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_EXTERNAL_DIFF: '', GIT_PAGER: 'cat', PAGER: 'cat' }, windowsHide: true });
   return { ok: r.status === 0, stdout: r.stdout || '' };
 }
 
@@ -77,8 +83,8 @@ const PEM_HEADER = /-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY( BLOCK)?-----\s*["'`
 const SKIP_PATH = /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|Cargo\.lock|go\.sum|poetry\.lock|Pipfile\.lock|composer\.lock|Gemfile\.lock)$|\.(png|jpe?g|gif|svg|ico|webp|pdf|woff2?|ttf|eot|mp4|mp3|zip|gz|lock)$|(^|\/)(node_modules|vendor|dist|build)\//i;
 
 function ignored(cwd) {
-  const r = spawnSync('git', ['show', 'HEAD:.gitleaksignore'], { cwd, encoding: 'utf8' });
-  let text = r.status === 0 ? r.stdout : '';
+  const r = git(cwd, ['cat-file', 'blob', 'HEAD:.gitleaksignore']);
+  let text = r.ok ? r.stdout : '';
   try { text += `\n${readFileSync(path.join(cwd, '.gitleaksignore'), 'utf8')}`; } catch { /* none */ }
   return new Set(text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')));
 }
@@ -104,6 +110,7 @@ function scanPatch(patch, commit, skip = new Set()) {
 // CI), plus, with `worktree`, what is staged or modified. Returns { commits, findings } or null when
 // git cannot answer.
 export function scanBranch(cwd, { base, ref = 'HEAD', worktree = false } = {}) {
+  if (String(ref).startsWith('-') || (base && String(base).startsWith('-'))) return null;
   // No remote-tracking refs at all (a repo not pushed yet): scan from the merge-base with the
   // default branch, not the whole history (an old key long removed must not block every push).
   const hasRemotes = git(cwd, ['for-each-ref', '--count=1', 'refs/remotes']).stdout.trim() !== '';
@@ -123,14 +130,14 @@ export function scanBranch(cwd, { base, ref = 'HEAD', worktree = false } = {}) {
   const commits = list.stdout.split('\n').filter(Boolean).slice(0, 200);
   const findings = [];
   for (const c of commits) {
-    const show = git(cwd, ['-c', 'core.quotepath=false', 'show', '--format=', '--no-color', '--no-renames', '-U0', c]);
+    const show = git(cwd, ['show', ...NO_EXEC_DIFF, '--no-show-signature', '--format=', '--no-color', '--no-renames', '-U0', c]);
     if (show.ok) findings.push(...scanPatch(show.stdout, c.slice(0, 7), skip));
   }
   if (worktree) {
-    const diff = git(cwd, ['-c', 'core.quotepath=false', 'diff', 'HEAD', '--no-color', '--no-renames', '-U0']);
+    const diff = git(cwd, ['diff', ...NO_EXEC_DIFF, 'HEAD', '--no-color', '--no-renames', '-U0']);
     if (diff.ok) findings.push(...scanPatch(diff.stdout, 'worktree', skip));
     // New files are not in `git diff HEAD` until staged: read them whole.
-    const untracked = git(cwd, ['-c', 'core.quotepath=false', 'ls-files', '-z', '--others', '--exclude-standard']);
+    const untracked = git(cwd, ['ls-files', '-z', '--others', '--exclude-standard']);
     for (const f of untracked.stdout.split('\0').filter(Boolean)) {
       if (SKIP_PATH.test(f)) continue;
       let text;

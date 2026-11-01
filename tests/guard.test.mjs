@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -54,6 +54,36 @@ const CASES = [
   ['main: pkill -f', bash('pkill -f vite'), true],
   ['implementer killall', bash('killall node', IMPL), true],
   ['main: kill by pid', bash('kill 12345'), false],
+  ['main: wildcard refspec reaches main (#51)', bash('git push origin refs/heads/*:refs/heads/*'), true],
+  ['main: wildcard refspec without colon', bash('git push origin "refs/heads/rb/*"'), true],
+  ['main: heads/main is main', bash('git push origin HEAD:heads/main'), true],
+  ['main: matching refspec : (0.11.1 review)', bash('git push origin :'), true],
+  ['main: option smuggled as a refspec', bash('git push -- origin --output=/tmp/x:feat'), true],
+  ['main: GIT_CONFIG_COUNT prefix', bash('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=matching git push origin'), true],
+  ['main: GIT_CONFIG_PARAMETERS prefix', bash("GIT_CONFIG_PARAMETERS=\"'remote.origin.push'='refs/heads/feat:refs/heads/main'\" git push"), true],
+  ['main: GIT_DIR prefix', bash('GIT_DIR=/tmp/evil/.git git push origin HEAD'), true],
+  ['main: env GIT_DIR prefix', bash('env GIT_DIR=/tmp/evil/.git git push origin HEAD'), true],
+  ['main: export GIT_CONFIG_PARAMETERS', bash("export GIT_CONFIG_PARAMETERS=\"'push.default'='matching'\"; git push"), true],
+  ['main: --git-dir push', bash('git --git-dir=/tmp/evil/.git push'), true],
+  ['main: --git-dir push (separate value)', bash('git --git-dir /tmp/evil/.git push'), true],
+  ['main: GIT_TERMINAL_PROMPT stays allowed', bash('GIT_TERMINAL_PROMPT=0 git fetch origin'), false],
+  ['main: write ~/.gitconfig from the shell', bash('echo "[gpg]" >> ~/.gitconfig'), true],
+  ['implementer: write .git/config from the shell', bash('printf x > .git/config', IMPL), true],
+  ['main: remove a stale git lock', bash('rm -f .git/index.lock'), false],
+  ['main: mirror remote', bash('git remote add --mirror=push evil https://example.org/x.git'), true],
+  ['main: clone --config', bash('git clone --config remote.origin.mirror=true https://example.org/x.git /tmp/c'), true],
+  ['main: set -a then printf -v before push', bash('set -a; printf -v GIT_CONFIG_PARAMETERS "%s" "x"; git push origin'), true],
+  ['main: source a file before push', bash('set -a; . ./f.sh; git push'), true],
+  ['main: indirect export before push', bash('x=GIT_DIR; export "$x=/tmp/e"; git push origin feat'), true],
+  ['main: python writes .git/config', bash("python3 -c \"open('.git/config','a').write('x')\""), true],
+  ['main: node writes ~/.gitconfig', bash("node -e \"require('fs').appendFileSync(require('os').homedir()+'/.gitconfig','x')\""), true],
+  ['main: awk writes .git/config', bash('awk "BEGIN{print 1 > \\".git/config\\"}"'), true],
+  ['main: sed reads .git/config', bash('sed -n 1p .git/config'), false],
+  ['main: cp out of .git', bash('cp .git/HEAD /tmp/h'), false],
+  ['main: cp a .gitconfig template into docs', bash('cp templates/.gitconfig docs/'), false],
+  ['main: recover a broken rebase', bash('rm -rf .git/rebase-merge'), false],
+  ['main: sed -i on .git/config', bash('sed -i s/a/b/ .git/config'), true],
+  ['main: push alone after unrelated set', bash('git push -u origin rb/T1-login'), false],
   ['main: kill -9 pid, kill $PID, kill %1', bash('kill -9 12345 && kill "$PID" && kill %1'), false],
   ['main: kill by port through lsof', bash('lsof -ti:3000 | xargs kill'), false],
   ['main: kill $(lsof -ti:port)', bash('kill $(lsof -ti:5173)'), false],
@@ -671,6 +701,76 @@ test('guard (#44) end to end: the real hook loads the scanner and blocks the pus
     g('add', '-A'); g('commit', '-q', '--amend', '-m', 'clean');
     r = run();
     assert.equal(r.status, 0, r.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard (#51): without a refspec, push.default=matching or a remote push refspec is denied', () => {
+  const env = (pc) => ({ ...fakeEnv(), pushConfig: () => pc });
+  assert.equal(decide(bash('git push'), env({ pushDefault: 'matching' }), NO_ENV).deny, true);
+  assert.equal(decide(bash('git push origin'), env({ remotePush: 'refs/heads/*:refs/heads/*' }), NO_ENV).deny, true);
+  assert.equal(decide(bash('git push'), env({ pushDefault: 'simple' }), NO_ENV).deny, false);
+  assert.equal(decide(bash('git push -u origin rb/T1-login'), env({ pushDefault: 'matching' }), NO_ENV).deny, false, 'a named branch decides itself');
+  assert.equal(decide(bash('git push evil'), env({ mirror: true }), NO_ENV).deny, true, 'a mirror remote');
+});
+
+test('guard (#52): the push scan runs no repository-defined program and stays in the project', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-tc-'));
+  const other = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-other-'));
+  try {
+    const marker = path.join(dir, 'PWNED');
+    const g = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' });
+    for (const d of [dir, other]) { g(d, 'init', '-q', '-b', 'main'); g(d, 'config', 'user.email', 't@x'); g(d, 'config', 'user.name', 'T'); }
+    // A textconv driver and an external diff that would run on `git show` without the flags.
+    g(dir, 'config', 'diff.evil.textconv', `node -e "require('fs').writeFileSync(process.argv[1],'x')" ${JSON.stringify(marker)}`);
+    g(dir, 'config', 'diff.external', `node -e "require('fs').writeFileSync(process.argv[1],'x')" ${JSON.stringify(marker)}`);
+    writeFileSync(path.join(dir, '.gitattributes'), '*.js diff=evil\n');
+    writeFileSync(path.join(dir, 'a.js'), 'a\n'); g(dir, 'add', '-A'); g(dir, 'commit', '-q', '-m', 'i');
+    g(dir, 'checkout', '-q', '-b', 'rb/T1');
+    writeFileSync(path.join(dir, 'a.js'), 'const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+    g(dir, 'add', '-A'); g(dir, 'commit', '-q', '-m', 'leak');
+    const hook = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'guard.mjs');
+    const run = (cmd, cwd) => spawnSync(process.execPath, [hook], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: cmd }, cwd }), encoding: 'utf8' });
+    // A signed-looking commit plus log.showSignature and gpg.program: git show would call gpg.
+    g(dir, 'config', 'log.showSignature', 'true');
+    g(dir, 'config', 'gpg.program', path.join(dir, 'gpg.sh'));
+    writeFileSync(path.join(dir, 'gpg.sh'), `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`, { mode: 0o755 });
+    const tree = g(dir, 'rev-parse', 'HEAD^{tree}').trim();
+    const parent = g(dir, 'rev-parse', 'HEAD').trim();
+    const raw = `tree ${tree}\nparent ${parent}\nauthor T <t@x> 1700000000 +0000\ncommitter T <t@x> 1700000000 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n AAAA\n -----END PGP SIGNATURE-----\n\nsigned\n`;
+    const signed = execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: dir, input: raw, encoding: 'utf8' }).trim();
+    g(dir, 'update-ref', 'refs/heads/rb/T1', signed);
+    const r = run('git push -u origin rb/T1', dir);
+    assert.equal(r.status, 2, 'still finds the literal');
+    assert.equal(existsSync(marker), false, 'no textconv or external diff ran');
+    // A push into another repository through git -C is not scanned by this project's hook.
+    writeFileSync(path.join(other, 'b.js'), 'const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+    g(other, 'checkout', '-q', '-b', 'feat'); g(other, 'add', '-A'); g(other, 'commit', '-q', '-m', 'x');
+    assert.equal(run(`git -C ${other} push -u origin feat`, dir).status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
+  }
+});
+
+test('guard (0.11.1 review): no tool writes a .git directory or the git config, main session included', () => {
+  const w = (file, agent) => decide({ tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, agent_type: agent, cwd: '/repo' }, fakeEnv(), NO_ENV);
+  assert.equal(w('/repo/.git/config').deny, true);
+  assert.equal(w('/repo/.git/hooks/pre-push').deny, true);
+  assert.equal(w(path.join(os.homedir(), '.gitconfig'), 'rb-implementer').deny, true);
+  assert.equal(w(path.join(os.homedir(), '.config', 'git', 'config')).deny, true);
+  assert.equal(w('/repo/src/a.js').deny, false);
+  assert.equal(w('/repo/docs/.github-notes.md').deny, false);
+  // Through a symlink inside the project.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-ln-'));
+  try {
+    mkdirSync(path.join(dir, 'real', '.git'), { recursive: true });
+    symlinkSync(path.join(dir, 'real', '.git'), path.join(dir, 'cfgdir'), 'dir');
+    const r = decide({ tool_name: 'Bash', tool_input: { command: 'echo x >> cfgdir/config' }, cwd: dir }, fakeEnv(), NO_ENV);
+    assert.equal(r.deny, true, r.reason);
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e; // Windows without symlink rights
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

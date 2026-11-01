@@ -208,6 +208,9 @@ para comprobarlo y el verificador también.
 **Secretos antes del push.** El CI corre gitleaks sobre cada commit del PR, no solo el último, así
 que una clave de prueba escrita literal obliga a rehacer el PR. `rb secrets` revisa los commits
 que aún no se subieron, y el guard bloquea el `git push` si encuentra algo con forma de secreto.
+Al revisarlos no ejecuta nada que defina el repositorio (filtros de diff, herramientas externas), y
+solo revisa tu proyecto y sus worktrees. Además el guard exige nombrar la rama al hacer push: un
+refspec con comodín (`refs/heads/*`) podría tocar `main` sin nombrarla.
 Las claves de prueba se arman por partes en tiempo de ejecución.
 
 Los PRs de nivel C los fusionas tú en GitHub, o le dices a Claude "haz merge del PR 12". Cada

@@ -255,8 +255,9 @@ From strongest to weakest:
    GitHub, that the task's diff did not change; the verifier saying so is not enough.
 2. **Permissions.** Narrow allow rules in `.claude/settings.json`. No reading `.env` files, no
    force pushes, no `reset --hard`, no `rm -rf`.
-3. **Guard hook.** One Node script that every tool call goes through. It blocks pushes to `main`,
-   `.env` reads through any tool, deploy and cloud CLIs (also through `npx`, package scripts and
+3. **Guard hook.** One Node script that every tool call goes through. It blocks pushes to `main`
+   (also through wildcard refspecs or push config), pushes of commits with secret-shaped literals,
+   kill by process name, `.env` reads through any tool, deploy and cloud CLIs (also through `npx`, package scripts and
    git aliases), git and GitHub access for the agents that write code, and edits to the harness
    itself. Read-only agents get an allowlist.
 4. **Agent instructions.**
@@ -348,7 +349,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.11.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.11.1. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything

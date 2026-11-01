@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.11.1 (2026-11-01)
+
+Two guard weaknesses the 2brain-logic security reviewer found; both predate 0.11.0.
+
+- **Wildcard refspecs (#51).** `git push origin refs/heads/*:refs/heads/*` could update the default
+  branch without naming it. The guard now denies any wildcard refspec, reads `heads/main` as main,
+  and denies a push without a branch name when `push.default=matching` or a `remote.<name>.push`
+  refspec is configured. It also denies the matching refspec `:`, a refspec that starts with `-`,
+  `git --git-dir= / --work-tree=` with push, and any `GIT_*` variable set or exported in front of a
+  command (`GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`...: a `git -c` the guard could not
+  see). Branch protection on GitHub (`rb protect`) still covers the server side.
+- **Secret scan on push runs nothing from the repository (#52).** The scan's git calls use
+  `--no-textconv --no-ext-diff`, `core.fsmonitor=false` and no pager, so a crafted
+  `.gitattributes` or git config cannot run code inside the hook; signature programs
+  (`log.showSignature`, `gpg.program`) are off too, and the hook scans only the session's project
+  and its worktrees. No tool may write a `.git` directory or the user's git config any more, main
+  session included (removing a stale `*.lock` stays allowed).
+- Two rounds of independent security review found more bypasses; all are closed and each has a
+  guard test: mirror remotes and `git clone --config`; a push line that also changes git's
+  environment (`set -a`, `source`, `printf -v GIT_*`, indirect exports); inline code
+  (`python -c`, `node -e`, `awk`) naming `.git/` or the git config; a git config reached through a
+  symlink. Reads stay allowed: only the destination of cp/mv/ln and in-place sed/perl count as
+  writes, and removing git's lock, rebase and merge state by hand is allowed.
+- **Limit, stated plainly:** the guard reads command text. Indirection it cannot evaluate (a path
+  built in a shell variable or a glob, code generated at run time) can still get past it. It
+  catches mistakes; branch protection on GitHub and the merge gate are the controls to rely on.
+- Update a project with `rb vendor`.
+
 ## 0.11.0 (2026-11-01)
 
 Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #49 from
