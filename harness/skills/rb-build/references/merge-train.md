@@ -79,8 +79,8 @@ serial path below: the queue only skips work when GitHub shows the result is the
      It compares content: every file the task touched then or touches now, at the old and the new
      head (a stacked base task that was squash-merged meanwhile does not count as a change).
      - **`identical`** (the local check and GitHub disagree, for example a file GitHub could not
-       compare): no agent. `rb review-delta --reviewed <old head> --base origin/<default> --line
-       --task <id>` prints the verifier line for the new head with `identical-to=<old head>`;
+       compare): no agent. `rb review-delta --reviewed <old head> --base origin/<default>
+       --line --task <id>` prints the verifier line for the new head with `identical-to=<old head>`;
        replace only the verifier line. Exit 3: treat as `different`.
      - **`test-only`:** only test files differ. Dispatch the verifier with
        `Previously reviewed commit: <old head>`, `Reviewed head: <new head>` and
