@@ -470,6 +470,9 @@ test('merge-gate: bookkeeping PR merges unattended only when LESSONS.md just gro
   gh.state.compareFiles = { [HEAD]: [{ filename: 'src/app.js', status: 'modified', sha: 'b2', patch: '@@\n+x' }] };
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 3, 'a live compare with code still refuses');
+  gh.state.compareFiles = { [HEAD]: Array.from({ length: 300 }, (_, i) => ({ filename: 'docs/specs/01-x/tasks.md', status: 'modified', sha: `b${i}`, patch: '@@\n-Status: todo\n+Status: done' })) };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3, 'a truncated compare decides nothing');
 });
 
 test('merge-gate: revert and spec PRs never merge unattended, but do with --human-approved', async () => {
@@ -814,7 +817,15 @@ test('merge-gate verdicts: a task issue is required, the rb exemption is narrow,
   await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
-  // A run prefix (`F5-T1`) names the same task (rockbuilt #47); another task does not.
+  // A run prefix (`F5-T1`) names the same task (rockbuilt #47); T11 or F5-T11 never stand for T1.
+  const keep = gh.state.issues[10].body;
+  gh.state.issues[10].body = `Closes #3\n${statusLine('rb-verifier')}\n<!-- rockbuilt:tier A -->\n`;
+  for (const other of ['T11', 'F5-T11']) {
+    gh.state.comments[3] = [{ id: 7002, body: statusLine('rb-verifier').replace('task=T1', `task=${other}`), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
+    r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+    assert.ok(r.json.reasons.some((x) => x.rule === 'verdicts'), other);
+  }
+  gh.state.issues[10].body = keep;
   gh.state.comments[3] = [{ id: 7001, body: statusLine('rb-verifier').replace('task=T1', 'task=F5-T1'), user: { login: 'rb-bot' }, author_association: 'OWNER' }];
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));

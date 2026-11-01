@@ -38,6 +38,14 @@ test('bookkeeping save: pushes the day branch from a temporary worktree, opens o
     r = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-a']), io(gh));
     assert.equal(r.json.unchanged, true);
     assert.equal(sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']), tip);
+    // The PR was closed without merging: the next save is a real one (a new PR), not "already saved".
+    const prNo = r.json.pr;
+    gh.state.issues[prNo].state = 'closed';
+    r = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-a']), io(gh));
+    assert.notEqual(r.json.unchanged, true, JSON.stringify(r.json));
+    assert.equal(r.json.saved, true);
+    gh.state.issues[prNo].state = 'open';
+    for (const n of Object.keys(gh.state.pulls)) if (Number(n) !== prNo) { delete gh.state.pulls[n]; delete gh.state.issues[n]; }
 
     // Second save in the same run: same branch, same PR, a fast-forward on the remote.
     const before = sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']);

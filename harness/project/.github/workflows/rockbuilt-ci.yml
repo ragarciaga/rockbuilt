@@ -52,15 +52,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      # Node version: the first non-comment line of the project's .nvmrc or .node-version, otherwise
+      # 22. The harness itself needs Node 20 or newer: an older pin runs on 22, with a warning.
       - name: Node version
         id: node
         shell: bash
         run: |
           v=22
           for f in .nvmrc .node-version; do
-            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+            if [ -s "$f" ]; then
+              line="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$f" | grep -m1 -v '^$' || true)"
+              if [ -n "$line" ]; then v="${line#v}"; fi
+              break
+            fi
           done
+          major="${v%%.*}"
+          if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -lt 20 ]; then
+            echo "::warning::$f pins Node $v; the Rockbuilt harness needs Node 20 or newer, so CI runs Node 22"
+            v=22
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
@@ -110,15 +120,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      # Node version: the first non-comment line of the project's .nvmrc or .node-version, otherwise
+      # 22. The harness itself needs Node 20 or newer: an older pin runs on 22, with a warning.
       - name: Node version
         id: node
         shell: bash
         run: |
           v=22
           for f in .nvmrc .node-version; do
-            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+            if [ -s "$f" ]; then
+              line="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$f" | grep -m1 -v '^$' || true)"
+              if [ -n "$line" ]; then v="${line#v}"; fi
+              break
+            fi
           done
+          major="${v%%.*}"
+          if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -lt 20 ]; then
+            echo "::warning::$f pins Node $v; the Rockbuilt harness needs Node 20 or newer, so CI runs Node 22"
+            v=22
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
@@ -143,15 +163,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node version: the project's .nvmrc or .node-version when present, otherwise 22.
+      # Node version: the first non-comment line of the project's .nvmrc or .node-version, otherwise
+      # 22. The harness itself needs Node 20 or newer: an older pin runs on 22, with a warning.
       - name: Node version
         id: node
         shell: bash
         run: |
           v=22
           for f in .nvmrc .node-version; do
-            if [ -s "$f" ]; then v="$(tr -d '[:space:]v' < "$f")"; break; fi
+            if [ -s "$f" ]; then
+              line="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$f" | grep -m1 -v '^$' || true)"
+              if [ -n "$line" ]; then v="${line#v}"; fi
+              break
+            fi
           done
+          major="${v%%.*}"
+          if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -lt 20 ]; then
+            echo "::warning::$f pins Node $v; the Rockbuilt harness needs Node 20 or newer, so CI runs Node 22"
+            v=22
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4

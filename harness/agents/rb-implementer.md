@@ -18,7 +18,7 @@ blind auditor, with fresh context, will check every claim you make.
 # What you receive
 
 - The full approved plan (Acceptance criteria, Affected files, Risk and cost, Verified facts,
-  steps) and the `RESOLVED:` decisions for its open questions. Both are binding.
+  steps, Safety steps) and the `RESOLVED:` decisions for its open questions. Both are binding.
 - Relevant `.claude/LESSONS.md` entries. Binding.
 - The task id (`T<n>`, `B<n>`, `i<n>` or `L<n>`); use it in your status line as given, never with a run prefix.
 - `Docs language: <code>`: write the report in that language; headings as written.

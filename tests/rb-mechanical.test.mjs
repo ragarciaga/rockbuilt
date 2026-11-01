@@ -447,3 +447,51 @@ test('rb timing (#49): claim, pr-create and a merge record phases on their own; 
   assert.equal((await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T3-x', '--base', 'main', '--title', 'T3', '--body-file', path.join(dir, 'body.md'), ...repo], io(gh))).code, 0);
   assert.deepEqual(ev(), ['start:plan', 'end:plan', 'start:ci']);
 });
+
+test('rb timing: a start left over from weeks ago is never reused or closed into a huge duration', async () => {
+  const { appendEvent, autoPhase, aggregate, readEvents } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS() });
+  appendEvent(root, 'start', 'T1', 'ci', new Date('2026-10-01T10:00:00Z'));
+  appendEvent(root, 'start', 'T1', 'ci', new Date('2026-10-20T10:00:00Z'));
+  appendEvent(root, 'end', 'T1', 'ci', new Date('2026-10-20T10:10:00Z'));
+  let t = aggregate(readEvents(root)).tasks.find((x) => x.task === 'T1');
+  assert.equal(Math.round(t.phases.ci / 60000), 10);
+  // A later task reusing the id gets its own plan phase; the stale start is not closed by it.
+  autoPhase(root, 'T1', 'plan', new Date('2026-10-25T09:00:00Z'));
+  autoPhase(root, 'T1', 'ci', new Date('2026-10-25T09:30:00Z'));
+  t = aggregate(readEvents(root)).tasks.find((x) => x.task === 'T1');
+  assert.equal(Math.round(t.phases.plan / 60000), 30);
+  assert.equal(Math.round(t.phases.ci / 60000), 10, 'the 10-01 start stayed out of it');
+});
+
+test('rb merge-gate publishes the task minutes recorded on its own (#49)', async () => {
+  const { appendEvent } = await import('../scripts/lib/timing.mjs');
+  const root = repoWith({ 'AGENTS.md': AGENTS(), 'src/a.test.js': 'x\n' });
+  sh(root, 'git', ['remote', 'add', 'origin', `https://github.com/${REPO}.git`]);
+  const gh = fakeGh();
+  const s = gh.state;
+  const head = 'a'.repeat(40);
+  s.issues[3] = { number: 3, title: 'T7', body: '<!-- rockbuilt:task T7 spec=none -->', state: 'open', labels: ['rb:task'] };
+  const line = `<!-- rockbuilt:status stage=rb-verifier task=T7 outcome=pass head=${head} -->`;
+  s.issues[10] = { number: 10, title: 'T7', body: `Closes #3\n<!-- rockbuilt:task T7 spec=none -->\n${line}\n<!-- rockbuilt:tier A -->\n`, state: 'open', labels: ['rb:tier-a', 'rb:pr-open'], isPr: true };
+  s.pulls[10] = { number: 10, head: 'rb/T7-x', base: 'main', headSha: head };
+  s.files[10] = [{ filename: 'src/a.test.js', status: 'modified', additions: 1, deletions: 0, patch: '@@\n+y' }];
+  s.checkRuns[head] = [{ name: 'rockbuilt-ci', status: 'completed', conclusion: 'success', started_at: '2026-10-09T00:00:00Z' }];
+  s.comments[3] = [{ id: 1, body: line, user: { login: 'b' }, author_association: 'OWNER' }];
+  const now = Date.now();
+  appendEvent(root, 'start', 'T7', 'plan', new Date(now - 50 * 60000));
+  appendEvent(root, 'end', 'T7', 'plan', new Date(now - 30 * 60000));
+  appendEvent(root, 'start', 'T7', 'ci', new Date(now - 20 * 60000));
+  assert.equal((await rbJson(root, ['lock', 'acquire', '--run', 'r1'], io(gh))).code, 0);
+  const r = await rbJson(root, ['merge-gate', '10', '--run', 'r1'], io(gh));
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.match(s.issues[10].body, /<!-- rockbuilt:timing task=T7 [^>]*plan=20[^>]*ci=20/);
+  // The report does not warn about a merged PR whose minutes it has.
+  let rep = await rb(root, ['timing', 'report'], io(gh));
+  assert.doesNotMatch(rep.out, /WARNING/);
+  // A recent merged task PR with no minutes anywhere is named.
+  s.issues[11] = { number: 11, title: 'T8', body: '<!-- rockbuilt:task T8 spec=none -->', state: 'closed', labels: [], isPr: true };
+  s.pulls[11] = { number: 11, head: 'rb/T8-y', base: 'main', headSha: 'b'.repeat(40), merged_at: new Date().toISOString() };
+  rep = await rb(root, ['timing', 'report'], io(gh));
+  assert.match(rep.out, /WARNING: 1 merged task PR\(s\) with no timing \(#11\)/);
+});

@@ -105,7 +105,11 @@ export function saveBookkeeping(root, c, { run, final = false }) {
   // The same edits already pushed (a stop hook answered with another save, rockbuilt #46): no new
   // commit, no CI run. The tree still shows them until the PR merges or `--final` restores them.
   const digest = createHash('sha256').update(readFileSync(patch)).digest('hex');
-  if (!final && st.run === id && st.patch === digest && st.branch && remoteHas(root, st.branch)) {
+  // Only while that exact push is still what an open PR carries: a closed PR, or a branch someone
+  // else pushed to, gets a real save.
+  const remoteTip = () => { const r = git(root, ['ls-remote', '--heads', 'origin', `refs/heads/${st.branch}`]); return r.ok ? (r.stdout.trim().split(/\s+/)[0] || null) : null; };
+  const prOpen = () => { try { return ops.prList(c, { state: 'open', headPrefix: st.branch }).some((p) => p.head.ref === st.branch && p.number === st.pr); } catch { return false; } };
+  if (!final && st.run === id && st.patch === digest && st.branch && st.sha && remoteTip() === st.sha && prOpen()) {
     return { saved: false, files, branch: st.branch, pr: st.pr || null, unchanged: true, detail: `already saved to ${st.branch} (PR #${st.pr}): nothing new; these files stay modified in the checkout until that PR merges or save --final restores them` };
   }
 

@@ -9,7 +9,7 @@ import { acceptBaseline, checkBaseline, runBaseline } from './lib/baseline.mjs';
 import { COMMAND_SECTIONS, headerField, readContract, sectionCommands } from './lib/contract.mjs';
 import { acquireLock, ensureControl, escalate, listFlaky, lockStatus, postDigest, recordFlaky, releaseLock, stopStatus } from './lib/control.mjs';
 import { runDoctor } from './lib/doctor.mjs';
-import { GH_OPS, GhError, makeGh, ops, runGhOp } from './lib/gh.mjs';
+import { GH_OPS, GhError, makeGh, ops, replaceMachineLine, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
 import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
 import { qualityReport, qualityText } from './lib/quality.mjs';
@@ -309,7 +309,8 @@ const handlers = {
   },
 
   timing({ cwd, positionals, flags, io }) {
-    const root = projectRoot(cwd);
+    // One timing log per repo: the main checkout's, also from a linked worktree.
+    const root = mainCheckoutRoot(projectRoot(cwd));
     const [sub, task, phase] = positionals;
     if (sub === 'start' || sub === 'end') {
       const rec = appendEvent(root, sub, task, phase);
@@ -351,7 +352,10 @@ const handlers = {
         github = `${rows.length} task(s) from PR bodies`;
         githubRead = true;
         // rockbuilt #49: say so when merged task PRs carry no timing at all.
-        const silent = prs.filter((p) => p.merged_at && prKind(p.head.ref) === 'task' && !parseTimingLines(p.body).length).map((p) => `#${p.number}`);
+        // Only recent merges (older PRs predate automatic timing) whose task has no row anywhere.
+        const recent = Date.now() - 14 * 24 * 60 * 60 * 1000;
+        const haveRow = new Set([...report.tasks.map((t) => t.task), ...aggregate(readEvents(root)).tasks.filter((t) => t.totalMs > 0).map((t) => t.task)]);
+        const silent = prs.filter((p) => p.merged_at && Date.parse(p.merged_at) >= recent && prKind(p.head.ref) === 'task' && !parseTimingLines(p.body).length && !haveRow.has(taskMarker(p.body))).map((p) => `#${p.number}`);
         if (silent.length) github += `; WARNING: ${silent.length} merged task PR(s) with no timing (${silent.slice(0, 8).join(', ')}): call rb timing, or claim and open PRs through rb so it records on its own`;
       } catch (e) {
         github = `not read (${e.message})`;
@@ -629,7 +633,7 @@ const handlers = {
   claim({ cwd, positionals, flags, io }) {
     const root = requireRepoRoot(cwd);
     const r = claimIssue(client(root, flags, io), positionals[0], { run: flags.run, release: Boolean(flags.release), take: Boolean(flags.take) });
-    if (r.claimed && r.task) autoPhase(root, r.task, 'plan');
+    if (r.claimed && r.task) autoPhase(mainCheckoutRoot(root), r.task, 'plan');
     const text = r.released === false ? `#${r.issue} is claimed by ${r.holder}: not released` : r.released ? `released #${r.issue}` : r.claimed ? `#${r.issue} claimed by ${r.run}` : `#${r.issue} is claimed by ${r.holder} since ${r.since}: leave it`;
     return { data: r, text, code: r.claimed === false || r.released === false ? 3 : 0 };
   },
@@ -681,7 +685,7 @@ const handlers = {
     if (op === 'pr-create') {
       const bodyText = typeof flags.body === 'string' ? flags.body : typeof flags['body-file'] === 'string' ? readText(path.resolve(cwd, flags['body-file'])) : null;
       const t = taskMarker(bodyText);
-      if (t) autoPhase(root, t, 'ci');
+      if (t) autoPhase(mainCheckoutRoot(root), t, 'ci');
     }
     return { data, text: json(data), code: 0 };
   },
@@ -691,7 +695,24 @@ const handlers = {
     const pr = positionals[0];
     if (!pr) throw new CliError('usage: rb merge-gate <pr> --run <id> | --human-approved [--dry-run]', 2);
     const r = mergeGate(root, client(root, flags, io), pr, { dryRun: Boolean(flags['dry-run']), run: stringFlag(flags, 'run') || null, humanApproved: Boolean(flags['human-approved']) });
-    if (r.merged && r.task) autoPhase(root, r.task, null);
+    if (r.merged && r.task) {
+      // Close the task's phases and publish its minutes on the merged PR, so the numbers live on
+      // GitHub even when the orchestrator never ran `rb timing line` (rockbuilt #49).
+      const home = mainCheckoutRoot(root);
+      autoPhase(home, r.task, null);
+      try {
+        const c = client(root, flags, io);
+        const body = ops.prView(c, r.pr).body;
+        const prior = parseTimingLines(body).filter((t) => t.task === r.task).pop() || null;
+        const local = localRow(readEvents(home), r.task);
+        const row = prior ? (local.since ? addRows(prior, local.since) : null) : local.total;
+        if (row && row.totalMs > 0) {
+          ops.issueEdit(c, r.pr, { body: replaceMachineLine(body, timingLine({ tasks: [row], open: [] }, r.task, { estHours: prior ? prior.estHours : null })) });
+          markPublished(home, r.task, local.total ? local.total.phases : {});
+          r.timing = row;
+        }
+      } catch { /* timing never blocks a merge */ }
+    }
     const lines = [];
     if (r.merged) lines.push(`merged #${r.pr} (tier ${r.tier}) as ${String(r.mergeSha).slice(0, 7)}; revert: node tools/rockbuilt/rb.mjs revert ${r.pr}`);
     else if (r.eligible) lines.push(`#${r.pr} eligible (tier ${r.tier}); dry run, not merged`);

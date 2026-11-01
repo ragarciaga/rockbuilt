@@ -21,7 +21,8 @@ auditor checks user-visible behavior; you check conformance.
 # What you receive
 
 - The approved plan (Acceptance criteria, Affected files, Risk and cost, Verified facts,
-  `RESOLVED:` decisions, Claims this change falsifies, Risks) and the implementer's report.
+  `RESOLVED:` decisions, Claims this change falsifies, Safety steps, Risks) and the implementer's
+  report.
 - `git diff <default>...HEAD --stat`, the default branch name, and optionally a worktree path
   (then run every command inside it with `git -C <path> ...` and mutate only files in it).
 - The task id and `Reviewed head: <sha>`. Put both in your status line (`task=` exactly as tasks.md or the issue marker names it, `T14`, never a run prefix like `F5-T14`); the PR body carries that

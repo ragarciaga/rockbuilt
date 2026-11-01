@@ -37,9 +37,11 @@ Proportional review: a task pays for the reviewers its diff needs, once (issues 
   pass and the verifier probes each one.
 - **Timing records itself (#49).** `rb claim` opens the plan phase, `rb gh pr-create` closes what is
   open and opens ci, a merge by `rb merge-gate` closes the rest; explicit `rb timing` calls refine
-  it and are never doubled. `rb timing report` warns about merged task PRs with no timing.
-- **CI uses the project's Node version** from `.nvmrc` or `.node-version` (default 22) in every
-  job of the workflow template (was PR #40, 0.10.1, folded into this release).
+  it and are never doubled; after a merge the gate writes the minutes into the PR's timing line.
+  `rb timing report` warns about recent merged task PRs with no minutes.
+- **CI uses the project's Node version** from `.nvmrc` or `.node-version` (first non-comment line,
+  default 22; a pin below 20, the harness minimum, runs 22 with a warning) in every job of the
+  workflow template (was PR #40, 0.10.1, folded into this release).
 - **Upgrading:** an open PR whose diff now requires the security review and that never had one
   is refused with reason `security`; the merge train and `/rb-merge` run the reviewer once on its
   head and add its line. Update a project with `rb vendor`.

@@ -1055,7 +1055,8 @@ which reviewers a diff needs (evidence 20.20).
 5. **Bookkeeping without manual steps** (#45, #46). A bookkeeping PR whose GitHub file list lags
    behind the base (task PRs merged after the save) is checked against the live compare of the
    base tip and the head, which is what a squash lands. `rb bookkeeping save` pushes nothing when
-   the edits equal the last save; the files stay modified in the checkout until the PR merges.
+   the edits equal the last save and that push is still the tip of an open PR; the files stay
+   modified in the checkout until the PR merges.
    Hiding them from git (skip-worktree) to silence the cloud stop hook was declined: a later
    `git pull` would fail on a file `git status` does not show.
 6. **Task ids** (#47). The gate matches a status line's `task=` case-insensitively and accepts a
@@ -1067,6 +1068,9 @@ which reviewers a diff needs (evidence 20.20).
 8. **Timing without the orchestrator** (#49). `rb claim` opens the task's plan phase, `rb gh
    pr-create` (body task marker) closes the open phases and opens ci, and a merge by `rb
    merge-gate` closes the rest. A start of a phase already open is a no-op, so explicit `rb timing`
-   calls refine these marks without doubling them. `rb timing report` warns about merged task PRs
-   with no timing line.
+   calls refine these marks without doubling them; a start older than 24 hours is left over (a PR
+   closed unmerged, another spec's task with the same id) and is never reused or closed. All of it
+   goes to the main checkout's log, also from a worktree. After a merge, `rb merge-gate` writes the
+   task's minutes as the PR's timing line, so they reach GitHub without `rb timing line`.
+   `rb timing report` warns about task PRs merged in the last 14 days with no minutes anywhere.
 

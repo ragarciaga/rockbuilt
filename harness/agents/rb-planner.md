@@ -32,7 +32,7 @@ files, run commands, or call git or gh.
 - `Docs language: <code>`. Write the plan body in that language; keep the section headings below
   exactly as written in English (they are parsed).
 - Optionally `Mode: light` (fix path): Implementation steps and Testing approach may be short;
-  Verified facts, Claims this change falsifies and Risk and cost are never skipped.
+  Verified facts, Claims this change falsifies, Safety steps and Risk and cost are never skipped.
 - Optionally a previous plan plus feedback (revision). Start with a short "What changed" note.
   Treat the feedback's decisions as binding, but verify its factual claims against the code.
 
