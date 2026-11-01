@@ -421,7 +421,17 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
     } catch (e) {
       no('files', `could not read files: ${e.message}`);
     }
-    if (!bookkeepingOnly(files)) no('bookkeeping', 'a bookkeeping PR may only touch tasks.md, docs/progress.md and append to .claude/LESSONS.md');
+    // GitHub's PR file list can lag behind a base that moved (rockbuilt #45: task PRs merged after
+    // the bookkeeping branch was saved, and the list showed their files). The live compare of the
+    // base tip and the head is what a squash lands; it decides when the list disagrees.
+    let ok = bookkeepingOnly(files);
+    if (!ok && view.base && head) {
+      try {
+        const live = ops.compareFiles(c, view.base.ref, head);
+        if (!live.truncated) ok = bookkeepingOnly(live.files.map((f) => ({ filename: f.filename, status: f.status, previous_filename: f.previous, patch: f.patch })));
+      } catch { /* keep the refusal */ }
+    }
+    if (!ok) no('bookkeeping', 'a bookkeeping PR may only touch tasks.md, docs/progress.md and append to .claude/LESSONS.md');
   }
   let checks = [];
   try {

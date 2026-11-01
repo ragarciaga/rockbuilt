@@ -9,3 +9,8 @@ commit). At run end `--final` also restores them in the checkout; tell the user 
 `/rb-cycle` merges that PR through the gate, or the user with `/rb-merge`. In tasks.md change only
 `Status:` lines and add one-line decision-log entries (`- YYYY-MM-DD: ...`): the gate refuses
 any other edit in a bookkeeping PR.
+
+Until the bookkeeping PR merges, these files stay modified in the checkout, and a cloud stop hook
+("There are uncommitted changes") fires after each turn. When `rb bookkeeping save` answers
+`already saved` (exit 0, `unchanged: true`), nothing is lost: answer the hook in one line and go
+on; never commit them on a task branch or the default branch to silence it.

@@ -33,6 +33,11 @@ test('bookkeeping save: pushes the day branch from a temporary worktree, opens o
     assert.match(sh(bare, 'git', ['show', 'rb/bookkeeping-2026-10-15:docs/specs/01-x/tasks.md']), /in-progress/);
     assert.match(read(root, 'docs/specs/01-x/tasks.md'), /in-progress/, 'the run keeps reading its edits');
     assert.equal(sh(root, 'git', ['rev-parse', '--abbrev-ref', 'HEAD']), 'main');
+    // The same edits again (a stop hook answered with another save, rockbuilt #46): no new commit.
+    const tip = sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']);
+    r = await rbJson(root, args(['bookkeeping', 'save', '--run', 'cycle-a']), io(gh));
+    assert.equal(r.json.unchanged, true);
+    assert.equal(sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']), tip);
 
     // Second save in the same run: same branch, same PR, a fast-forward on the remote.
     const before = sh(bare, 'git', ['rev-parse', 'rb/bookkeeping-2026-10-15']);

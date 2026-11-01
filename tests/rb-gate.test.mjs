@@ -459,9 +459,17 @@ test('merge-gate: bookkeeping PR merges unattended only when LESSONS.md just gro
   ] });
   gh.state.pulls[10].head = 'rb/bookkeeping-cycle-abc';
   await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1']);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.equal(r.code, 3);
   assert.ok(reasonRules(r).includes('bookkeeping'));
+  // rockbuilt #45: the PR file list still shows a task that merged into main after the save; the
+  // live compare of the base tip and the head (what a squash lands) has only bookkeeping.
+  gh.state.compareFiles = { [HEAD]: [{ filename: 'docs/specs/01-x/tasks.md', status: 'modified', sha: 'b1', patch: '@@\n-Status: todo\n+Status: done' }] };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  gh.state.compareFiles = { [HEAD]: [{ filename: 'src/app.js', status: 'modified', sha: 'b2', patch: '@@\n+x' }] };
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3, 'a live compare with code still refuses');
 });
 
 test('merge-gate: revert and spec PRs never merge unattended, but do with --human-approved', async () => {
