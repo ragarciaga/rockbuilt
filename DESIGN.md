@@ -323,7 +323,11 @@ change, or when only its tests changed. Rule, by content rather than diff text:
 - Since 0.11.0 the gate does this for every line by itself (rockbuilt #43): a verifier,
   auditor or security line on an older head holds when the gate finds the task's change
   `identical` since that head, with no `identical-to` key, no agent and no edit to the PR body.
-  A reviewed head with no diff against the base is never identical. So `identical` costs only the
+  Identical means the task's files have the same content at both heads, or, when the base changed
+  other parts of those files, the task's own per-file patch is unchanged. It is a content check:
+  the gate does not require that only merges follow the old head, since any commit that changes
+  the task's change makes it `different`. A reviewed head with no diff against the base, or one
+  GitHub cannot compare, is never identical. So `identical` costs only the
   CI run on the new head; `rb review-delta --line` remains for the rare case the local check sees
   identity and GitHub cannot compare.
 - With a carry key the verifier line is on the current head, and CI must be green on it. It may
@@ -1007,21 +1011,28 @@ The review stays the same for every task that gets one; what changes is how ofte
 which reviewers a diff needs (evidence 20.20).
 
 1. **Carried reviews** (section 8.3, #43). The gate accepts any review line on an older head when
-   the task's change is identical since then. An update from the base that touches none of the
-   task's files costs one CI run, no reviewer.
+   the task's change is identical since then (same content, or the same per-file patch when the
+   base changed other parts of the task's files). An update from the base that leaves the task's
+   change alone costs one CI run, no reviewer.
 2. **Security review from the diff** (#42). `rb risk --json` returns `security: { required,
    reasons }`. It is required by the floor paths (auth, permissions, payments, schema), project
    Sensitive paths, `.env` and similar files, dependency changes, paid SDKs, new external hosts,
    new secret-like env vars, and by added production lines that open an attack surface: request
    input, process spawns, file writes and deletes, raw queries, HTML or code injection sinks,
-   uploads, auth and secret handling. Test files, docs, a pure function or a CLI flag parser do
-   not require it. The gate refuses a PR that rb risk says needs it and whose body lacks
+   uploads, and credential handling (hashing passwords, signing tokens, setting cookies). Mentions
+   are not surface: a variable named `session`, a `Password` label, a regex `.exec(`, a client
+   `api.get('/x')`, `express.json()` middleware. Test files, docs, a pure function or a CLI flag
+   parser do not require it. A PR opened before 0.11.0 whose diff requires it gets the reviewer
+   once on its head (merge train step 5). The gate refuses a PR that rb risk says needs it and whose body lacks
    `<!-- rockbuilt:security required -->` (reason `security`). The planner may add the review for
    a reason the diff does not show (personal data in a plain field, agent tools), never drop it.
 3. **Secrets before the push** (#44). `rb secrets` scans the commits no remote has yet and the
-   working tree with gitleaks-shaped rules (private keys, cloud and SaaS token formats, JWTs and
-   generic-api-key: a key, token, secret, password or auth name assigned a value with entropy
-   above 3.5; `gitleaks:allow` skips a line). It runs in the mechanical check of rb-build and
+   working tree, untracked files included, with gitleaks-shaped rules: private keys (a header
+   with a key body, on one line or the next), cloud and SaaS token formats, JWTs, and
+   generic-api-key (a key, token, secret, password or auth name assigned a value with entropy
+   above 3.5, every match on the line, minus gitleaks' placeholder stopwords). Like gitleaks it
+   skips `gitleaks:allow` lines, lockfiles and media, and the fingerprints in `.gitleaksignore`.
+   A repo with no remote-tracking refs is scanned from the merge-base with the default branch. It runs in the mechanical check of rb-build and
    rb-fix, and the guard runs it on every `git push` (a hit denies the push: rewrite the unpushed
    commits). Commits already on a remote are not rescanned.
 4. **A minimum task size** (#41). `rb tasks` fails on two `S` tasks not started whose files share

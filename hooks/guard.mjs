@@ -528,7 +528,7 @@ export function checkPush(args, ctx) {
   const sources = refspecs.length ? refspecs.map((r) => (r.indexOf(':') === -1 ? r : r.slice(0, r.indexOf(':'))) || 'HEAD') : ['HEAD'];
   for (const src of sources) {
     const hits = typeof ctx.secretScan === 'function' ? ctx.secretScan(src) : null;
-    if (hits && hits.length) return `secret-shaped literal in a commit that is not pushed yet: ${hits.slice(0, 5).map((f) => `${f.file}:${f.line} (${f.rule}, ${f.commit})`).join('; ')}. gitleaks in CI scans every commit: build the value from parts (or add a gitleaks:allow comment when it is public), then rewrite the unpushed commits (git reset --soft <base> and commit again) before pushing`;
+    if (hits && hits.length) return `secret-shaped literal in a commit that is not pushed yet: ${hits.slice(0, 5).map((f) => `${f.file}:${f.line} (${f.rule}, ${f.commit})`).join('; ')}. gitleaks in CI scans every commit: build the value from parts (or add a gitleaks:allow comment when it is public), then rewrite only the unpushed commits (git reset --soft @{u} when the branch is already on origin, or git reset --soft origin/<default> when it is not, and commit again) before pushing`;
   }
   return null;
 }

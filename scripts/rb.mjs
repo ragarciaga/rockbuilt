@@ -570,7 +570,7 @@ const handlers = {
     const root = requireRepoRoot(cwd);
     const r = scanBranch(root, { ref: stringFlag(flags, 'ref') || 'HEAD', worktree: true });
     if (!r) throw new CliError('git could not list the commits to scan');
-    const text = r.findings.length ? `secret-shaped literals: ${findingsText(r.findings)}\nBuild the value from parts (or add gitleaks:allow when it is public), then rewrite the unpushed commits before pushing.` : `no secret-shaped literal in ${r.commits} unpushed commit(s) and the working tree`;
+    const text = r.findings.length ? `secret-shaped literals: ${findingsText(r.findings)}\nBuild the value from parts (or add gitleaks:allow when it is public), then rewrite only the unpushed commits (git reset --soft @{u}, or origin/<default> for a branch not pushed yet) before pushing.` : `no secret-shaped literal in ${r.commits} unpushed commit(s) and the working tree`;
     return { data: r, text, code: r.findings.length ? 3 : 0 };
   },
 

@@ -59,6 +59,9 @@ handle what the user can fix and the gate cannot:
 - **CI pending or red**: say which check; offer to wait or to run the CI fix via `/rb-build`.
 - **Stop switch on**: say where it is set (`rb stop status`); the user removes `rb:stop` first.
 - **Missing review lines** on a code PR: not eligible; offer `/rb-build #<issue>`.
+- **`security`** (the diff needs the security review and the PR never had it, typical for PRs
+  opened before 0.11.0): offer to run `rb-security-reviewer` on the head and add its line, as
+  `.claude/skills/rb-build/references/merge-train.md` step 5 says.
 - **`verdicts`** (a review line with no matching verdict on the task issue, typical for PRs
   reviewed before 0.10.0): if the reviewer's report is at hand, post it there
   (`rb gh issue-comment <n> --body-file <f>`); otherwise offer `/rb-build #<issue>` to re-review.

@@ -847,3 +847,35 @@ test('merge-gate (#43): every review line on the pre-update head holds when the 
   r = await run([app, { filename: 'src/extra.js', status: 'added', sha: 'blob-extra' }]);
   assert.equal(r.code, 3, 'a new task file after the review is a change');
 });
+
+test('merge-gate (#42): an added line with attack surface needs the security review on tier B', async () => {
+  const root = project();
+  const gh = fakeGh();
+  seed(gh, { tier: 'B', files: [{ filename: 'src/run.js', status: 'added', additions: 1, deletions: 0, patch: "@@\n+import { spawn } from 'node:child_process';" }] });
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'security' && /process spawn src\/run\.js/.test(x.detail)), JSON.stringify(r.json.reasons));
+  gh.state.issues[10].body += `\n<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  gh.state.comments[3].push({ id: 4100, body: statusLine('rb-security-reviewer'), user: { login: 'rb-bot' }, author_association: 'OWNER' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate (#43): no carry from a reviewed head GitHub cannot compare, or one with no diff', async () => {
+  const OLD = `fffffff${'1234567890abcdef'.repeat(2)}0`.slice(0, 12);
+  const app = { filename: 'src/feature.js', status: 'added', sha: 'blob-app-1' };
+  const root = project();
+  const run = async (compareFiles, patchNow) => {
+    const gh = fakeGh();
+    seed(gh, { tier: 'B', body: [statusLine('rb-verifier', OLD), statusLine('rb-auditor', OLD), '<!-- rockbuilt:tier B -->'].join('\n') });
+    gh.state.compareFiles = compareFiles;
+    await locked(root, gh);
+    return gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  };
+  let r = await run({ [OLD]: [], [HEAD]: [app] });
+  assert.equal(r.code, 3, 'a reviewed head with no diff against the base');
+  assert.match(r.json.reasons.find((x) => x.rule === 'stale-head').detail, /reviewed/);
+  // Patch fallback: the base changed another part of the task's file, the task's own patch is the same.
+  r = await run({ [OLD]: [{ ...app, status: 'modified', patch: '@@ -1,2 +1,3 @@\n a\n+task\n b' }], [HEAD]: [{ ...app, status: 'modified', sha: 'blob-app-2', patch: '@@ -5,2 +5,3 @@\n a\n+task\n b' }] });
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});

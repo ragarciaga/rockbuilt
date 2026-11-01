@@ -193,13 +193,32 @@ export function packageDepChanges(oldText, newText) {
 // writes, raw queries, HTML or code injection sinks, uploads, auth and secret handling. A pure
 // function, a CLI flag parser or a test change does not.
 const SECURITY_LINE = [
-  ['request input', /\breq(uest)?\.(body|query|params|headers|cookies|files?|form|args|json)\b|\bsearchParams\b|\bformData\s*\(|\bnew\s+FormData\b|['"]use server['"]|\bexport\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b|\b(app|router|server|fastify)\.(get|post|put|patch|delete|all|use|route)\s*\(|\bcreateServer\s*\(|@(app|router)\.(get|post|put|patch|delete|route)\b|\brequest\.(form|args|json|files|data)\b/],
-  ['process spawn', /\bchild_process\b|\b(spawn|spawnSync|exec|execSync|execFile|execFileSync|fork)\s*\(|\bsubprocess\.\w+|\bos\.(system|popen)\b|\bPopen\s*\(|\bshell\s*=\s*True\b|\bDeno\.(Command|run)\b|\bBun\.spawn\b|\bexeca\b/],
-  ['file write or delete', /\b(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|rmSync|unlink|unlinkSync|rmdir|chmod|chmodSync)\s*\(|\bfs\.(rm|rename|copyFile|cp)\s*\(|\bshutil\.(rmtree|move|copy)\b|\bopen\s*\([^)]*['"][wa]b?\+?['"]/],
-  ['raw query', /\$(query|execute)Raw(Unsafe)?\b|\.raw\s*\(|\bsql`|\.(query|execute)\s*\(\s*[`'"](select|insert|update|delete|with)\b|\.rpc\s*\(|\bcursor\.execute\s*\(/i],
-  ['injection sink', /\bdangerouslySetInnerHTML\b|\.innerHTML\s*=|\bv-html\b|\beval\s*\(|\bnew\s+Function\s*\(|\bdocument\.write\s*\(|\|\s*safe\b|\bmark_safe\s*\(|\bpickle\.loads?\b|\byaml\.load\s*\(/],
+  // Server-side request input: handlers and the request object of common frameworks. Client-side
+  // URL parsing (`new URL(...).searchParams`) and middleware setup (`app.use(express.json())`) are not.
+  ['request input', new RegExp([
+    String.raw`\breq(uest)?\.(body|query|params|headers|cookies|files?|form|args|values|data|POST|GET|FILES|get_json|json)\b`,
+    String.raw`\bc\.req\.(param|query|json|parseBody|formData|header)\b`,
+    String.raw`\bawait\s+(request|req)\.(json|formData|text)\s*\(`,
+    String.raw`['"]use server['"]`,
+    String.raw`\bexport\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b|\bexport\s+const\s+(GET|POST|PUT|PATCH|DELETE)\s*=`,
+    String.raw`\b(?!(axios|api|apiClient|client|http|https|httpClient|ky|got|superagent|request|fetcher|this)\.)\w+\.(get|post|put|patch|delete|all|route)\s*\(\s*['"\x60]\/[^'"\x60]*['"\x60]\s*,\s*(async\s*)?(\(|function\b|\w+\s*(,|\)|=>))`,
+    String.raw`@\w+\.(get|post|put|patch|delete|route|api_route|websocket)\s*\(`,
+    String.raw`\bcreateServer\s*\(|\bhttp\.HandleFunc\s*\(|\br\.(FormValue|URL\.Query|Body)\b`,
+  ].join('|'))],
+  // Process spawns. A regex's `.exec(` is not one.
+  ['process spawn', new RegExp([
+    String.raw`\bchild_process\b|\bexeca\b`,
+    String.raw`(^|[^.\w])(spawn|spawnSync|exec|execSync|execFile|execFileSync)\s*\(`,
+    String.raw`\b(cp|childProcess|child)\.(spawn|exec|execFile|fork)\w*\s*\(`,
+    String.raw`\bsubprocess\.\w+|\bos\.(system|popen|exec\w*)\b|\bPopen\s*\(|\bshell\s*=\s*True\b`,
+    String.raw`\bDeno\.(Command|run)\b|\bBun\.spawn\b|\bexec\.Command\s*\(`,
+  ].join('|'))],
+  ['file write or delete', /\b(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|rmSync|unlink|unlinkSync|rmdir|chmod|chmodSync)\s*\(|\bfs\.(rm|rename|copyFile|cp)\s*\(|\bshutil\.(rmtree|move|copy)\b|\bopen\s*\([^)]*['"][wa]b?\+?['"]|\bos\.(Create|WriteFile|Remove|RemoveAll)\s*\(/],
+  ['raw query', /\$(query|execute)Raw(Unsafe)?\b|\.raw\s*\(|\bsql`|\.(query|execute)\s*\(\s*(f?["'`]\s*(select|insert|update|delete|with)\b|\w+\s*[,)])|\bcursor\.execute\s*\(|\.rpc\s*\(\s*['"]|\bdb\.(Query|Exec)\s*\(/i],
+  ['injection sink', /\bdangerouslySetInnerHTML\b|\.innerHTML\s*=|\bv-html\b|(^|[^.\w])eval\s*\(|\bnew\s+Function\s*\(|\bdocument\.write\s*\(|\|\s*safe\b|\bmark_safe\s*\(|\bpickle\.loads?\b|\byaml\.load\s*\(|\bvm\.runIn\w+\s*\(|\bunserialize\s*\(/],
   ['upload', /\b(multer|formidable|busboy|multiparty)\b|\bmultipart\/form-data\b|\bUploadFile\b/],
-  ['auth or secrets', /\b(password|passwd|jwt|bearer|session(Id|Token)?|cookies?|csrf|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|bcrypt|argon2|signIn|signUp|signOut|getSession|getUser|createHash|createHmac|createCipheriv|timingSafeEqual)\b/i],
+  // Handling credentials, not mentioning them: hashing passwords, signing tokens, setting cookies.
+  ['auth or secrets', /\b(bcrypt|argon2|scrypt|pbkdf2(Sync)?|timingSafeEqual|createHmac|createCipheriv|createDecipheriv|setCookie|getServerSession|signIn|signOut|signUp)\b|\bjwt\.(sign|verify|decode)\b|\bjose\.\w+|\bcookies\(\)\.set\b|\bres\.cookie\s*\(|\bAuthorization['"]?\s*:\s*[`'"]Bearer\b/],
 ];
 
 export function securityNeed(files, tier, autonomy = {}) {

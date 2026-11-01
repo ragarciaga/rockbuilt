@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -651,4 +651,27 @@ test('guard (#44): git push is denied while an unpushed commit carries a secret-
   assert.equal(seen[seen.length - 1], 'HEAD');
   assert.equal(decide(bash('git push -u origin rb/T8-ssh'), env([]), NO_ENV).deny, false);
   assert.equal(decide(bash('git push -u origin rb/T8-ssh'), env(null), NO_ENV).deny, false, 'no scan available: allowed');
+});
+
+test('guard (#44) end to end: the real hook loads the scanner and blocks the push', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-sec-'));
+  try {
+    const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+    g('init', '-q', '-b', 'main'); g('config', 'user.email', 't@x'); g('config', 'user.name', 'T');
+    writeFileSync(path.join(dir, 'a.js'), 'a\n'); g('add', '-A'); g('commit', '-q', '-m', 'i');
+    g('checkout', '-q', '-b', 'rb/T8');
+    writeFileSync(path.join(dir, 't.js'), 'const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+    g('add', '-A'); g('commit', '-q', '-m', 'leak');
+    const hook = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'guard.mjs');
+    const run = () => spawnSync(process.execPath, [hook], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push -u origin rb/T8' }, cwd: dir }), encoding: 'utf8' });
+    let r = run();
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /t\.js:1 \(generic-api-key/);
+    writeFileSync(path.join(dir, 't.js'), "const KEY = ['AAAAC3Nz', 'aC1lZDI1'].join('');\n");
+    g('add', '-A'); g('commit', '-q', '--amend', '-m', 'clean');
+    r = run();
+    assert.equal(r.status, 0, r.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

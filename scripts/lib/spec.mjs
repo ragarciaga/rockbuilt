@@ -193,22 +193,34 @@ export function taskProblems(tasks, errors = []) {
   // A minimum size (rockbuilt #41): every task pays the same review (planner, implementer,
   // verifier, auditor, CI), so two small tasks in the same module that fit one task's limits are
   // one task. Keeping them apart needs the reason on the Size line, as L does.
-  const tierFloor = (t) => t.files.some((f) => /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|requirements[^/]*\.txt|pyproject\.toml|go\.mod|Cargo\.toml)$/.test(f) || FLOOR_PATHS.some((g) => matchAny(f.replace(/\\/g, '/'), g.globs)));
-  const dirOf = (f) => f.replace(/\\/g, '/').replace(/\/[^/]*$/, '') || '.';
-  const small = tasks.filter((t) => t.status === 'todo' && t.size === 'S' && !t.sizeNote && t.files.length);
+  // Which floors a task sits on (dependency manifest, auth, schema, ...): two tasks pair only on
+  // the same set, so a merge never crosses a tier boundary.
+  const tierFloor = (t) => [...new Set(t.files.flatMap((f) => [
+    ...(/(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|requirements[^/]*\.txt|pyproject\.toml|go\.mod|Cargo\.toml)$/.test(f) ? ['dependency'] : []),
+    ...FLOOR_PATHS.filter((g) => matchAny(f.replace(/\\/g, '/'), g.globs)).map((g) => g.rule),
+  ]))].sort().join(',');
+  const norm = (f) => f.replace(/\\/g, '/').replace(/^\.\//, '');
+  const dirOf = (f) => (norm(f).includes('/') ? norm(f).replace(/\/[^/]*$/, '') : '.');
+  // The module is where the code lives: test files sit in shared folders (a flat tests/) and
+  // say nothing about which module a task changes.
+  const isTest = (f) => /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[^/]+$/.test(norm(f));
+  const modules = (t) => [...new Set(t.files.filter((f) => !isTest(f)).map(dirOf))];
+  // Only a stated reason keeps two small tasks apart; an estimate in parentheses is not one.
+  const keptApart = (t) => Boolean(t.sizeNote) && /[a-záéíóúñ]{3,}\s+[a-záéíóúñ]{3,}/i.test(t.sizeNote) && !/^\d+(\.\d+)?\s*h(ours?|oras?)?$/i.test(t.sizeNote.trim());
+  const small = tasks.filter((t) => t.status === 'todo' && t.size === 'S' && !keptApart(t) && modules(t).length);
   const paired = new Set();
   for (let i = 0; i < small.length; i++) {
     for (let j = i + 1; j < small.length; j++) {
       const a = small[i];
       const b = small[j];
       if (paired.has(a.id) || paired.has(b.id)) continue;
-      const shared = a.files.map(dirOf).find((d) => b.files.map(dirOf).includes(d));
+      const shared = modules(a).find((d) => modules(b).includes(d));
       if (shared === undefined || tierFloor(a) !== tierFloor(b)) continue; // never merge across a tier boundary
       const files = new Set([...a.files, ...b.files]);
       const covers = new Set([...a.covers, ...b.covers]);
       if (files.size > MAX_TASK_FILES || covers.size > MAX_TASK_CRITERIA) continue;
       paired.add(a.id); paired.add(b.id);
-      problems.push(`${a.id} and ${b.id} are both size S in ${shared}/ and fit one task (${files.size} files, ${covers.size} criteria): merge them, or write "Size: S (<why they must stay apart>)" on one of them`);
+      problems.push(`${a.id} and ${b.id} are both size S in ${shared === '.' ? 'the root folder' : `${shared}/`} and fit one task (${files.size} files, ${covers.size} criteria): merge them, or write "Size: S (<why they must stay apart>)" on one of them`);
     }
   }
   return problems;

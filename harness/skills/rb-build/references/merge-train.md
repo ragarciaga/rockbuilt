@@ -94,6 +94,12 @@ serial path below: the queue only skips work when GitHub shows the result is the
      Then apply the new lines with `rb gh pr-line <pr> --stage <rb-agent> --task <id> --outcome
      <o> --head <sha>` (one call per line; the flags build and validate the line, rockbuilt #38) and run
      the gate once more.
+   - `security` (rb risk says the diff needs the security review and the body lacks it: a PR
+     opened before 0.11.0, or a kickback that added such a line): dispatch `rb-security-reviewer`
+     once on the PR head (`Mode: task`, `Reviewed head: <head>`, the reasons the gate printed),
+     post its verdict on the task issue, add `<!-- rockbuilt:security required -->` and its line
+     (`rb gh pr-edit` for the flag, `rb gh pr-line` for the line), run the gate again. A blocker:
+     kickback as in `kickback.md`.
    - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
      (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
    - Anything else: hold with the reasons verbatim in the digest; next PR.

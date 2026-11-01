@@ -346,6 +346,20 @@ test('rb risk security (#42): the diff decides whether the security review runs'
   assert.deepEqual(why('src/login.ts', ['  const ok = await bcrypt.compare(password, hash);']), ['auth or secrets']);
   assert.match(why('src/auth/guard.ts', ['export const x = 1;'])[0], /^auth-permissions-payments/);
   assert.equal(sec('src/client.ts', ["const u = 'https://api.acme-weather.io';"]).required, true, 'a new external host');
+  // 0.11 review: lines that mention a word but open no surface stay quiet.
+  for (const l of ['const m = /^--(\\w+)=(.*)$/.exec(arg);', 'app.use(express.json());', 'const u = new URL(href).searchParams;',
+    'const session = getSession();', "label: 'Password'", "const h = createHash('sha256').update(k).digest('hex');", 'const user = getUser(id);',
+    "const r = await api.get('/users');", "axios.post('/x', body);", 'const cookies = parse(header);']) {
+    assert.deepEqual(why('src/x.ts', [l]), [], l);
+  }
+  // ...and handlers of other frameworks and languages are seen.
+  for (const [l, w] of [['export const POST = async (req) => {}', 'request input'], ["const id = c.req.param('id');", 'request input'],
+    ["instance.post('/notes', handler)", 'request input'], ["@bp.route('/x')", 'request input'], ['data = request.get_json()', 'request input'],
+    ["@api_router.get('/items')", 'request input'], ["x = request.POST['a']", 'request input'], ["notes.post('/a', auth, h)", 'request input'],
+    ['cur.execute(f"SELECT * FROM t WHERE id={i}")', 'raw query'], ['await sequelize.query(q);', 'raw query'], ['cmd := exec.Command("ls")', 'process spawn'],
+    ['v := r.FormValue("a")', 'request input'], ['vm.runInNewContext(code)', 'injection sink'], ["res.cookie('sid', s)", 'auth or secrets'], ['const t = jwt.sign(p, k);', 'auth or secrets']]) {
+    assert.deepEqual(why('src/x.ts', [l]), [w], l);
+  }
 });
 
 test('rb secrets (#44): gitleaks-shaped literals in unpushed commits and the working tree', async () => {
@@ -354,7 +368,11 @@ test('rb secrets (#44): gitleaks-shaped literals in unpushed commits and the wor
   // F4 T8: public ed25519 host keys assigned to KEY and KEY2 tripped generic-api-key.
   assert.deepEqual(rules('const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";'), ['generic-api-key']);
   assert.deepEqual(rules('const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";'), ['generic-api-key']);
-  assert.deepEqual(rules('-----BEGIN OPENSSH PRIVATE KEY-----'), ['private-key']);
+  assert.deepEqual(rules('-----BEGIN OPENSSH PRIVATE KEY-----'), [], 'code that looks for the header is not a key');
+  assert.deepEqual(rules('const pem = "-----BEGIN RSA PRIVATE KEY-----\\nMIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gunVTLw";'), ['private-key']);
+  assert.deepEqual(rules('{ authMode: "standard_mode1", apiKey: "Zx81kqP0mWv7RtY3nB5c" }'), ['generic-api-key'], 'every match on the line');
+  assert.deepEqual(rules('const k = "test_api_key_9xQ2mZ";'), [], 'gitleaks stopwords');
+  assert.deepEqual(rules('const t = "example-token-5f3a9c1d";'), []);
   assert.deepEqual(rules('token: ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'), ['github-token']);
   assert.deepEqual(rules('aws = "AKIA' + 'IOSFODNN7EXAMPLE"'), ['aws-access-token']);
   // Not secrets: plain words, short values, env reads, parts joined at runtime, allow comments.
@@ -386,4 +404,31 @@ test('rb secrets (#44): gitleaks-shaped literals in unpushed commits and the wor
   sh(root, 'git', ['push', '-q', 'origin', 'rb/T8-ssh']);
   sh(root, 'git', ['fetch', '-q', 'origin']);
   assert.equal((await rbJson(root, ['secrets'])).code, 0);
+
+  // New files count before they are staged; lockfiles and .gitleaksignore entries do not.
+  write(root, 'tests/new.test.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  r = await rbJson(root, ['secrets']);
+  assert.deepEqual(r.json.findings.map((f) => `${f.commit} ${f.file}:${f.line}`), ['untracked tests/new.test.js:1']);
+  write(root, '.gitleaksignore', 'tests/new.test.js:generic-api-key:1\n');
+  assert.equal((await rbJson(root, ['secrets'])).code, 0, 'a fingerprint in .gitleaksignore');
+  write(root, 'package-lock.json', '{"integrity": "sha512-Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA"}\n');
+  assert.equal((await rbJson(root, ['secrets'])).code, 0, 'lockfiles are allowlisted');
+  // A PEM block over two lines.
+  write(root, 'tests/pem.txt', '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gunVTLw\n');
+  sh(root, 'git', ['add', 'tests/pem.txt']);
+  r = await rbJson(root, ['secrets']);
+  assert.ok(r.json.findings.some((f) => f.file === 'tests/pem.txt' && f.rule === 'private-key'), JSON.stringify(r.json.findings));
+});
+
+test('rb secrets: a repo with no remote scans from the default branch, not the whole history', async () => {
+  const root = repoWith({ 'src/a.js': 'a\n' });
+  write(root, 'old.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  commitAll(root, 'old leak');
+  sh(root, 'git', ['rm', '-q', 'old.js']);
+  commitAll(root, 'removed long ago');
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T1-x']);
+  write(root, 'src/b.js', 'export const b = 1;\n');
+  commitAll(root, 'task');
+  const r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.findings));
 });

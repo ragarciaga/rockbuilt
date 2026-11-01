@@ -26,7 +26,9 @@ Proportional review: a task pays for the reviewers its diff needs, once (issues 
   that fit one task (8 files, 4 criteria), unless one says why they stay apart
   (`Size: S (<reason>)`); never across a tier floor. The blind audit stays on every tier B task:
   F4's reviewers found real defects in small tasks.
-- Update a project with `rb vendor`.
+- **Upgrading:** an open PR whose diff now requires the security review and that never had one
+  is refused with reason `security`; the merge train and `/rb-merge` run the reviewer once on its
+  head and add its line. Update a project with `rb vendor`.
 
 ## 0.10.0 (2026-10-23)
 
