@@ -119,7 +119,7 @@ the reproduction test. Do not refactor beyond the plan. Return your report." Che
 ## 5. Mechanical check and tier recompute
 
 `rb baseline --check` on the branch: no failure outside known-failures; the reproduction test is
-among the passing tests; counts not lower than baseline. The reproduction test must not be weakened
+among the passing tests; counts not lower than baseline; `rb secrets` exits 0. The reproduction test must not be weakened
 (`git diff <reproduce sha> HEAD -- <test file>`). UI bugs also run the E2E commands when a browser
 exists. Any failure: kickback. Then `rb risk --base origin/<default> --json`; risen to C and not
 approved: `wip: escalated: tier C (B<n>)`, push, escalate (`tier-c-diff`), move on.

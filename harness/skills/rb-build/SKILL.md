@@ -143,6 +143,7 @@ path. Tool-level dispatch failures follow the retry ladder there.
 ### 6. Mechanical check (you, not an agent)
 Run `rb baseline --check` on the branch: no failure outside the known-failures list, no command
 that was green at baseline now red, test counts not lower without a reason in the plan or report.
+`rb secrets` exits 0 (a secret-shaped literal is a kickback now, not a replaced PR after the push).
 **UI-touching tasks** (pages, components, styles, routes, handlers the UI calls) with an `## E2E`
 section also run the specs the diff adds or changes plus those the task's Verify names, never the
 whole suite (CI runs it): `rb verify-cmds E2E --only <spec files> [--grep "<titles from Verify>"]`
@@ -192,7 +193,7 @@ The verifier's `Report corrections` are not findings: apply them to the PR body 
 
 ### 10. Push and PR
 Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>` (the
-guard refuses it while an unpushed commit has a secret-shaped literal: fix it before the push). Body
+guard refuses it while an unpushed commit has a secret-shaped literal). Body
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>
