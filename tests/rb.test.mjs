@@ -275,7 +275,7 @@ test('rb tasks: JSON output and non-zero exit on coverage gaps', async () => {
 test('rb tasks: full coverage exits 0; missing requirements.md still parses', async () => {
   const root = makeRepo();
   const dir = path.join(root, 'docs', 'specs', '01-login');
-  writeFileSync(path.join(dir, 'tasks.md'), TASKS.replace('R2.1, R7.1', 'R2.1, R2.2'));
+  writeFileSync(path.join(dir, 'tasks.md'), TASKS.replace('R2.1, R7.1', 'R2.1, R2.2').replace(/- Size: S\n/g, '- Size: S (one PR each in this fixture)\n'));
   assert.equal((await rb(root, 'tasks', dir)).code, 0);
   rmSync(path.join(dir, 'requirements.md'));
   const r = await rbJson(root, 'tasks', dir);
@@ -709,4 +709,16 @@ test('rb timing line and report read durable timing from rb/* PR bodies (fresh c
   const text = readFileSync(path.join(root, 'docs', 'progress.md'), 'utf8');
   assert.match(text, /\| T1 \| 1\.5 \| 3\.0 \| 4\.5 \|/);
   assert.doesNotMatch(text, /X1/, 'only rb/* branches count');
+});
+
+test('rb tasks (#41): two small tasks in the same module that fit one task must merge or say why', async () => {
+  const root = makeRepo();
+  const dir = path.join(root, 'docs', 'specs', '01-login');
+  writeFileSync(path.join(dir, 'tasks.md'), TASKS.replace('R2.1, R7.1', 'R2.1, R2.2'));
+  const r = await rbJson(root, 'tasks', dir);
+  assert.equal(r.code, 1);
+  const merge = r.json.problems.filter((p) => /both size S/.test(p));
+  assert.ok(merge.some((p) => /^T3 and T5 are both size S in src\//.test(p)), JSON.stringify(merge));
+  assert.ok(!merge.some((p) => /\bT4\b/.test(p)), 'T4 changes package.json (tier C): never merged with a tier B task');
+  assert.ok(!merge.some((p) => /\bT1\b/.test(p)), 'done tasks stay as they are');
 });

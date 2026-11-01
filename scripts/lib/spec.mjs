@@ -1,5 +1,7 @@
 // tasks.md and requirements.md parsing (DESIGN.md section 15).
 import path from 'node:path';
+import { matchAny } from './glob.mjs';
+import { FLOOR_PATHS } from './risk.mjs';
 import { CliError, readText } from './util.mjs';
 
 const TASK_HEADING = /^##\s+(T\d+)\s*[:.-]?\s*(.*)$/;
@@ -187,6 +189,27 @@ export function taskProblems(tasks, errors = []) {
     if (t.size === 'L' && !t.sizeNote) problems.push(`${t.id} is size L without a reason: split it, or write "Size: L (<why it cannot be split>)"`);
     if (t.files.length > MAX_TASK_FILES) problems.push(`${t.id} lists ${t.files.length} files (max ${MAX_TASK_FILES}): split it`);
     if (t.covers.length > MAX_TASK_CRITERIA) problems.push(`${t.id} covers ${t.covers.length} criteria (max ${MAX_TASK_CRITERIA}): split it`);
+  }
+  // A minimum size (rockbuilt #41): every task pays the same review (planner, implementer,
+  // verifier, auditor, CI), so two small tasks in the same module that fit one task's limits are
+  // one task. Keeping them apart needs the reason on the Size line, as L does.
+  const tierFloor = (t) => t.files.some((f) => /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|requirements[^/]*\.txt|pyproject\.toml|go\.mod|Cargo\.toml)$/.test(f) || FLOOR_PATHS.some((g) => matchAny(f.replace(/\\/g, '/'), g.globs)));
+  const dirOf = (f) => f.replace(/\\/g, '/').replace(/\/[^/]*$/, '') || '.';
+  const small = tasks.filter((t) => t.status === 'todo' && t.size === 'S' && !t.sizeNote && t.files.length);
+  const paired = new Set();
+  for (let i = 0; i < small.length; i++) {
+    for (let j = i + 1; j < small.length; j++) {
+      const a = small[i];
+      const b = small[j];
+      if (paired.has(a.id) || paired.has(b.id)) continue;
+      const shared = a.files.map(dirOf).find((d) => b.files.map(dirOf).includes(d));
+      if (shared === undefined || tierFloor(a) !== tierFloor(b)) continue; // never merge across a tier boundary
+      const files = new Set([...a.files, ...b.files]);
+      const covers = new Set([...a.covers, ...b.covers]);
+      if (files.size > MAX_TASK_FILES || covers.size > MAX_TASK_CRITERIA) continue;
+      paired.add(a.id); paired.add(b.id);
+      problems.push(`${a.id} and ${b.id} are both size S in ${shared}/ and fit one task (${files.size} files, ${covers.size} criteria): merge them, or write "Size: S (<why they must stay apart>)" on one of them`);
+    }
   }
   return problems;
 }
