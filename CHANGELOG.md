@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.11.0 (unreleased)
+
+Proportional review: a task pays for the reviewers its diff needs, once (issues #41 to #44 from
+2brain-logic F4 on 0.10.0; DESIGN 20.20 and 25).
+
+- **Reviews carry across a base merge, decided by the gate (#43).** When an update from main leaves
+  the task's files identical, `rb merge-gate` accepts the verifier, auditor and security lines on
+  the old head by itself: no agent, no PR edit, only CI on the new head. `/rb-merge` and the
+  interactive path no longer send the session back to the reviewers. This was the largest cost
+  in F4.
+- **Security review decided from the diff (#42).** `rb risk --json` gives
+  `security.required` with reasons (auth and schema paths, Sensitive paths, dependencies, hosts,
+  secret-like env vars, and added production lines with request input, process spawns, file
+  writes, raw queries, injection sinks, uploads, auth or secrets). rb-build and rb-fix run the
+  security reviewer when it says yes, the gate refuses a PR without the review when it says yes
+  (reason `security`), and the planner can only add it. A pure function or a flag parser no
+  longer gets one.
+- **Secrets caught before the push (#44).** `rb secrets` scans unpushed commits and the working
+  tree with gitleaks-shaped rules (generic-api-key with entropy, private keys, token formats,
+  JWTs; `gitleaks:allow` respected). It is part of the mechanical check, and the guard denies
+  `git push` while an unpushed commit has a hit, so a fixture is fixed before CI sees it instead of
+  replacing the PR. The implementer builds secret-shaped fixtures from parts.
+- **Minimum task size (#41).** `rb tasks` fails on two not-started `S` tasks in the same directory
+  that fit one task (8 files, 4 criteria), unless one says why they stay apart
+  (`Size: S (<reason>)`); never across a tier floor. The blind audit stays on every tier B task:
+  F4's reviewers found real defects in small tasks.
+- Update a project with `rb vendor`.
+
 ## 0.10.0 (2026-10-23)
 
 Mechanical bookkeeping: the steps an interactive session skipped are now commands that the gate or
