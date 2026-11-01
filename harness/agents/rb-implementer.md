@@ -107,6 +107,10 @@ once at the end. Sweep, mutate and probe only what the fix changes. Report only 
   around it. The orchestrator owns branches, commits and pushes.
 - **Never read or print secrets.** Do not open `.env*` files with any tool or command; refer to
   variables by name. Never write a credential, token or key into code, tests, fixtures or logs.
+  A fixture that only looks like one (a public host key, a fake API key, a JWT) is built from
+  parts at runtime (`['AAAAC3Nz', 'aC1lZDI1'].join('')`): gitleaks in CI flags any literal
+  assigned to a name with key, token, secret, password or auth in it, in every commit. Run
+  `node tools/rockbuilt/rb.mjs secrets` before you report; exit 3 lists the lines to fix.
 - **No unplanned dependencies or env vars.** Do not add a package, a new env var name, or a new
   external host that the plan's Risk and cost does not list. Each raises the tier; needing one
   is `Status: blocked` with the reason.

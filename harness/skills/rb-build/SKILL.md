@@ -191,7 +191,8 @@ finding from any reviewer: kickback, budget 2 shared, then the blocked path plus
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 
 ### 10. Push and PR
-Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>`. Body
+Confirm `git rev-parse HEAD` equals the reviewed head. `git push -u origin rb/<id>-<slug>` (the
+guard refuses it while an unpushed commit has a secret-shaped literal: fix it before the push). Body
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>

@@ -15,6 +15,7 @@ import { carryBookkeeping, saveBookkeeping } from './lib/bookkeeping.mjs';
 import { qualityReport, qualityText } from './lib/quality.mjs';
 import { buildQueue, finishQueue } from './lib/queue.mjs';
 import { findBrowser } from './lib/browser.mjs';
+import { findingsText, scanBranch } from './lib/secrets.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, revertPr } from './lib/merge.mjs';
@@ -45,6 +46,7 @@ export const COMMANDS = {
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
   ci: 'CI on a commit: wait <sha> [--timeout <min>] (until rockbuilt-ci, and rockbuilt-e2e when the project has E2E, exist and every check completed; exit 0 green, 1 red, 3 timed out) | logs <sha> [--job <name>] [--tail <n>] (log tail, or annotations when the log is not readable)',
   browser: 'Print the Chromium executable for PW_CHROMIUM_PATH (exit 3 when none is found)',
+  secrets: 'Secret-shaped literals in the commits no remote has yet, and in the working tree: [--ref <branch>] (exit 3 with file:line when found; the guard runs it on git push)',
   queue: 'Merge queue: build --run <id> --prs a,b,c (merge them onto the default branch as rb/queue-*, CI runs once) | done --run <id> (delete this run\'s queue branches)',
   quality: 'What escaped the reviews: merged task PRs, kickbacks by source, reverts, bugs traced to merged PRs  [--since d] [--until d]',
   claim: 'Mark an issue as being worked on by this run or session: <issue> --run <id> [--release | --take] (exit 3: another run holds it; rb sync keeps claims active in the last 3 h; --take only after the user confirms)',
@@ -562,6 +564,14 @@ const handlers = {
       return { data: { sha, jobs }, text: jobs.map((j) => `== ${j.name} (${j.conclusion || 'running'}${j.minutes != null ? `, ${j.minutes} min` : ''}) [${j.source}${j.note ? `: ${j.note}` : ''}]\n${j.lines.join('\n')}`).join('\n\n'), code: 0 };
     }
     throw new CliError('usage: rb ci wait|logs <sha>', 2);
+  },
+
+  secrets({ cwd, flags }) {
+    const root = requireRepoRoot(cwd);
+    const r = scanBranch(root, { ref: stringFlag(flags, 'ref') || 'HEAD', worktree: true });
+    if (!r) throw new CliError('git could not list the commits to scan');
+    const text = r.findings.length ? `secret-shaped literals: ${findingsText(r.findings)}\nBuild the value from parts (or add gitleaks:allow when it is public), then rewrite the unpushed commits before pushing.` : `no secret-shaped literal in ${r.commits} unpushed commit(s) and the working tree`;
+    return { data: r, text, code: r.findings.length ? 3 : 0 };
   },
 
   browser() {

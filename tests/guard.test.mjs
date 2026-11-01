@@ -637,3 +637,18 @@ test('git -c, --config-env and config writes are denied for everyone (alias and 
   }
   for (const c of ['git config --get remote.origin.url', 'git config --list', 'git -C ../wt status', 'git commit -m "x"']) assert.equal(sh(c), false, `allowed: ${c}`);
 });
+
+test('guard (#44): git push is denied while an unpushed commit carries a secret-shaped literal', () => {
+  const hit = [{ file: 'tests/ssh.test.ts', line: 15, rule: 'generic-api-key', commit: 'abc1234' }];
+  const seen = [];
+  const env = (findings) => ({ ...fakeEnv(), secretScan: (dir, ref) => { seen.push(ref); return findings; } });
+  let r = decide(bash('git push -u origin rb/T8-ssh'), env(hit), NO_ENV);
+  assert.equal(r.deny, true);
+  assert.match(r.reason, /tests\/ssh\.test\.ts:15 \(generic-api-key, abc1234\)/);
+  assert.deepEqual(seen, ['rb/T8-ssh']);
+  r = decide(bash('git push'), env(hit), NO_ENV);
+  assert.equal(r.deny, true);
+  assert.equal(seen[seen.length - 1], 'HEAD');
+  assert.equal(decide(bash('git push -u origin rb/T8-ssh'), env([]), NO_ENV).deny, false);
+  assert.equal(decide(bash('git push -u origin rb/T8-ssh'), env(null), NO_ENV).deny, false, 'no scan available: allowed');
+});

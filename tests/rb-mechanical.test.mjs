@@ -347,3 +347,43 @@ test('rb risk security (#42): the diff decides whether the security review runs'
   assert.match(why('src/auth/guard.ts', ['export const x = 1;'])[0], /^auth-permissions-payments/);
   assert.equal(sec('src/client.ts', ["const u = 'https://api.acme-weather.io';"]).required, true, 'a new external host');
 });
+
+test('rb secrets (#44): gitleaks-shaped literals in unpushed commits and the working tree', async () => {
+  const { scanLine } = await import('../scripts/lib/secrets.mjs');
+  const rules = (l) => scanLine(l).map((f) => f.rule);
+  // F4 T8: public ed25519 host keys assigned to KEY and KEY2 tripped generic-api-key.
+  assert.deepEqual(rules('const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";'), ['generic-api-key']);
+  assert.deepEqual(rules('const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";'), ['generic-api-key']);
+  assert.deepEqual(rules('-----BEGIN OPENSSH PRIVATE KEY-----'), ['private-key']);
+  assert.deepEqual(rules('token: ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'), ['github-token']);
+  assert.deepEqual(rules('aws = "AKIA' + 'IOSFODNN7EXAMPLE"'), ['aws-access-token']);
+  // Not secrets: plain words, short values, env reads, parts joined at runtime, allow comments.
+  assert.deepEqual(rules("const key = 'category';"), []);
+  assert.deepEqual(rules('const token = process.env.API_TOKEN;'), []);
+  assert.deepEqual(rules("const KEY = ['AAAAC3NzaC1l', 'ZDI1NTE5AAAAI'].join('');"), []);
+  assert.deepEqual(rules('const KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"; // gitleaks:allow'), []);
+
+  const root = repoWith({ 'src/a.js': 'a\n' });
+  const bare = tmp();
+  sh(bare, 'git', ['init', '-q', '--bare', '-b', 'main']);
+  sh(root, 'git', ['remote', 'add', 'origin', bare]);
+  sh(root, 'git', ['push', '-q', 'origin', 'main']);
+  sh(root, 'git', ['checkout', '-q', '-b', 'rb/T8-ssh']);
+  write(root, 'tests/ssh.test.js', 'const host = "github.com";\nconst KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";\n');
+  commitAll(root, 'test with a key');
+  write(root, 'tests/ssh.test.js', 'const host = "github.com";\nconst KEY = ["AAAAC3NzaC1l", "ZDI1NTE5"].join("");\n');
+  commitAll(root, 'fix the fixture in a later commit');
+  let r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 3, 'the earlier commit still has it, as gitleaks would see');
+  assert.deepEqual(r.json.findings.map((f) => `${f.file}:${f.line}`), ['tests/ssh.test.js:2']);
+  sh(root, 'git', ['reset', '-q', '--soft', 'main']);
+  commitAll(root, 'one clean commit');
+  r = await rbJson(root, ['secrets']);
+  assert.equal(r.code, 0, r.out);
+  // A commit already on a remote is not rescanned (CI already saw it; the push adds nothing new).
+  write(root, 'tests/other.test.js', 'const API_KEY = "Zk3q9XbT2mR8vL1nP0sW7yH4cJ6dF5gA";\n');
+  commitAll(root, 'leak');
+  sh(root, 'git', ['push', '-q', 'origin', 'rb/T8-ssh']);
+  sh(root, 'git', ['fetch', '-q', 'origin']);
+  assert.equal((await rbJson(root, ['secrets'])).code, 0);
+});
