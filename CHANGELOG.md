@@ -41,7 +41,7 @@ Proportional review: a task pays for the reviewers its diff needs, once (issues 
   `rb timing report` warns about recent merged task PRs with no minutes.
 - **CI uses the project's Node version** from `.nvmrc` or `.node-version` (first non-comment line,
   default 22; a pin below 20, the harness minimum, runs 22 with a warning) in every job of the
-  workflow template (was PR #40, 0.10.1, folded into this release).
+  workflow template (PR #40, merged as 0.10.1 without a release of its own; it ships here).
 - **Upgrading:** an open PR whose diff now requires the security review and that never had one
   is refused with reason `security`; the merge train and `/rb-merge` run the reviewer once on its
   head and add its line. Update a project with `rb vendor`.
