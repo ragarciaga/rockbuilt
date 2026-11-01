@@ -70,6 +70,20 @@ const CASES = [
   ['main: write ~/.gitconfig from the shell', bash('echo "[gpg]" >> ~/.gitconfig'), true],
   ['implementer: write .git/config from the shell', bash('printf x > .git/config', IMPL), true],
   ['main: remove a stale git lock', bash('rm -f .git/index.lock'), false],
+  ['main: mirror remote', bash('git remote add --mirror=push evil https://example.org/x.git'), true],
+  ['main: clone --config', bash('git clone --config remote.origin.mirror=true https://example.org/x.git /tmp/c'), true],
+  ['main: set -a then printf -v before push', bash('set -a; printf -v GIT_CONFIG_PARAMETERS "%s" "x"; git push origin'), true],
+  ['main: source a file before push', bash('set -a; . ./f.sh; git push'), true],
+  ['main: indirect export before push', bash('x=GIT_DIR; export "$x=/tmp/e"; git push origin feat'), true],
+  ['main: python writes .git/config', bash("python3 -c \"open('.git/config','a').write('x')\""), true],
+  ['main: node writes ~/.gitconfig', bash("node -e \"require('fs').appendFileSync(require('os').homedir()+'/.gitconfig','x')\""), true],
+  ['main: awk writes .git/config', bash('awk "BEGIN{print 1 > \\".git/config\\"}"'), true],
+  ['main: sed reads .git/config', bash('sed -n 1p .git/config'), false],
+  ['main: cp out of .git', bash('cp .git/HEAD /tmp/h'), false],
+  ['main: cp a .gitconfig template into docs', bash('cp templates/.gitconfig docs/'), false],
+  ['main: recover a broken rebase', bash('rm -rf .git/rebase-merge'), false],
+  ['main: sed -i on .git/config', bash('sed -i s/a/b/ .git/config'), true],
+  ['main: push alone after unrelated set', bash('git push -u origin rb/T1-login'), false],
   ['main: kill -9 pid, kill $PID, kill %1', bash('kill -9 12345 && kill "$PID" && kill %1'), false],
   ['main: kill by port through lsof', bash('lsof -ti:3000 | xargs kill'), false],
   ['main: kill $(lsof -ti:port)', bash('kill $(lsof -ti:5173)'), false],
@@ -698,6 +712,7 @@ test('guard (#51): without a refspec, push.default=matching or a remote push ref
   assert.equal(decide(bash('git push origin'), env({ remotePush: 'refs/heads/*:refs/heads/*' }), NO_ENV).deny, true);
   assert.equal(decide(bash('git push'), env({ pushDefault: 'simple' }), NO_ENV).deny, false);
   assert.equal(decide(bash('git push -u origin rb/T1-login'), env({ pushDefault: 'matching' }), NO_ENV).deny, false, 'a named branch decides itself');
+  assert.equal(decide(bash('git push evil'), env({ mirror: true }), NO_ENV).deny, true, 'a mirror remote');
 });
 
 test('guard (#52): the push scan runs no repository-defined program and stays in the project', () => {
@@ -747,4 +762,16 @@ test('guard (0.11.1 review): no tool writes a .git directory or the git config, 
   assert.equal(w(path.join(os.homedir(), '.config', 'git', 'config')).deny, true);
   assert.equal(w('/repo/src/a.js').deny, false);
   assert.equal(w('/repo/docs/.github-notes.md').deny, false);
+  // Through a symlink inside the project.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'rb-guard-ln-'));
+  try {
+    mkdirSync(path.join(dir, 'real', '.git'), { recursive: true });
+    symlinkSync(path.join(dir, 'real', '.git'), path.join(dir, 'cfgdir'), 'dir');
+    const r = decide({ tool_name: 'Bash', tool_input: { command: 'echo x >> cfgdir/config' }, cwd: dir }, fakeEnv(), NO_ENV);
+    assert.equal(r.deny, true, r.reason);
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e; // Windows without symlink rights
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -527,6 +527,7 @@ export function checkPush(args, ctx) {
   // configured `remote.<name>.push` can send the default branch too.
   if (refspecs.length === 0 && typeof ctx.pushConfig === 'function') {
     const pc = ctx.pushConfig(positionals[0] || null) || {};
+    if (pc.mirror) return 'this remote is a mirror (remote.<name>.mirror): a push would overwrite every branch, the default one included';
     if (pc.pushDefault === 'matching') return 'push.default=matching would push every matching branch, the default one included: name the branch (git push -u origin <branch>)';
     if (pc.remotePush) return `remote push refspec configured (${pc.remotePush}): name the branch (git push -u origin <branch>)`;
   }
@@ -852,8 +853,21 @@ function gitConfigPathReason(p, cwd) {
   const abs = path.resolve(cwd || '.', p.replace(/^~(?=$|[\\/])/, home)).replace(/\\/g, '/');
   const lower = abs.toLowerCase();
   const h = home.replace(/\\/g, '/').toLowerCase();
-  if (/(^|\/)\.git(\/|$)/.test(lower)) return 'a .git directory';
-  if (lower === `${h}/.gitconfig` || lower.startsWith(`${h}/.config/git/`) || lower === '/etc/gitconfig' || /(^|\/)\.gitconfig$/.test(lower)) return 'git config';
+  const check = (x) => {
+    if (/(^|\/)\.git(\/|$)/.test(x)) return 'a .git directory';
+    if (x === `${h}/.gitconfig` || x.startsWith(`${h}/.config/git/`) || x === `${h}/.config/git` || x === '/etc/gitconfig') return 'git config';
+    return null;
+  };
+  const direct = check(lower);
+  if (direct) return direct;
+  // Through a symlink: resolve the nearest existing ancestor.
+  try {
+    let d = abs;
+    const rest = [];
+    while (d && !existsSync(d)) { rest.unshift(path.basename(d)); const up = path.dirname(d); if (up === d) break; d = up; }
+    const real = path.join(realpathSync(d), ...rest).replace(/\\/g, '/').toLowerCase();
+    if (real !== lower) return check(real);
+  } catch { /* unreadable: lexical answer stands */ }
   return null;
 }
 
@@ -863,12 +877,29 @@ function everyoneSegmentReason(seg, role, ctx) {
     if (why) return `shell writes to ${why} are not allowed`;
   }
   if (seg.words && WRITERS.has(commandName(seg.words[0]))) {
-    for (const a of seg.words.slice(1)) {
-      if (a.startsWith('-')) continue;
-      const why = gitConfigPathReason(a, ctx.cwd);
-      // A stale lock file from a crashed git is the one thing to remove by hand.
-      if (why && !(commandName(seg.words[0]) === 'rm' && /\.lock$/.test(a))) return `shell writes to ${why} are not allowed`;
+    const name = commandName(seg.words[0]);
+    const args = seg.words.slice(1);
+    const plain = args.filter((a) => !a.startsWith('-'));
+    let targets = plain;
+    // Only what the command writes: the destination of cp, mv, ln, install, rsync; files edited in
+    // place by sed or perl; everything for the others.
+    if (['cp', 'mv', 'ln', 'install', 'rsync'].includes(name)) {
+      const t = args.findIndex((a) => a === '-t' || a === '--target-directory');
+      targets = t !== -1 ? [args[t + 1]] : args.find((a) => /^--target-directory=/.test(a)) ? [args.find((a) => /^--target-directory=/.test(a)).split('=')[1]] : plain.slice(-1);
+    } else if (name === 'sed' || name === 'perl') {
+      targets = args.some((a) => /^-[a-zA-Z]*i/.test(a) || a.startsWith('--in-place')) ? plain : [];
     }
+    for (const a of targets) {
+      const why = gitConfigPathReason(a, ctx.cwd);
+      // Recovering a broken git state by hand stays possible: lock files, rebase and merge state.
+      const recovery = name === 'rm' && /\.git\/(.*\.lock|rebase-(merge|apply)\/?|MERGE_\w+|CHERRY_PICK_HEAD|REVERT_HEAD|AUTO_MERGE)$/.test(a.replace(/\\/g, '/'));
+      if (why && !recovery) return `shell writes to ${why} are not allowed`;
+    }
+  }
+  // Inline code (python -c, node -e, awk '...', perl -e) that names a .git directory or the git
+  // config: it can write there without any redirect the guard could see.
+  if (seg.words && INTERPRETERS.has(commandName(seg.words[0])) && seg.words.slice(1).some((a) => /(^|[^\w])\.git[\/\\]|\.gitconfig\b|\.config[\/\\]git\b/.test(a))) {
+    return 'inline code that names a .git directory or the git config is not allowed: use git commands';
   }
   const env = envReadReason(seg);
   if (env) return env;
@@ -894,6 +925,8 @@ function everyoneSegmentReason(seg, role, ctx) {
       const readOnly = ga.some((a) => /^--(get|get-all|get-regexp|get-urlmatch|list)$/.test(a) || a === '-l');
       if (!readOnly) return 'git config writes are not allowed (read with --get or --list)';
     }
+    if (g.sub === 'remote' && g.args.some((a) => /^--mirror/.test(a))) return 'a mirror remote is not allowed: a push to it overwrites every branch';
+    if (g.sub === 'clone' && g.args.some((a) => a === '-c' || a === '--config' || /^--config=/.test(a) || /^-c./.test(a))) return 'git clone --config is not allowed: it is a git -c the guard cannot see';
     if (g.sub === 'push') {
       // Another repository's push through --git-dir / --work-tree is not this checkout's branch.
       if (g.globals.some((x) => /^--(git-dir|work-tree|namespace)(=|$)/.test(x))) return 'git --git-dir / --work-tree / --namespace is not allowed with push: cd into the repository and push a named branch';
@@ -922,6 +955,13 @@ function checkCommandString(src, role, ctx, depth = 0) {
   if (depth === 0) topCommand = src.trim();
   const isWrite = role && WRITE_ROLES.has(role);
   const isRead = role && READONLY_ROLES.has(role);
+  // A push line that also sets git's environment some other way (set -a, sourcing a file, printf -v,
+  // read, an indirect export) can redirect the push; the guard cannot follow those, so the line is
+  // refused as a whole (0.11.1 review).
+  if (depth === 0 && /\bgit\b[^\n;&|]*\bpush\b/.test(src)) {
+    const unsafeGit = [...src.matchAll(/\bGIT_[A-Z0-9_]+/g)].some((m) => !/^GIT_(PAGER|TERMINAL_PROMPT|COLOR|TRACE\w*)$/.test(m[0]));
+    if (unsafeGit || /\bset\s+(-[a-zA-Z]*a|-o\s+allexport)\b|(^|[;&|(]\s*)(source|\.)\s+\S|\bexport\s+["']?\$/.test(src)) return 'a push line may not change git\'s environment (GIT_* variables, set -a, source): push on its own line';
+  }
   if (depth === 0 && ALIAS_RE.test(src)) return 'write every rb, git or gh command out in full, no shell variable or alias standing for it: unattended runs allow only commands that literally match the permission list';
 
   if (depth === 0 && role) {
@@ -1103,7 +1143,7 @@ export const realEnv = {
   // some other repository is not scanned, so its config never runs in this hook (rockbuilt #52).
   pushConfig(dir, remote) {
     const name = remote && /^[\w.-]+$/.test(remote) ? remote : 'origin';
-    return { pushDefault: (runGit(dir, ['config', '--get', 'push.default']) || '').toLowerCase() || null, remotePush: runGit(dir, ['config', '--get-all', `remote.${name}.push`]) || null };
+    return { pushDefault: (runGit(dir, ['config', '--get', 'push.default']) || '').toLowerCase() || null, remotePush: runGit(dir, ['config', '--get-all', `remote.${name}.push`]) || null, mirror: (runGit(dir, ['config', '--get', `remote.${name}.mirror`]) || '').toLowerCase() === 'true' };
   },
   secretScan(dir, ref, projectDir) {
     if (!secretsLib) return null;

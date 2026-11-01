@@ -512,7 +512,10 @@ Layers, from strongest to weakest:
      refspec, or by `push.default=matching` or a configured `remote.<name>.push` when no branch is
      named, rockbuilt #51; also no matching refspec `:`, no refspec starting with `-`, no
      `--git-dir`/`--work-tree` with push, and no `GIT_*` variable set or exported in front of a
-     command), no write to a `.git` directory or the git config by any tool, no force push, no `git push --all/--mirror`, no push of an unpushed
+     command, no mirror remote, no `git clone --config`, and no push line that also changes git's
+     environment with `set -a`, `source` or indirect exports), no write to a `.git` directory or the
+     git config by any tool (destinations only; symlinks resolved; inline interpreter code naming
+     them refused; git's lock, rebase and merge state may be removed), no force push, no `git push --all/--mirror`, no push of an unpushed
      commit with a secret-shaped literal (section 25.3), no reading `.env*` through shell commands (`cat`, `less`, `type`, `Get-Content`, `node -e`
      readers mentioning `.env`).
    - Write roles (rb-implementer, rb-e2e-writer): deny any command that mentions `git` or `gh`

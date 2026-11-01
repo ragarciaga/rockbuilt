@@ -17,8 +17,15 @@ Two guard weaknesses the 2brain-logic security reviewer found; both predate 0.11
   (`log.showSignature`, `gpg.program`) are off too, and the hook scans only the session's project
   and its worktrees. No tool may write a `.git` directory or the user's git config any more, main
   session included (removing a stale `*.lock` stays allowed).
-- An independent security review of the first draft found five more bypasses; all are closed and
-  each has a guard test.
+- Two rounds of independent security review found more bypasses; all are closed and each has a
+  guard test: mirror remotes and `git clone --config`; a push line that also changes git's
+  environment (`set -a`, `source`, `printf -v GIT_*`, indirect exports); inline code
+  (`python -c`, `node -e`, `awk`) naming `.git/` or the git config; a git config reached through a
+  symlink. Reads stay allowed: only the destination of cp/mv/ln and in-place sed/perl count as
+  writes, and removing git's lock, rebase and merge state by hand is allowed.
+- **Limit, stated plainly:** the guard reads command text. Indirection it cannot evaluate (a path
+  built in a shell variable or a glob, code generated at run time) can still get past it. It
+  catches mistakes; branch protection on GitHub and the merge gate are the controls to rely on.
 - Update a project with `rb vendor`.
 
 ## 0.11.0 (2026-11-01)
