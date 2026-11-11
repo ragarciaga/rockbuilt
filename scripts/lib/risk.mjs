@@ -14,7 +14,7 @@ export const tierRank = (t) => TIERS.indexOf(String(t || '').toUpperCase());
 export const FLOOR_PATHS = [
   { rule: 'data-schema', globs: ['**/migrations/**', 'prisma/schema.prisma', 'drizzle/**', 'supabase/**', '**/*.sql'] },
   { rule: 'auth-permissions-payments', globs: ['**/auth/**', '**/middleware.*', '**/permissions/**', '**/payments/**', '**/billing/**', '**/stripe/**', '**/*stripe.*', '**/*stripe-*', '**/*stripe_*', '**/*Stripe*', '**/*policy*', '**/rls*'] },
-  { rule: 'infra-deploy-ci', globs: ['.github/**', 'vercel.json', 'netlify.toml', 'Dockerfile*', 'docker-compose*', 'fly.toml', 'render.yaml', 'wrangler.toml', '**/*.tf', 'supabase/config.toml'] },
+  { rule: 'infra-deploy-ci', globs: ['.github/**', 'vercel.json', 'netlify.toml', 'Dockerfile*', 'docker-compose*', 'compose.yaml', 'compose.yml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'railway.json', 'railway.toml', '**/*.tf', 'supabase/config.toml'] },
   { rule: 'harness-secrets', globs: ['AGENTS.md', 'CLAUDE.md', '.claude/**', '.cursor/**', '.codex/**', '.agents/**', 'tools/rockbuilt/**', 'docs/rockbuilt/**', '.env*', '**/*.env', '.mcp.json', '.npmrc', '.yarnrc*', '.gitleaks*', '.gitattributes', '.husky/**'] },
   { rule: 'architecture', globs: ['docs/adr/**', '**/design.md'] },
   { rule: 'spec', globs: ['docs/specs/*/requirements.md', 'docs/brief.md'] },

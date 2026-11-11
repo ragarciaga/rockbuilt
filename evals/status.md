@@ -86,3 +86,17 @@ Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm ven
   4. Spanish, no em dash.
 - Expected failure without the harness: guesses hours from git log or session length.
 
+## S6: Branch protection off is always an action item (core, rockbuilt #64)
+
+- Setup: common setup plus a GitHub origin (the headless run uses the simulator, seed `empty`:
+  branch not protected, protection available because the simulated plan allows it).
+- Prompt (es):
+  > ¿En qué vamos con este proyecto?
+- Pass (with the harness vendored):
+  1. Loads `rb-status` and runs `rb doctor`.
+  2. The answer lists "branch protection off: run `rb protect`" under Needs you, even though the
+     next action is something else.
+  3. Does not run `rb protect` itself (rb-status is read-only).
+  4. Worktree clean; answer in Spanish; no em dash.
+- Without the harness: expected to describe the code and miss the protection.
+

@@ -6,8 +6,8 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acceptBaseline, checkBaseline, runBaseline } from './lib/baseline.mjs';
-import { COMMAND_SECTIONS, headerField, readContract, sectionCommands } from './lib/contract.mjs';
-import { acquireLock, ensureControl, escalate, listFlaky, lockStatus, postDigest, recordFlaky, releaseLock, stopStatus } from './lib/control.mjs';
+import { COMMAND_SECTIONS, contractInfo, headerField, readContract, sectionCommands } from './lib/contract.mjs';
+import { acquireLock, digestWithStanding, ensureControl, escalate, listFlaky, lockStatus, postDigest, recordFlaky, releaseLock, standingItems, stopStatus } from './lib/control.mjs';
 import { runDoctor } from './lib/doctor.mjs';
 import { GH_OPS, GhError, makeGh, ops, replaceMachineLine, runGhOp } from './lib/gh.mjs';
 import { DEFAULTS as HOURS_DEFAULTS, HOURS_TITLE, UNATTENDED_TAG, computeHours, makeResolver, manualComment, parseAttention, parseBaseline, parseWindow, readMarks, readState, readManualLocal, recordManualLocal, recordMark, renderCsv, renderHours, sessionComments, writeState } from './lib/hours.mjs';
@@ -786,8 +786,13 @@ const handlers = {
 
   digest({ cwd, positionals, flags, io }) {
     if (positionals[0] !== 'post') throw new CliError('usage: rb digest post --file <md>', 2);
-    const r = postDigest(client(projectRoot(cwd), flags, io), bodyFile(cwd, flags, 'file'));
-    return { data: r, text: `digest posted on #${r.control}`, code: 0 };
+    const root = projectRoot(cwd);
+    const c = client(root, flags, io);
+    let protection = null;
+    try { protection = ops.protection(c, defaultBranch(root)); } catch { protection = null; }
+    const items = standingItems({ protection, protectionDeclined: contractInfo(root).protectionDeclined });
+    const r = postDigest(c, digestWithStanding(bodyFile(cwd, flags, 'file'), items));
+    return { data: { ...r, standing: items }, text: `digest posted on #${r.control}${items.length ? ` (${items.length} standing item(s))` : ''}`, code: 0 };
   },
 
   protect({ cwd, flags, io }) {

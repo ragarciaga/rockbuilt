@@ -184,6 +184,25 @@ export function escalate(c, issue, { kind, title, body }) {
   return { issue: number, created, label, kind };
 }
 
+// rockbuilt #64: items that stay at the end of every digest until fixed, decided by code so a run
+// cannot leave them out: branch protection off, unless the owner declined it in AGENTS.md.
+// `protection` is ops.protection's answer (or null when GitHub could not say). A missing baseline
+// is not one: .rockbuilt/ is machine-local, so every fresh cloud container starts without it.
+export function standingItems({ protection, protectionDeclined = false }) {
+  const items = [];
+  if (protection && protection.mode !== 'github' && !protectionDeclined) {
+    items.push(protection.available
+      ? 'Branch protection is off and free on this repo: run `rb protect`, so GitHub itself refuses a merge with red CI (a merge in the GitHub UI skips rb merge-gate).'
+      : 'Branch protection is off: it needs GitHub Pro (USD 4/month) on this private repo. Your decision: enable it, or write `Branch protection: declined` in the AGENTS.md header.');
+  }
+  return items;
+}
+
+export function digestWithStanding(text, items) {
+  if (!items.length) return text;
+  return `${text.trim()}\n\n**Standing items (until fixed)**\n${items.map((i) => `- ${i}`).join('\n')}\n`;
+}
+
 export function postDigest(c, text) {
   const control = ensureControl(c).number;
   const iso = now().toISOString();

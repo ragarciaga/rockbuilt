@@ -109,6 +109,7 @@ Needs you
 - #<n> needs-human: <question in one line>. Recommended: <option>. <Cost: estimate, if any>
 - #<n> needs-local: <what to run, one line>
 - PR #<n> (tier C): <title>, CI <green|red>
+- Branch protection off: `rb protect` (free on this repo) | needs GitHub Pro, your decision
 
 Merged since last digest
 - PR #<n> <title> (tier <A|B>)  revert: rb revert <n>
@@ -120,7 +121,9 @@ Next
 <one action>  (<one-line reason>)
 ```
 
-Omit empty sections. Mention doctor WARN/FAIL lines only if they affect the next action. A
+Omit empty sections. Mention doctor WARN/FAIL lines only if they affect the next action, except
+protection: `rb-only` without a recorded `Branch protection: declined` always goes under Needs
+you (rockbuilt #64: a merge in the GitHub UI skips `rb merge-gate`). A
 GitHub Actions quota warning is always worth one line (without Actions, nothing merges). If
 progress.md is stale, offer to refresh it; write only on approval.
 

@@ -138,6 +138,9 @@ export function contractInfo(root) {
     parallel: headerField(text, 'Parallel') || 'auto',
     maxParallel: intField(text, 'Max parallel', 3),
     maxTasksPerRun: intField(text, 'Max tasks per run', 6),
+    // rockbuilt #64: the owner's recorded refusal of branch protection (it costs money on a
+    // private repo). Anything else, or no line, means protection is still pending.
+    protectionDeclined: /^declined\b/i.test(headerField(text, 'Branch protection') || ''),
     ...parseAutonomy(text),
   };
 }
