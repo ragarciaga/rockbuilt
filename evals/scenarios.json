@@ -696,7 +696,7 @@
         },
         {
           "type": "bashExcludes",
-          "pattern": "rb\\.mjs protect"
+          "pattern": "rb\\.mjs protect(?!\\s+--help)"
         },
         {
           "type": "worktreeClean"
