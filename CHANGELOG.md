@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.12.0 (2026-11-11)
+
+Small changes asked in a chat get a fast path that still reviews them (#55, #63). Before, a
+20-line change either paid the whole build loop (planner, implementer, verifier, auditor, about
+300k to 450k tokens and one CI run per task) or skipped every review.
+
+- **`/rb-quick`.** For small changes the owner asks for in a session. One batch issue
+  (`rb:task` + `rb:quick`) and one branch hold the requests. The session implements them itself,
+  with no planner and no implementer dispatch. After every change the Verification commands run,
+  judged by exit code, plus `rb secrets` and `rb risk`. When the batch is finished, one verifier,
+  one blind auditor (tier B) and, when the diff requires it, one security review check the whole
+  batch. Nothing is reported as done before that review passes; then the PR and the merge go
+  through `rb merge-gate` as usual.
+- **Limits decided by code.** `rb risk --json` returns `quick: { eligible, reasons, limits }`: tier
+  C, more than 400 changed lines or more than 12 files is not quick. Tier C goes to `/rb-build`
+  and waits for your approval. The gate refuses a PR marked `<!-- rockbuilt:quick -->` whose live
+  diff left the limits, even with `--human-approved`.
+- **Routing.** The project CLAUDE.md template says that every request that changes a file goes
+  through a skill, also in a chat. `rb vendor` does not rewrite an existing CLAUDE.md, so `rb
+  doctor` warns when the line is missing and prints it: copy it into your CLAUDE.md.
+- `rb-status` lists open quick batches that nobody has reviewed yet. New label `rb:quick` (`rb
+  labels` creates it). The verifier knows `Mode: quick`: the issue's criteria are the plan, and
+  any change no criterion asks for is a finding.
+- Update a project with `rb vendor`, then `rb labels`, and add the routing line `rb doctor` prints.
+
 ## 0.11.1 (2026-11-01)
 
 Two guard weaknesses the 2brain-logic security reviewer found; both predate 0.11.0.

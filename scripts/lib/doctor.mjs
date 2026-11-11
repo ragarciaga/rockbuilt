@@ -9,6 +9,10 @@ import { defaultBranch, originSlug } from './repo.mjs';
 import { missingPlaywrightDeps } from './vendor.mjs';
 import { exists, pluginRoot, readText, repoRoot, run } from './util.mjs';
 
+// The routing line of harness/project/CLAUDE.md (rockbuilt #55); doctor prints it for projects
+// whose CLAUDE.md predates it. A test keeps both copies equal.
+export const ROUTING_RULE = '- Route every request that changes a file through a skill, also in a chat: small change `/rb-quick`, bug `/rb-fix`, task issue `/rb-build`, new feature `/rb-spec`. A question or an explanation changes nothing and needs none. Never report a change as done before its review passed.';
+
 const pass = (name, detail) => ({ status: 'PASS', name, detail });
 const warn = (name, detail) => ({ status: 'WARN', name, detail });
 const fail = (name, detail) => ({ status: 'FAIL', name, detail });
@@ -33,6 +37,9 @@ function checkContract(root) {
     const claude = readText(path.join(root, 'CLAUDE.md'));
     if (claude === null) out.push(warn('CLAUDE.md', 'missing; Claude Code needs a CLAUDE.md containing "@AGENTS.md"'));
     else if (!/@AGENTS\.md/.test(claude)) out.push(warn('CLAUDE.md', 'does not import @AGENTS.md'));
+    // rockbuilt #55: rb vendor never rewrites an existing CLAUDE.md, so older projects lack the
+    // routing rule and chat requests skip every review.
+    if (claude !== null && !/\/rb-quick\b/.test(claude)) out.push(warn('CLAUDE.md', `no routing rule, so chat requests that change files skip every review; add this line under "## Claude Code notes": ${ROUTING_RULE}`));
   } else {
     out.push(warn('AGENTS.md', 'missing: CLAUDE.md holds the v0.2 contract; move it to AGENTS.md (rb-adopt)'));
   }

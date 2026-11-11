@@ -84,7 +84,8 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Instalar o actualizar Rockbuilt en el repo | `/rockbuilt:install` |
 | Funcionalidad nueva o cambio grande | `/rb-spec` (el resto lo hace solo) |
 | Arreglar un bug | `/rb-fix` |
-| Cambio pequeño y acotado | Crea un issue con la etiqueta `rb:task`; el ciclo lo toma |
+| Cambio pequeño que pides en el chat ("agrega", "cambia", "quita") | `/rb-quick`, o simplemente pídelo |
+| Cambio pequeño para el ciclo nocturno | Crea un issue con la etiqueta `rb:task`; el ciclo lo toma |
 | Avanzar el backlog ahora | `/rb-build` (o `/rb-cycle` para una pasada completa) |
 | Probar una funcionalidad completa (E2E, evals, seguridad) | `/rb-verify` |
 | Fusionar un PR de nivel C, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
@@ -94,6 +95,25 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Cerrar una funcionalidad o reportar algo del harness | `/rb-retro` |
 
 Si no sabes cuál aplica, describe lo que quieres. Rockbuilt propone el camino y tú confirmas.
+
+## Cambios rápidos (`/rb-quick`)
+
+Para lo que pides en el chat ("agrega una opción", "cambia este texto", "ponle un límite"). No
+hace falta nombrar el comando.
+
+- La sesión abre un issue de lote (`rb:quick`) y una rama. Implementa ella misma, sin planner ni
+  implementer.
+- Después de cada cambio corren las pruebas y el lint (juzgados por el código de salida) y
+  `rb risk`.
+- Cuando termina lo que pediste, un verifier y un auditor ciego revisan el lote completo una sola
+  vez (más la revisión de seguridad si el diff la exige). Solo entonces te dice que está listo,
+  con el PR.
+- Si el cambio es nivel C (dependencias, auth, pagos, CI, costos) o el lote pasa de 400 líneas o
+  12 archivos, sale del modo rápido: lo planea `/rb-build` y tú apruebas. El merge-gate rechaza
+  un PR de lote que creció por encima del límite.
+
+En proyectos que ya tenían Rockbuilt, `rb doctor` avisa si a tu `CLAUDE.md` le falta la línea que
+manda estos pedidos por un skill, y te la muestra para que la copies.
 
 ## Los tres niveles de autonomía
 

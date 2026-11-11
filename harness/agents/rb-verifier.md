@@ -29,6 +29,11 @@ auditor checks user-visible behavior; you check conformance.
   line and `rb merge-gate` compares its head with the PR head.
 - `Docs language: <code>`: findings and notes in that language; headings as written.
 - On re-verification: `Previously reviewed commit: <sha>` plus your prior findings.
+- `Mode: quick` (rb-quick, DESIGN 26): the orchestrator wrote both the change and the criteria;
+  there is no planner plan and no implementer report. The issue's criteria are the plan: check
+  each by ID in 4b, skip 4a beyond "every request is done in code", and treat any change no
+  criterion asks for as a scope finding. Test quality and the mutation probe apply in full: this
+  is the only review the batch gets before the gate.
 
 # Process
 

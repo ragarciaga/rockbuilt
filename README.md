@@ -213,6 +213,7 @@ You do not need the command names. These work in any session:
 | "new feature: ..." | `/rb-spec`, then `/rb-tasks` on its own |
 | "build", "build issue 12", "build without merging" | `/rb-build`, right now, no routine needed |
 | "fix this bug: ..." | `/rb-fix` (failing test first) |
+| "add X", "change Y", any small change | `/rb-quick` (you implement nothing; it batches the changes and reviews the batch once before saying done) |
 | "verify the feature" | `/rb-verify` (E2E, security, evals) |
 | "merge PR 12", "revert PR 12" | `/rb-merge` |
 | "where are we", "what happened last night" | `/rb-status` |
@@ -349,7 +350,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.11.1. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.12.0. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything

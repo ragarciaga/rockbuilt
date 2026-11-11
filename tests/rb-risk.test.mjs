@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { matchGlob } from '../scripts/lib/glob.mjs';
-import { classify, packageDepChanges, parseUnifiedDiff } from '../scripts/lib/risk.mjs';
+import { QUICK_LIMITS, classify, packageDepChanges, parseUnifiedDiff, quickCheck, riskText } from '../scripts/lib/risk.mjs';
 import { REPO, cleanup, commitAll, emptyState, fakeGh, rbJson, repoWith, sh, write } from './rb-helpers.mjs';
 
 after(cleanup);
@@ -278,4 +278,26 @@ test('cost scan: hosts in config files count; namespaces and look-alike names do
   assert.equal(c('src/striped.css', '.a{}'), 'A');
   assert.equal(c('src/lib/stripe-client.ts', 'x'), 'C');
   assert.equal(c('locales/es/messages.json', '{"a": "https://help.site.io"}'), 'A');
+});
+
+test('quick mode (#63): eligible within the limits on tier A and B; tier C, size and file count leave it', async () => {
+  const root = base();
+  let r = await rbJson(root, ['risk', '--files', 'src/a.ts,README.md']);
+  assert.equal(r.json.quick.eligible, true);
+  assert.deepEqual(r.json.quick.limits, QUICK_LIMITS);
+  r = await rbJson(root, ['risk', '--files', 'package.json,src/cli.js']);
+  assert.equal(r.json.quick.eligible, false);
+  assert.match(r.json.quick.reasons[0], /^tier C .*rb-build/);
+  // Git mode: the real diff decides, tests included.
+  write(root, 'src/big.js', `${'export const x = 1;\n'.repeat(QUICK_LIMITS.lines + 1)}`);
+  commitAll(root, 'big');
+  r = await rbJson(root, ['risk', '--base', 'main']);
+  assert.equal(r.json.tier, 'B');
+  assert.equal(r.json.quick.eligible, false);
+  assert.match(r.json.quick.reasons.join(' '), /changed lines \(> 400\)/);
+  assert.match(riskText(r.json), /quick mode: not eligible/);
+  // The security review does not leave quick mode: it runs once on the batch.
+  assert.equal(quickCheck({ tier: 'B', changedLines: 10, files: ['a', 'b'], security: { required: true } }).eligible, true);
+  const many = Array.from({ length: QUICK_LIMITS.files + 1 }, (_, i) => `src/f${i}.js`);
+  assert.deepEqual(quickCheck({ tier: 'B', changedLines: 26, files: many }).reasons, [`${many.length} files (> ${QUICK_LIMITS.files})`]);
 });

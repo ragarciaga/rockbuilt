@@ -405,8 +405,29 @@ export function gitDiffFiles(root, baseRef) {
   return { from, files };
 }
 
+// DESIGN 26 (quick mode, rockbuilt #63): a batch the session implements without a planner stays
+// small enough for one review of the whole diff. Tests count: the reviewers read them too.
+export const QUICK_LIMITS = { lines: 400, files: 12 };
+
+export function quickCheck(r) {
+  const reasons = [];
+  if (r.tier === 'C') {
+    const why = (r.reasons || []).filter((x) => x.rule !== 'tier-b').slice(0, 3).map((x) => `${x.rule} ${x.path || ''}`.trim()).join('; ');
+    reasons.push(`tier C${why ? ` (${why})` : ''}: plan it with /rb-build, the owner approves`);
+  }
+  if ((r.changedLines || 0) > QUICK_LIMITS.lines) reasons.push(`${r.changedLines} changed lines (> ${QUICK_LIMITS.lines})`);
+  const n = (r.files || []).length;
+  if (n > QUICK_LIMITS.files) reasons.push(`${n} files (> ${QUICK_LIMITS.files})`);
+  return { eligible: reasons.length === 0, reasons, limits: QUICK_LIMITS };
+}
+
 // rb risk entry point. mode: { files } | { pr } | { base }.
-export function computeRisk(root, { files: fileList, pr, base, gh } = {}) {
+export function computeRisk(root, opts = {}) {
+  const r = computeTier(root, opts);
+  return { ...r, quick: quickCheck(r) };
+}
+
+function computeTier(root, { files: fileList, pr, base, gh } = {}) {
   const autonomy = contractInfo(root);
   if (fileList && fileList.length) {
     const files = fileList.map((p) => ({ path: normalizePath(p), status: 'modified', additions: 0, deletions: 0, added: null }));
@@ -445,6 +466,7 @@ function summary(files) {
 export function riskText(r) {
   const lines = [`tier ${r.tier}  (${r.source}${r.pr ? ` #${r.pr}` : ''}${r.base ? ` vs ${r.base}` : ''}, ${r.files.length} file(s), ${r.changedLines} changed lines)`];
   for (const x of r.reasons) lines.push(`  ${x.rule.padEnd(26)} ${x.path || '-'}  ${x.detail}`);
+  if (r.quick) lines.push(r.quick.eligible ? `quick mode: within limits (${r.changedLines}/${r.quick.limits.lines} lines, ${r.files.length}/${r.quick.limits.files} files)` : `quick mode: not eligible (${r.quick.reasons.join('; ')})`);
   if (r.security) lines.push(r.security.required ? `security review: required (${r.security.reasons.slice(0, 4).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')})` : 'security review: not required by the diff');
   return lines.join('\n');
 }
