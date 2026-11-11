@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.1 (2026-11-11)
+
+"Update rockbuilt" now finishes the project-side steps of 0.12.0 and 0.13.0 instead of leaving
+them to the CHANGELOG.
+
+- After vendoring, the update runs `rb doctor`. When CLAUDE.md lacks the routing line, it appends
+  that one line under `## Claude Code notes` in the same PR (the only project file an update
+  touches, and it only adds). When branch protection is off and free, it runs `rb protect` on
+  your yes; when it needs GitHub Pro, it asks and records a refusal in the AGENTS.md header.
+- It does this even when the harness files are already current, so a project updated to 0.12.0
+  or 0.13.0 by hand gets them on the next "update rockbuilt".
+
 ## 0.13.0 (2026-11-11)
 
 The harness can no longer stay off in a project, and branch protection can no longer stay off

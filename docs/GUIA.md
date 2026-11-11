@@ -28,9 +28,11 @@ Rockbuilt se copia dentro del repo (`tools/rockbuilt/`, `.claude/skills/rb-*`,
 cargan plugins, y también Cursor. Al final te muestra qué cambió, lo sube en una rama y abre el
 PR; ese PR lo fusionas tú.
 
-**Actualizar** es lo mismo: `/rockbuilt:install` (o "actualiza rockbuilt"). No pregunta nada,
-copia la versión nueva y abre el PR. Tus archivos (`AGENTS.md`, `CLAUDE.md`, `docs/`,
-`LESSONS.md`) nunca se sobrescriben. Revisa el [CHANGELOG](../CHANGELOG.md): algunas versiones
+**Actualizar** es lo mismo: `/rockbuilt:install` (o "actualiza rockbuilt"). Copia la versión
+nueva y abre el PR. Tus archivos (`AGENTS.md`, `CLAUDE.md`, `docs/`, `LESSONS.md`) nunca se
+sobrescriben. Hay una excepción: si a `CLAUDE.md` le falta la línea que manda los pedidos del chat
+por un skill, la agrega (solo esa línea, en el mismo PR). Además, si la protección de la rama está
+apagada y es gratis, te pregunta si la activa. Revisa el [CHANGELOG](../CHANGELOG.md): algunas versiones
 piden un paso a mano. Desde la 0.4.0, por ejemplo, el prompt de cada rutina termina en
 `[rockbuilt:unattended]`, y las rutinas creadas antes hay que editarlas.
 

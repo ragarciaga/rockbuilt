@@ -95,8 +95,22 @@ when `.codex/hooks.json` exists). Type and language come from AGENTS.md, so do n
 node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs" vendor --tools claude[,cursor][,codex]
 ```
 
-If the user asked to add a tool ("agrega cursor"), add it to `--tools`. If every harness file is
-`unchanged`, say the project already has this version (`tools/rockbuilt/VERSION`) and stop.
+If the user asked to add a tool ("agrega cursor"), add it to `--tools`.
+
+Then `node tools/rockbuilt/rb.mjs doctor` and apply what an update owes the project, even when
+every harness file is `unchanged` (a project updated before 0.13.1 still lacks them):
+
+- **Routing line** (a `CLAUDE.md` WARN that names "no routing rule"): add the line doctor prints
+  under `## Claude Code notes` in CLAUDE.md (create the heading at the end if missing). It is the
+  only edit an update makes to a project file: one appended line, nothing rewritten. Without it,
+  chat requests skip `/rb-quick` and every review.
+- **Branch protection** (`protection` WARN): when doctor says `rb-only: branch not protected`, it
+  is free on this repo; after the PR question, run `node tools/rockbuilt/rb.mjs protect` on the
+  user's yes. When it needs GitHub Pro, it is a cost: say so, and on a refusal add
+  `Branch protection: declined (<date>, <reason>)` to the AGENTS.md header in the same PR.
+
+Only when every harness file is `unchanged` and neither item applies, say the project already
+has this version (`tools/rockbuilt/VERSION`) and stop.
 
 ## 4. Show what changed
 
@@ -109,6 +123,7 @@ manifests) and merges `.claude/settings.json` and `.mcp.json`. Summarize its out
 - Created, updated (count per folder: `tools/rockbuilt`, `.claude/skills`, `.claude/agents`),
   merged JSON files, skipped project files.
 - Every `WARN`, `PENDING` and `MISSING` line, verbatim, with what to do about it.
+- The routing line added to CLAUDE.md and the protection decision, when section 3 applied them.
 - `next:` lines (for web: `npm install -D -E @playwright/test @playwright/mcp` and
   `npx playwright install chromium`). Adding dependencies is tier C: do not run them here; the
   skeleton issue or the user does.
@@ -133,6 +148,7 @@ git commit -m "chore: install Rockbuilt <version>"      # or "chore: update Rock
 ```bash
 git push -u origin chore/rockbuilt-<version>
 node tools/rockbuilt/rb.mjs labels
+node tools/rockbuilt/rb.mjs protect      # only on the user's yes, when section 3 found it free
 node tools/rockbuilt/rb.mjs gh pr-create --head chore/rockbuilt-<version> --base <default branch> --title "chore: Rockbuilt <version>" --body-file <tmp body> --label rb:tier-c
 ```
 
