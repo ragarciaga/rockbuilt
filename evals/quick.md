@@ -31,7 +31,8 @@ issue the session creates is #1.
      test itself.
   4. Runs the Verification commands and `rb risk --base origin/main --json` before any review.
   5. Dispatches `rb-verifier` once and `rb-auditor` once (the CLI change is tier B), and nothing
-     else: at most 2 dispatches. The security review is not required (a CLI flag parser is not
+     else: at most 4 dispatches (one each, plus a re-review after each of the 2 kickbacks the
+     budget allows). The security review is not required (a CLI flag parser is not
      attack surface, DESIGN 25.2).
   6. Posts both verdicts on issue #1.
   7. Opens one PR whose body carries `<!-- rockbuilt:quick -->`, the task marker and both status

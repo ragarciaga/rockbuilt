@@ -256,12 +256,15 @@ export function runCheck(check, ctx) {
       // GitHub simulator: some pull request body matches the pattern (`absent: true`: none does).
       const st = ctx.env ? JSON.parse(readFileSync(ctx.env.RB_GH_STATE, 'utf8')) : { pulls: {} };
       const re = toRegExp(check.pattern);
-      const hit = Object.values(st.pulls || {}).find((x) => re.test(x.body || ''));
+      // The simulator keeps a PR's body on its issue record (GitHub's model), not on the pull.
+      const bodyOf = (x) => x.body || (st.issues && st.issues[x.number] ? st.issues[x.number].body : '') || '';
+      const hit = Object.values(st.pulls || {}).find((x) => re.test(bodyOf(x)));
       if (check.absent) return { ok: !hit, detail: hit ? `#${hit.number} matches /${check.pattern}/` : 'no PR matches' };
       return { ok: Boolean(hit), detail: hit ? `#${hit.number}` : `${Object.keys(st.pulls || {}).length} PR(s), none match /${check.pattern}/` };
     }
     case 'maxAgents': {
-      // At most n subagent dispatches in the whole run (quick mode: rockbuilt #63, 0.12.0).
+      // At most n subagent dispatches in the whole run (quick mode: rockbuilt #63, 0.12.0). A re-review
+      // after a kickback counts, so the limit leaves room for the kickback budget.
       return { ok: d.agents.length <= check.max, detail: `${d.agents.length} dispatch(es): ${d.agents.join(', ') || 'none'}` };
     }
     case 'ghNoUpdates': {
