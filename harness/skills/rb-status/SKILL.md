@@ -55,6 +55,8 @@ GitHub reads go through `rb gh <op>` (REST, JSON); never `gh issue`, `gh pr` or 
    - `rb gh issue-list --label rb:blocked --state open`
    - `rb gh issue-list --label rb:in-progress --state open`
    - `rb gh issue-list --label rb:task --state open` and `--label rb:bug`
+   - `rb gh issue-list --label rb:quick --state open`: a quick batch (`/rb-quick`) with no PR,
+     or whose PR lacks a passing verifier line, is work that nobody reviewed yet.
    - `rb gh pr-list --state open --head-prefix rb/`; for each: labels (tier), and
      `rb gh checks <head sha>` only for PRs you will mention.
    For each escalation, `rb gh issue-view <n>` and take the latest escalation comment: the
@@ -82,6 +84,7 @@ Take the first rule that matches:
 | Tier C PR waiting (`rb:tier-c`, or any PR under `Autonomy: supervised`) | Review PR #n; merge it, or say "merge PR #n" to `/rb-merge` |
 | Baseline has new failures on the default branch | The stabilization issue, or `/rb-fix` |
 | Uncommitted non-bookkeeping files on the default branch | Move them to a branch and PR (never push to the default branch) |
+| Open quick batch not reviewed (`rb:quick`) | `/rb-quick` to close it: one review of the batch, then the PR; never call it done before |
 | Lock held and fresh | A run is in progress: wait for its digest |
 | Spec with requirements or design `draft` | `/rb-spec <folder>` to finish approval |
 | Spec PR (`rb/spec-*`) open | Merge it so the cycle can build its tasks |

@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { main } from '../scripts/rb.mjs';
 import { sectionCommands } from '../scripts/lib/contract.mjs';
-import { runDoctor } from '../scripts/lib/doctor.mjs';
+import { ROUTING_RULE, runDoctor } from '../scripts/lib/doctor.mjs';
 import { planBatches } from '../scripts/lib/parallel.mjs';
 import { coverage, parseRequirements, parseTasks, taskProblems } from '../scripts/lib/spec.mjs';
 import { aggregate, renderTable } from '../scripts/lib/timing.mjs';
@@ -604,6 +604,22 @@ test('doctor: gh unauthenticated is a FAIL line; CLAUDE.md problems are reported
   assert.equal(byName['verification commands'], 'FAIL');
   assert.equal(byName['contract header'], 'WARN');
   assert.equal(byName['.gitignore'], 'WARN');
+});
+
+test('doctor (#55): warns when CLAUDE.md lacks the routing rule; the rule matches the template', () => {
+  const root = makeRepo({ claudeMd: '@AGENTS.md\n' });
+  writeFileSync(path.join(root, 'AGENTS.md'), CLAUDE_MD);
+  const routing = (r) => r.checks.filter((c) => c.name === 'CLAUDE.md' && /routing rule/.test(c.detail));
+  const gh = () => ({ installed: true, authenticated: true, detail: 'ok' });
+  let r = runDoctor(root, { ghStatusFn: gh });
+  assert.equal(routing(r).length, 1);
+  assert.equal(routing(r)[0].status, 'WARN');
+  assert.ok(routing(r)[0].detail.includes(ROUTING_RULE));
+  writeFileSync(path.join(root, 'CLAUDE.md'), `@AGENTS.md\n\n## Claude Code notes\n${ROUTING_RULE}\n`);
+  r = runDoctor(root, { ghStatusFn: gh });
+  assert.equal(routing(r).length, 0);
+  const template = readFileSync(fileURLToPath(new URL('../harness/project/CLAUDE.md', import.meta.url)), 'utf8');
+  assert.ok(template.split('\n').includes(ROUTING_RULE), 'harness/project/CLAUDE.md carries ROUTING_RULE verbatim');
 });
 
 test('doctor: authenticated gh without a GitHub remote passes with a WARN', () => {

@@ -108,7 +108,7 @@ fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs"`. Never rely on PATH.
 ### 3.4 Names
 
 Skills: `rb-kickoff`, `rb-adopt`, `rb-spec`, `rb-tasks`, `rb-build`, `rb-cycle`, `rb-fix`,
-`rb-verify`, `rb-merge`, `rb-status`, `rb-retro`. Invoked as `/rb-build` etc.
+`rb-quick`, `rb-verify`, `rb-merge`, `rb-status`, `rb-retro`. Invoked as `/rb-build` etc.
 Agents: `rb-scout`, `rb-planner`, `rb-task-reviewer`, `rb-implementer`, `rb-verifier`,
 `rb-auditor`, `rb-e2e-writer`, `rb-healer`, `rb-security-reviewer`. Dispatched with
 `subagent_type: "rb-<name>"`.
@@ -597,6 +597,7 @@ Unchanged from v0.2 except:
 | Prototype or demo with a deadline | `Mode: prototype` in the issue: no spec, verifier and auditor still run, tier rules still apply |
 | Bug | rb-fix (reproduction first; manual reproduction with evidence when automation is impossible) |
 | Small bounded change | an `rb:task` issue; the cycle takes it |
+| Small change the owner asks for in a session | rb-quick (section 26): one batch, mechanical check per change, one review of the batch before "done" |
 | Refactor | short spec with "behavior unchanged" |
 
 ## 17. Baseline ratchet
@@ -824,6 +825,14 @@ documents it.
    #43: a bookkeeping merge forced the auditor and security reviewer to restate verdicts on a task
    whose diff had not changed. Also PR #40: the CI template ran Node 22 whatever `.nvmrc` said.
    Section 25.
+22. 2026-11-10, 2brain-logic on 0.11.1 and comms-reporting, issues #55 and #63, and the owner on
+   2026-11-11: most work arrived as chat requests ("build it", "fix it", "add a restart policy").
+   No skill fit "the owner asks, change now", so 13 PRs in two days (2brain-logic) and 12 PRs
+   (comms-reporting) went in with no task issue, no reviewer and no timing, merged by hand in the
+   GitHub UI; one carried a lint error judged passing from the last output line. The two reviews a
+   session started on its own found 5 and 8 real defects. The owner's complaint was the other
+   side: simple tasks took hours and too many tokens, because every task paid the whole loop
+   (section 20.20: 300k to 450k tokens per task). Section 26.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -846,7 +855,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `review-delta --reviewed <sha> [--base <ref>] [--line --task <id>]` | Section 8.3: `identical`, `test-only` (exit 0) or `different` (exit 3), comparing file content at both heads over every path the task touched (tasks.md and progress.md differences ignored, LESSONS.md not), then the task's own per-file patches (section 24.5). `--line` prints the verifier identity line when identical and only merges follow the old head (exit 3 otherwise) |
 | `verify-cmds E2E --only <specs> [--grep <t>]` | Local runs: the suite command with only those spec files and title pattern (never the whole suite locally; CI runs it) |
 | `flaky record <test> [--pr <n>] [--note t] \| list` | Flaky candidates as marked comments on the control issue; `list` counts them across rotated control issues |
-| `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}],"security":{"required","reasons":[{"path","detail"}]}}` (section 25.2) |
+| `risk [--pr <n>] [--base <ref>] [--files a,b] ` | Tier from a diff: `{"tier":"A|B|C","reasons":[{"rule","path","detail"}],"security":{"required","reasons":[{"path","detail"}]},"quick":{"eligible","reasons","limits":{"lines","files"}}}` (sections 25.2 and 26) |
 | `sync [--run <id>]` | Mark tasks done from merged PRs (via issue marker or branch name), clean merged local branches, repair labels; with the lock, clear `rb:in-progress` claims with no activity since the lock and none in the last 3 hours (section 24.1) |
 | `claim <issue> --run <id> [--release \| --take]` | Section 24.1: label plus claim comment; exit 3 when another run holds a fresh claim (or, for `--release`, when this run is not the holder). `--take` only after the user confirmed |
 | `ci wait <sha> [--timeout <min>] \| logs <sha> [--job <name>] [--tail <n>]` | `wait`: until `rockbuilt-ci` (and `rockbuilt-e2e` when the project has E2E) exist and every check completed; exit 0 green, 1 red, 3 still running. `logs`: the failing job's log tail, or its annotations when the log is not readable |
@@ -877,7 +886,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 An unknown flag is a usage error (exit 2), never ignored. `pr-create` adds `rb:tier-x` from the
 body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one. Run on the PR's head branch, it raises the marker and the label to `rb risk` of the real diff when that is higher (section 24.4).
 
-Labels (exact): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:blocked`, `rb:in-progress`,
+Labels (exact): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:quick`, `rb:blocked`, `rb:in-progress`,
 `rb:pr-open`, `rb:tier-a`, `rb:tier-b`, `rb:tier-c`, `rb:needs-human`, `rb:needs-local`,
 `rb:approved`, `rb:hold`, `rb:stop`, `rb:running`, `rb:control`.
 
@@ -1085,3 +1094,39 @@ which reviewers a diff needs (evidence 20.20).
    task's minutes as the PR's timing line, so they reach GitHub without `rb timing line`.
    `rb timing report` warns about task PRs merged in the last 14 days with no minutes anywhere.
 
+## 26. Quick mode (0.12.0)
+
+A small change the owner asks for in a session goes through `rb-quick` (evidence 20.22). The
+review is the one every tier B task gets; what changes is who implements and how often the review
+runs.
+
+1. **Routing.** The project CLAUDE.md says that every request that changes a file goes through a
+   skill (`rb-quick`, `rb-fix`, `rb-build`, `rb-spec`), also in a chat. `rb vendor` never rewrites
+   an existing CLAUDE.md, so `rb doctor` warns when the line is missing and prints it.
+2. **Batch.** One `rb:task` + `rb:quick` issue (`Mode: quick`, one checkable criterion per request)
+   and one branch `rb/Q<n>-<slug>` hold the requests of a session until the session would report
+   them done. Requests that arrive during the review go to the next batch. A batch left open is an
+   ordinary `rb:task` for the cycle (full path) and `rb-status` lists it as unreviewed work.
+3. **No planner, no implementer dispatch.** The session implements and writes the tests. That is
+   allowed because it never reviews: principle 2 forbids grading your own work, not writing it.
+4. **Cheap checks on every change, the review once.** After each request: the Verification
+   commands judged by exit code, `rb secrets`, and `rb risk --base origin/<default> --json`. At
+   close: `rb-verifier` in `Mode: quick` (the issue's criteria are the plan; changes no criterion
+   asks for are scope findings; mutation probe in full), `rb-auditor` on tier B,
+   `rb-security-reviewer` when the diff requires it. Kickbacks, carried reviews (8.3), the PR,
+   timing and the merge train are as in rb-fix. Nothing is reported done before the review passes.
+5. **Limits, decided by code.** `rb risk` returns `quick: { eligible, reasons, limits }`: tier C
+   or more than 400 changed lines or 12 files is not quick. The session checks the planned files
+   before editing and the real diff after every change; tier C goes to `rb-build` (the owner
+   approves the plan), a batch over the limits closes and the rest starts a new one. The security
+   review does not leave quick mode: it runs once on the batch. Tests count toward the limit
+   because the reviewers read them.
+6. **The gate.** A PR body with `<!-- rockbuilt:quick -->` merges only while the live diff is
+   within the limits (reason `quick`), even with `--human-approved`. The marker is the session's
+   own claim: a PR without it is an ordinary task PR, and the floor that matters (tier C, review
+   lines, CI) is enforced either way.
+7. **Declined.** Running the verifier per change (the suggestion in #63) keeps the per-task cost
+   that made simple work slow. Dropping the auditor for small changes stays declined (25.4).
+   A guard that denies edits under `src/` without a claim (#55) was declined: false positives in
+   every session that only reads or explains. Unattended runs do not use quick mode: their tasks
+   come with a plan from a spec.

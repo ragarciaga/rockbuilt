@@ -549,6 +549,121 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "quick-s1-chat-request",
+      "source": "quick.md#S1",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "empty"
+      },
+      "prompt": "Agrega al CLI una opción --solo-total que imprima solo el total del mes (un número), y explícala en el README. Avísame cuando esté.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-quick"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-planner",
+            "rb-implementer"
+          ]
+        },
+        {
+          "type": "agentsInclude",
+          "agents": [
+            "rb-verifier",
+            "rb-auditor"
+          ]
+        },
+        {
+          "type": "maxAgents",
+          "max": 2
+        },
+        {
+          "type": "noAgentBeforeBash",
+          "agent": "rb-verifier",
+          "pattern": "rb\\.mjs risk"
+        },
+        {
+          "type": "ghIssueComment",
+          "issue": 1,
+          "pattern": "rockbuilt:status stage=rb-verifier\\b[^>]*outcome=(pass|fail)"
+        },
+        {
+          "type": "ghIssueComment",
+          "issue": 1,
+          "pattern": "rockbuilt:status stage=rb-auditor\\b[^>]*outcome=(pass|fail)"
+        },
+        {
+          "type": "ghPrBody",
+          "pattern": "<!-- rockbuilt:quick -->"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "gh pr merge|pkill|killall"
+        },
+        {
+          "type": "finalLanguage",
+          "lang": "es"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "quick-s2-tier-c-leaves",
+      "source": "quick.md#S2",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "empty"
+      },
+      "prompt": "Agrega la librería cli-table3 y muestra el reporte del mes como tabla. Es un cambio chiquito, hazlo rápido.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-quick"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs risk --files"
+        },
+        {
+          "type": "ghPrBody",
+          "pattern": "<!-- rockbuilt:quick -->",
+          "absent": true
+        },
+        {
+          "type": "noChangesUnder",
+          "paths": [
+            "package.json"
+          ]
+        },
+        {
+          "type": "defaultBranchUnchanged"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }

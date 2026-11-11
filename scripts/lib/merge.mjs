@@ -54,7 +54,8 @@ export function parseBody(body) {
   const security = /<!--\s*rockbuilt:security\s+required\s*-->/i.test(body || '') || /^\s*security:\s*required\s*$/mi.test(body || '');
   const closes = [...String(body || '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map((m) => Number(m[1]));
   const partOf = [...String(body || '').matchAll(/\bpart of\s+#(\d+)/gi)].map((m) => Number(m[1]));
-  return { status, tier: tier ? tier.toUpperCase() : null, security, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
+  const quick = /<!--\s*rockbuilt:quick\s*-->/i.test(body || '');
+  return { status, tier: tier ? tier.toUpperCase() : null, security, quick, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
 }
 
 function shaMatches(given, head) {
@@ -288,6 +289,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     if (!(allowC && lt === 'C')) no('risk', `rb risk says tier ${risk.tier} but the label is tier ${lt}: ${risk.reasons.filter((r) => r.rule !== 'tier-b').slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ')}`);
   }
   if (body.tier && lt && tierRank(body.tier) > tierRank(lt)) no('declared-tier', `body declares tier ${body.tier} but the label is tier ${lt}`);
+  // DESIGN 26: a quick batch (no planner) merges only while the live diff is within the quick
+  // limits; a batch that grew needs a plan (/rb-build) or a split, even with the owner's word.
+  if (body.quick && risk && risk.quick && !risk.quick.eligible) no('quick', `quick batch outside quick mode: ${risk.quick.reasons.join('; ')}. Split it, or plan the rest with /rb-build and drop <!-- rockbuilt:quick --> once rb-planner's plan is on the issue`);
   const tier = maxTier(lt || 'A', risk ? risk.tier : 'A', body.tier || 'A');
   if (tier === 'C' && !allowC) no('tier-c', 'tier C merges are human: the user merges or asks for it (--human-approved)');
 

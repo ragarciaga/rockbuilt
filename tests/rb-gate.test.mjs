@@ -145,6 +145,35 @@ test('merge-gate: label tier lower than the live risk, and declared tier above t
   assert.ok(r.json.reasons.some((x) => x.rule === 'declared-tier'));
 });
 
+test('merge-gate: a quick batch merges within the quick limits and is refused once it outgrew them (#63)', async () => {
+  const root = project();
+  const quickBody = `Closes #3\n<!-- rockbuilt:quick -->\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor')}\n<!-- rockbuilt:tier B -->\n`;
+  let gh = fakeGh();
+  seed(gh, { tier: 'B', body: quickBody });
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+
+  const big = { filename: 'src/feature.js', status: 'added', additions: 401, deletions: 0, patch: `@@\n${'+export const f = 1;\n'.repeat(401)}` };
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: quickBody, files: [big] });
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 3);
+  assert.deepEqual(reasonRules(r), ['quick']);
+  assert.match(r.json.reasons[0].detail, /401 changed lines/);
+  // Not even the owner's word merges it: the batch needs a plan or a split.
+  r = await gate(root, gh, ['--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('quick'));
+
+  // The same diff without the marker is an ordinary task PR.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: quickBody.replace('<!-- rockbuilt:quick -->\n', ''), files: [big] });
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+});
+
 test('merge-gate: blocking labels, draft, wrong base, not mergeable, no tier label', async () => {
   const root = project();
   const cases = [
@@ -224,7 +253,7 @@ test('lock: acquire, refuse while held, take over after 3 hours, release', async
     assert.equal(a.code, 0);
     assert.equal(a.json.control, 1);
     assert.deepEqual(gh.state.issues[1].labels.sort(), ['rb:control', 'rb:running']);
-    assert.equal(Object.keys(gh.state.labels).length, 16, 'labels ensured with the control issue');
+    assert.equal(Object.keys(gh.state.labels).length, 17, 'labels ensured with the control issue');
   });
   await withEnv({ RB_NOW: '2026-10-09T03:59:00.000Z' }, async () => {
     const b = await rbJson(root, ['lock', 'acquire', '--run', 'n2'], io);
@@ -313,7 +342,7 @@ test('rb gh ops: issue-view with comments and association, checks merge, labels-
   assert.deepEqual(checks.json.map((c) => [c.name, c.status, c.conclusion]), [['rockbuilt-ci', 'completed', 'success'], ['ci/legacy', 'completed', 'failure']]);
 
   const labels = await rbJson(root, ['labels'], io);
-  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 16);
+  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 17);
   assert.ok((await rbJson(root, ['gh', 'labels-ensure'], io)).json.every((l) => l.action === 'ok'));
 
   const pr = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-x', '--title', 'T1', '--body-file', path.join(dir, 'b.md'), '--label', 'rb:tier-a'], io);
@@ -397,6 +426,8 @@ test('parseBody: status lines (last one wins), tier, security and closing keywor
   assert.equal(b.status['rb-verifier'].outcome, 'pass');
   assert.equal(b.tier, 'B');
   assert.equal(b.security, true);
+  assert.equal(b.quick, false);
+  assert.equal(parseBody('<!-- rockbuilt:quick -->').quick, true);
   assert.deepEqual(b.closes, [4, 5]);
 });
 

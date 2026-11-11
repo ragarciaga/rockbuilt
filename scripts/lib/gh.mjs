@@ -8,6 +8,7 @@ export const LABELS = [
   { name: 'rb:task', color: '1d76db', description: 'Rockbuilt task from a spec' },
   { name: 'rb:skeleton', color: '5319e7', description: 'Walking skeleton task' },
   { name: 'rb:bug', color: 'd73a4a', description: 'Bug handled by the fix path' },
+  { name: 'rb:quick', color: 'c5def5', description: 'Quick batch: owner-requested small changes, one review per batch' },
   { name: 'rb:blocked', color: 'b60205', description: 'Failed after the kickback budget or cannot proceed' },
   { name: 'rb:in-progress', color: 'fbca04', description: 'Being planned or implemented' },
   { name: 'rb:pr-open', color: '0e8a16', description: 'Pull request open' },

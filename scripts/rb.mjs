@@ -42,7 +42,7 @@ export const COMMANDS = {
   worktree: 'add <task> [--base main] [--slug s] [--title t] [--spec dir] | remove <task> [--force] | list',
   timing: 'start|end <task> <phase> | line <task> [--est <hours>] [--pr <n>] | report [--write]',
   hours: 'Your attention hours by feature and task  [report] [--repos a/b,c/d] [--since d] [--until d] [--gap 10] [--tail 5] [--csv f] | log <minutes> [--ref T3] [--spec dir] [--at iso] [--note t] | mark|flush --hook',
-  risk: 'Autonomy tier of a diff  [--pr <n>] [--base <ref>] [--files a,b]',
+  risk: 'Autonomy tier of a diff, security need and quick-mode limits  [--pr <n>] [--base <ref>] [--files a,b]',
   bookkeeping: 'The day\'s bookkeeping PR: carry (apply the open one at run start) | save [--final] (push tasks.md, progress.md, LESSONS.md to rb/bookkeeping-<date>)  --run <id>',
   ci: 'CI on a commit: wait <sha> [--timeout <min>] (until rockbuilt-ci, and rockbuilt-e2e when the project has E2E, exist and every check completed; exit 0 green, 1 red, 3 timed out) | logs <sha> [--job <name>] [--tail <n>] (log tail, or annotations when the log is not readable)',
   browser: 'Print the Chromium executable for PW_CHROMIUM_PATH (exit 3 when none is found)',

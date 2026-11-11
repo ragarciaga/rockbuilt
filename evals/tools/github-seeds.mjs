@@ -113,4 +113,10 @@ export function carriedReview(ws) {
   return s;
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview };
+// No issues and no PRs: an owner request typed in the chat (quick mode, 0.12.0). The session
+// creates the task issue itself, so it is #1.
+export function empty() {
+  return baseState();
+}
+
+export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview, empty };

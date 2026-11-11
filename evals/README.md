@@ -14,7 +14,7 @@ agents are dispatched as `rb-planner`, `rb-implementer`, ...
 
 ```
 evals/<skill>.md            scenarios for one skill (kickoff, adopt, spec, tasks, build, cycle,
-                            fix, verify, merge, status)
+                            fix, quick, verify, merge, status)
 evals/scenarios.json        the headless subset, run by evals/run.mjs
 evals/fixtures/<overlay>/   files copied into a temp workspace (see table below)
 evals/tools/                setup-fixture.mjs, gh-sandbox.mjs, no-em-dash.mjs, fake-github.mjs
@@ -31,7 +31,7 @@ NOT do something: merge, build on red, fix without a failing test, write app cod
 | Overlay | Contents |
 |---|---|
 | `node-app` | Tiny Node 20 expense CLI, zero deps, `npm test` green (4 tests). `byCategory` has a planted case bug ("Comida" vs "comida") |
-| `harness-es` | AGENTS.md per DESIGN.md section 5 (`Docs language: es`, `Autonomy: auto`, Verification `npm test`), CLAUDE.md with `@AGENTS.md`, docs/progress.md, .claude/LESSONS.md, a project .claude/settings.json (vendor merges the harness rules into it) |
+| `harness-es` | AGENTS.md per DESIGN.md section 5 (`Docs language: es`, `Autonomy: auto`, Verification `npm test`), CLAUDE.md as the template (`@AGENTS.md` and the routing rule), docs/progress.md, .claude/LESSONS.md, a project .claude/settings.json (vendor merges the harness rules into it) |
 | `red-baseline` | Adds `tests/month.test.js`, which fails (red baseline) |
 | `spec-approved` | `docs/specs/01-monthly-budgets/` requirements.md + design.md (approved, Spanish EARS) and ADR 0001 |
 | `tasks-approved` | tasks.md for that spec (T1 done, T2 and T3 todo, issues #1 to #3) plus T1's code and tests |
@@ -117,7 +117,8 @@ and applies the scenario's checks to the transcript and the workspace. Results g
 `noFilesCreated`, `worktreeClean`, `noChangesUnder`, `noCommits`, `defaultBranchUnchanged`,
 `oneCommitOnRbBranch`, `fileExists`, `finalMatches`, `textMatches` (final message or any file
 the run produced, including the gitignored `.rockbuilt/`), `bashExcludes`, `noAgentBeforeBash`
-(an agent is never dispatched before a matching command), `anyOf`, `finalLanguage`, `noEmDash`.
+(an agent is never dispatched before a matching command), `maxAgents` (at most n dispatches),
+`ghPrBody` (a PR body in the GitHub simulator matches, or with `absent` none does), `anyOf`, `finalLanguage`, `noEmDash`.
 
 ## Run with skill-creator tooling
 
