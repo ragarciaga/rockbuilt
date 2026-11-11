@@ -314,6 +314,39 @@ test('control ensure is idempotent; stop status; escalate; digest', async () => 
   assert.match(gh.state.comments[first.json.number].at(-1).body, /^<!-- rockbuilt:digest at=.* -->\n## Resumen de la corrida/);
 });
 
+test('digest (#64): branch protection off stays at the end of every digest until fixed or declined', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const io = { ghRunner: gh.runner };
+  const bodyFile = path.join(tmp(), 'd.md');
+  writeFileSync(bodyFile, '## Resumen\n- nada\n');
+  const last = () => gh.state.comments[Object.keys(gh.state.comments).map(Number).sort((a, b) => a - b)[0]].at(-1).body;
+
+  // Free (public repo or paid plan) and off: run rb protect.
+  let d = await rbJson(root, ['digest', 'post', '--file', bodyFile], io);
+  assert.equal(d.code, 0, d.err);
+  assert.equal(d.json.standing.length, 1);
+  assert.match(last(), /\*\*Standing items \(until fixed\)\*\*\n- Branch protection is off and free on this repo: run `rb protect`/);
+
+  // Paid plan needed: the owner's decision, and how to record a refusal.
+  gh.state.protection = { mode: 'paywall' };
+  d = await rbJson(root, ['digest', 'post', '--file', bodyFile], io);
+  assert.match(last(), /needs GitHub Pro .*`Branch protection: declined`/);
+
+  // Declined in the AGENTS.md header: no item.
+  write(root, 'AGENTS.md', AGENTS.replace('Autonomy: auto\n', 'Autonomy: auto\nBranch protection: declined (2026-11-11, private repo, no GitHub Pro)\n'));
+  d = await rbJson(root, ['digest', 'post', '--file', bodyFile], io);
+  assert.deepEqual(d.json.standing, []);
+  assert.doesNotMatch(last(), /Standing items/);
+
+  // On: no item, whatever the header says.
+  write(root, 'AGENTS.md', AGENTS);
+  gh.state.protection = { mode: 'none' };
+  assert.equal((await rbJson(root, ['protect'], io)).code, 0);
+  d = await rbJson(root, ['digest', 'post', '--file', bodyFile], io);
+  assert.deepEqual(d.json.standing, []);
+});
+
 test('rb gh ops: issue-view with comments and association, checks merge, labels-ensure, pr-create', async () => {
   const root = project();
   const gh = fakeGh();
@@ -397,6 +430,13 @@ test('protect on a free private repo exits 3 with the cost explanation; doctor r
   assert.equal(byName['CI workflow'].status, 'WARN');
   assert.equal(byName['branch cleanup'].status, 'WARN');
   assert.match(byName['branch cleanup'].detail, /Automatically delete head branches/);
+  // #64: the owner's refusal, recorded in the header, is a decision, not a pending warning.
+  write(root, 'AGENTS.md', AGENTS.replace('Autonomy: auto\n', 'Autonomy: auto\nBranch protection: declined (no GitHub Pro)\n'));
+  const dd = await rbJson(root, ['doctor'], { ghRunner: gh.runner });
+  const prot = dd.json.checks.find((c) => c.name === 'protection');
+  assert.equal(prot.status, 'PASS');
+  assert.match(prot.detail, /^rb-only: declined by the owner/);
+  write(root, 'AGENTS.md', AGENTS);
   gh.state.protection = { mode: 'on', contexts: ['rockbuilt-ci'] };
   gh.state.deleteBranchOnMerge = true;
   await rbJson(root, ['labels'], { ghRunner: gh.runner });

@@ -119,7 +119,7 @@ test('floor: auth, permissions, payments, billing, stripe, policy, rls', async (
 });
 
 test('floor: infra, deploy and CI', async () => {
-  for (const f of ['.github/workflows/ci.yml', 'vercel.json', 'netlify.toml', 'Dockerfile', 'docker-compose.yml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'infra/main.tf']) {
+  for (const f of ['.github/workflows/ci.yml', 'vercel.json', 'netlify.toml', 'Dockerfile', 'docker-compose.yml', 'compose.yaml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'railway.json', 'railway.toml', 'infra/main.tf']) {
     const r = await tierOf(base(), { [f]: 'x\n' });
     assert.ok(rules(r).includes('infra-deploy-ci'), f);
   }

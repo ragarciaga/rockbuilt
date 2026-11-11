@@ -242,6 +242,12 @@ público, `rb protect` hace que GitHub mismo exija la CI: el check `rockbuilt-ci
 cuando el proyecto tiene E2E), sin exigir que el PR esté al día con main, porque esa regla
 bloquearía la cola de merges; el gate ya revisa el árbol que se va a fusionar.
 
+Si el repo es público, `/rb-kickoff` y `/rb-adopt` la activan, porque no cuesta nada. Si es
+privado, te preguntan. Mientras siga apagada, cada digest termina recordándotelo: un merge que
+haces en la interfaz de GitHub se salta el gate, y así entraron dos PRs con la CI en rojo en un
+proyecto real. Si decides no pagar GitHub Pro, escribe en el encabezado de `AGENTS.md`
+`Branch protection: declined (<fecha>, <motivo>)` y el aviso desaparece.
+
 ## Playwright (pruebas en el navegador)
 
 En proyectos web, Playwright viene desde el issue del esqueleto. La instalación deja la

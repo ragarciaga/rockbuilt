@@ -99,6 +99,13 @@ constraints, hosting, security and data sensitivity, and **operation** (Round E)
   auditan y fusionan solos si CI está verde. C (arquitectura, datos, auth, dependencias, infra,
   cualquier costo) espera tu decisión en un issue." Add that anything that can cost money always
   asks first, in every mode. Offer `supervised` (every PR waits for them) as the alternative.
+  **The harness is never deferred** (rockbuilt #54). "Activate it after the first version" or
+  "less ceremony for now" means `Autonomy: supervised` from day one, never a later vendoring: a
+  deferral written only in the brief was never acted on, and a month of production work ran with
+  no review. Say so in one sentence and record `supervised` instead.
+- **Branch protection.** On a public repo (or a paid plan) `rb protect` is free and becomes part
+  of this approval. On a private free repo it needs GitHub Pro (cost, tier C): ask, and record a
+  refusal as the header line `Branch protection: declined (<date>, <reason>)` in AGENTS.md.
 - **Paid services** already approved, each with a monthly cap, or `none`.
 
 Track every open point as **BLOCKING**, **ADVISORY** or **DEFERRED** (see the reference).
@@ -114,8 +121,8 @@ Present in the chat, in one message, in the user's language:
    of data storage, auth model, hosting that were decided.
 4. **First feature list:** 3 to 7 vertical features in build order, one line each. These become
    `/rb-spec` runs, not issues yet.
-5. **Operation:** tools, Autonomy mode, Paid services, and that the nightly cloud routine is
-   optional and set up by them.
+5. **Operation:** tools, Autonomy mode, Paid services, branch protection (on, or declined), and
+   that the nightly cloud routine is optional and set up by them.
 6. **Out of scope / v2** list and remaining ADVISORY defaults.
 
 No BLOCKING item may remain open. Ask for approval and iterate until the user approves
@@ -162,8 +169,10 @@ Read `references/setup.md` for exact commands and failure handling.
    AGENTS.md, `.claude/`, `.github/` and `tools/rockbuilt/`: tier C, the user merges it. If the
    remote has no commits yet (repo created by `gh repo create`), the user makes the first push
    from their terminal instead (setup.md section 6).
-8. `rb doctor` again. Baseline FAILs are expected until the skeleton is built; report other
-   FAILs with the fix, and its protection mode line (`github` or `rb-only`).
+8. `rb protect` when the approval included it (exit 3: the plan does not allow it; tell the user
+   and record their answer as above). Then `rb doctor` again. Baseline FAILs are expected until
+   the skeleton is built; report other FAILs with the fix, and its protection mode line (`github`,
+   or `rb-only` with the reason).
 
 ## Step 6: Handoff
 
@@ -175,10 +184,10 @@ Tell the user, in their language:
   (https://github.com/ragarciaga/rockbuilt/blob/main/docs/CLOUD.md). They create the routine in
   the Claude Code UI on this repo with a schedule (default 01:07 local time) and the exact
   prompt `Run /rb-cycle. [rockbuilt:unattended]` You cannot create it for them.
-- **Branch protection (option, their decision).** `rb protect` makes GitHub itself reject merges
-  without green CI. It works on public repos; on a private repo it needs GitHub Pro, which costs
-  money, so it is tier C: present it as an option with that cost, never enable or buy it on
-  your own. Without it, `rb merge-gate` enforces the gate (`rb doctor` shows `rb-only`).
+- **Branch protection.** On, or declined and recorded. While it is off and not declined, every
+  digest ends with it as a standing item: a merge in the GitHub UI skips `rb merge-gate`, and
+  that is how two red PRs reached the default branch in rockbuilt #64. Never buy GitHub Pro on
+  your own.
 - The next steps in order: merge the kickoff PR; the skeleton issue runs through `/rb-build #<n>`
   (or the nightly `/rb-cycle` picks it up); then `/rb-spec <first feature>`.
 

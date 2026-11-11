@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.13.0 (2026-11-11)
+
+The harness can no longer stay off in a project, and branch protection can no longer stay off
+silently (#54, #64). Two small fixes (#61, part of #56).
+
+- **Kickoff never defers the harness (#54).** "Activate it after the first version" now becomes
+  `Autonomy: supervised` from day one (every PR waits for you) instead of a line in the brief
+  nobody acts on. `/rb-adopt` also covers a project kicked off with Rockbuilt and never vendored.
+- **Branch protection is on, or declined on record (#64).** Kickoff and adopt run `rb protect`
+  when it is free (public repo or paid plan) and ask when it needs GitHub Pro. A refusal goes in
+  the AGENTS.md header as `Branch protection: declined (<date>, <reason>)`. Until then `rb digest
+  post` ends every digest with it as a standing item, decided by code, and `rb-status` lists it
+  under "Needs you". `rb doctor` shows a recorded refusal as a decision, not a warning.
+- **Deploy configs (#56).** `railway.json`, `railway.toml` and Compose's own `compose.yaml` /
+  `compose.yml` are tier C, like `docker-compose*`, and `rb doctor` lists Railway among the hosts
+  that may deploy every merge. The post-deploy check itself stays open in #56.
+- **README badge (#61).** It said 0.3.4 for eight releases; the selfcheck now compares it with
+  plugin.json.
+- Update a project with `rb vendor`.
+
 ## 0.12.0 (2026-11-11)
 
 Small changes asked in a chat get a fast path that still reviews them (#55, #63). Before, a

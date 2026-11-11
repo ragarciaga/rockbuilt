@@ -272,6 +272,10 @@ test('plugin.json and package.json versions match the top CHANGELOG entry', () =
   const readme = readFileSync(path.join(ROOT, 'README.md'), 'utf8').match(/^Version (\d+\.\d+\.\d+)\./m);
   assert.ok(readme, 'README.md has no "Version x.y.z." line');
   assert.equal(readme[1], plugin.version, 'README.md states another version: update the README with every release');
+  // rockbuilt #61: the shields.io badge drifted for eight releases while this line was checked.
+  for (const m of readFileSync(path.join(ROOT, 'README.md'), 'utf8').matchAll(/img\.shields\.io\/badge\/version-(\d+\.\d+\.\d+)-/g)) {
+    assert.equal(m[1], plugin.version, 'the README version badge states another version');
+  }
 });
 
 // ---------- style ----------

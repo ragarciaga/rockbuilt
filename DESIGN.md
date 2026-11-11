@@ -186,7 +186,7 @@ implementation and again by `rb merge-gate`.
 | Cost | in every code file, tests and evals included (they run in CI with real secrets): newly imported paid SDKs, new external API hosts, new env var names matching `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_API*` (destructured reads included). "New" means absent from the base outside the harness and prose (`tools/rockbuilt`, `.claude`, `.agents`, `.codex`, `.cursor`, `docs/`, `*.md`). A paid service listed under `Paid services` approves only the exact service key. A code file whose patch GitHub omits (too large) is C |
 | Data and schema | migrations and schema files (`**/migrations/**`, `prisma/schema.prisma`, `drizzle/**`, `supabase/**`, `**/*.sql`) |
 | Auth, permissions, payments, personal data | paths matching `**/auth/**`, `**/middleware.*`, `**/permissions/**`, `**/payments/**`, `**/billing/**`, `**/*stripe*`, `**/*policy*`, `**/rls*` |
-| Infra, deploy, CI | `.github/**`, `vercel.json`, `netlify.toml`, `Dockerfile*`, `docker-compose*`, `fly.toml`, `render.yaml`, `wrangler.toml`, `**/*.tf`, `supabase/config.toml` |
+| Infra, deploy, CI | `.github/**`, `vercel.json`, `netlify.toml`, `Dockerfile*`, `docker-compose*`, `compose.y(a)ml`, `fly.toml`, `render.yaml`, `wrangler.toml`, `railway.json`, `railway.toml`, `**/*.tf`, `supabase/config.toml` |
 | Harness and secrets | `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `.cursor/**`, `.codex/**`, `.agents/**`, `tools/rockbuilt/**`, `docs/rockbuilt/**` (the known-failures ratchet), `.env*`, `**/*.env`, `.mcp.json`, `.npmrc`, `.yarnrc*`, `.gitleaks*`, `.gitattributes`, `.husky/**` |
 | Architecture | ADR added or changed (`docs/adr/**`), design.md changed |
 | Spec | `docs/specs/*/requirements.md`, `docs/brief.md` (the spec gate is human, section 6.4) |
@@ -562,7 +562,8 @@ for paid services. Evals that call a paid model run only after the user approves
 in AGENTS.md `Paid services`. GitHub Actions on a free private repo has a monthly free quota; when
 exhausted, Actions stop (no charge unless the user set a spending limit). `rockbuilt-ci` runs on
 PR open, push and reopen only (not on label changes) to save minutes. `rb doctor` warns when the
-repo has deploy config (`vercel.json`, `netlify.toml`, `fly.toml`, `render.yaml`, `wrangler.toml`):
+repo has deploy config (`vercel.json`, `netlify.toml`, `fly.toml`, `render.yaml`, `wrangler.toml`,
+`railway.json`, `railway.toml`, `app.yaml`, `Procfile`):
 if the host deploys the default branch on push, every automatic merge reaches production, so the
 user should confirm previews or choose `Autonomy: supervised`.
 
@@ -833,6 +834,11 @@ documents it.
    session started on its own found 5 and 8 real defects. The owner's complaint was the other
    side: simple tasks took hours and too many tokens, because every task paid the whole loop
    (section 20.20: 300k to 450k tokens per task). Section 26.
+23. 2026-11-10, issues #54 and #64. comms-reporting was kicked off with "the harness is activated
+   after the first version" in the brief: no vendoring, a month in production, 12 PRs and 81
+   commits with no review. 2brain-logic (public repo, so protection was free) never ran `rb
+   protect`; the owner merged in the GitHub UI and two PRs with a failing `rockbuilt-ci` reached
+   main, red for about a day. The only signal was a doctor WARN nobody ran. Section 27.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -1130,3 +1136,19 @@ runs.
    A guard that denies edits under `src/` without a claim (#55) was declined: false positives in
    every session that only reads or explains. Unattended runs do not use quick mode: their tasks
    come with a plan from a spec.
+
+## 27. No silent opt-outs (0.13.0)
+
+Evidence 20.23.
+
+1. **The harness is never deferred.** rb-kickoff vendors in every case. A wish for less ceremony
+   is `Autonomy: supervised` (every PR waits for the human), recorded in AGENTS.md, never a
+   promise to vendor later. rb-adopt also covers a project kicked off but never vendored.
+2. **Branch protection is on, or declined on record.** Kickoff and adopt run `rb protect` when
+   `rb doctor` says it is available (public repo or paid plan), as part of the one approval; on
+   a free private repo it is a cost and the owner decides. A refusal is the AGENTS.md header line
+   `Branch protection: declined (<date>, <reason>)` (`contractInfo().protectionDeclined`).
+3. **Standing items.** `rb digest post` appends, by code, every item that stays until fixed:
+   today branch protection off and not declined. `rb-status` puts the same under "Needs you",
+   and `rb doctor` shows a recorded refusal as PASS. A missing baseline is not a standing item:
+   `.rockbuilt/` is machine-local, so every fresh cloud container starts without one.

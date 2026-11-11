@@ -664,6 +664,51 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "status-protection-off",
+      "source": "status.md#S6",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "empty"
+      },
+      "prompt": "¿En qué vamos con este proyecto?",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-status"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs doctor"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "rb\\.mjs protect|rb protect"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "rb\\.mjs protect"
+        },
+        {
+          "type": "worktreeClean"
+        },
+        {
+          "type": "finalLanguage",
+          "lang": "es"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }

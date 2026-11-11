@@ -8,7 +8,9 @@ description: >
   labels and the control issue, then asks the user's goal and routes it via the rigor ladder. Use
   when the user says "adopt this repo", "onboard this project", "set up rockbuilt here", "use
   rockbuilt on my existing code", "adopta este repo", "ya tengo un proyecto", "quiero usar esto
-  en mi proyecto existente", "configura rockbuilt aquí". For an empty repo use /rb-kickoff.
+  en mi proyecto existente", "configura rockbuilt aquí". Also for a project kicked off with
+  Rockbuilt whose harness was never vendored (docs/brief.md exists, tools/rockbuilt/ does not).
+  For an empty repo use /rb-kickoff.
 argument-hint: "[optional goal, e.g. 'add invoicing' or 'fix the login bug']"
 ---
 

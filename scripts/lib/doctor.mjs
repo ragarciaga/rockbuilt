@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readBaseline } from './baseline.mjs';
-import { COMMAND_SECTIONS, HEADER_FIELDS, REQUIRED_SECTIONS, headerField, isTemplate, projectTypesFrom, readContract, sectionCommands, sectionHeadings } from './contract.mjs';
+import { COMMAND_SECTIONS, HEADER_FIELDS, REQUIRED_SECTIONS, contractInfo, headerField, isTemplate, projectTypesFrom, readContract, sectionCommands, sectionHeadings } from './contract.mjs';
 import { CONTROL_TITLE } from './control.mjs';
 import { ghStatus, makeGh, ops } from './gh.mjs';
 import { defaultBranch, originSlug } from './repo.mjs';
@@ -109,7 +109,7 @@ function checkCi(root) {
   return pass('CI workflow', '.github/workflows/rockbuilt-ci.yml present');
 }
 
-const DEPLOY_FILES = ['vercel.json', 'netlify.toml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'app.yaml', 'Procfile'];
+const DEPLOY_FILES = ['vercel.json', 'netlify.toml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'railway.json', 'railway.toml', 'app.yaml', 'Procfile'];
 
 // Automatic merges reach production when the host deploys the default branch on push.
 function checkDeploy(root, autonomy) {
@@ -164,6 +164,7 @@ function checkGithub(root, status, client) {
   try {
     const p = ops.protection(c, branch);
     if (p.mode === 'github') out.push(pass('protection', `github: ${p.detail}`));
+    else if (contractInfo(root).protectionDeclined) out.push(pass('protection', 'rb-only: declined by the owner (Branch protection line in AGENTS.md); a merge in the GitHub UI skips rb merge-gate'));
     else if (p.available) out.push(warn('protection', `rb-only: ${p.detail}`));
     else out.push(warn('protection', 'rb-only: branch protection needs GitHub Pro (USD 4/month) or a public repo; it is a cost, the user decides. rb merge-gate enforces the gate meanwhile'));
   } catch (e) {

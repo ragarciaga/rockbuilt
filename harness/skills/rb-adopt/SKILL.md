@@ -8,7 +8,9 @@ description: >
   labels and the control issue, then asks the user's goal and routes it via the rigor ladder. Use
   when the user says "adopt this repo", "onboard this project", "set up rockbuilt here", "use
   rockbuilt on my existing code", "adopta este repo", "ya tengo un proyecto", "quiero usar esto
-  en mi proyecto existente", "configura rockbuilt aquí". For an empty repo use /rb-kickoff.
+  en mi proyecto existente", "configura rockbuilt aquí". Also for a project kicked off with
+  Rockbuilt whose harness was never vendored (docs/brief.md exists, tools/rockbuilt/ does not).
+  For an empty repo use /rb-kickoff.
 argument-hint: "[optional goal, e.g. 'add invoicing' or 'fix the login bug']"
 ---
 
@@ -180,8 +182,10 @@ Never push to the default branch. The user reviews and merges it. Update `docs/p
 Report, in the user's language:
 
 - Doctor WARN/FAIL lines and who owns each, including the protection mode (`github` or
-  `rb-only`). Branch protection via `rb protect` is an option: free on public repos, GitHub Pro
-  (paid) on private ones, so it is the user's decision.
+  `rb-only`). Branch protection (rockbuilt #64): when `rb doctor` says it is free (a public repo
+  or a paid plan), run `rb protect` in this session after the user's go-ahead; when it needs
+  GitHub Pro, ask, and record a refusal as `Branch protection: declined (<date>, <reason>)` in the
+  AGENTS.md header. While it is off and not declined, every digest lists it.
 - AGENTS.md written or patched; tools and autonomy chosen.
 - Baseline: green with counts, or accepted failures count plus the stabilization issue number.
 - Control issue number; the adopt PR.
