@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.13.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.13.1-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -186,7 +186,9 @@ Open a new session afterwards so the commands load, then continue with "let's st
 ### Updating a project
 
 In a session on the project, say "update rockbuilt" (or run `/rockbuilt:install` again). It
-copies the new version into the repo in a PR. Read the [CHANGELOG](CHANGELOG.md): some versions
+copies the new version into the repo in a PR, adds the routing line to CLAUDE.md when it is
+missing (the only project file it touches, one line), and offers `rb protect` when branch
+protection is off and free. Read the [CHANGELOG](CHANGELOG.md): some versions
 ask for one manual step, like the routine prompt below.
 
 Every routine prompt ends with `[rockbuilt:unattended]` (since 0.4.0). That tag tells the hours
@@ -352,7 +354,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.13.0. Before trusting it I asked two separate agents, with no context on how it was
+Version 0.13.1. Before trusting it I asked two separate agents, with no context on how it was
 built, to try to break it. The first review found the money check switched off in every project:
 the harness decides if code uses a paid service by looking for that service in the project, and
 its own files list those services by name. That one is fixed, with a test, together with everything

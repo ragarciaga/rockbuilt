@@ -1152,3 +1152,7 @@ Evidence 20.23.
    today branch protection off and not declined. `rb-status` puts the same under "Needs you",
    and `rb doctor` shows a recorded refusal as PASS. A missing baseline is not a standing item:
    `.rockbuilt/` is machine-local, so every fresh cloud container starts without one.
+4. **Updates finish the project side (0.13.1).** `/rockbuilt:install` in update mode runs `rb
+   doctor` after vendoring: it appends the routing line to CLAUDE.md when missing (the one
+   project-file edit an update makes, additive) and offers `rb protect` when it is free, or asks
+   and records a refusal when it costs. It does so even when the harness files are current.

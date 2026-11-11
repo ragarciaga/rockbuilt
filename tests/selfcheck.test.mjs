@@ -357,3 +357,13 @@ test('every bash run block in the workflows parses with bash -n', (t) => {
 test('the vendored Playwright config reads PW_CHROMIUM_PATH (rb browser hands agents that path)', () => {
   assert.match(readFileSync(path.join(ROOT, 'harness/web/playwright.config.ts'), 'utf8'), /executablePath:\s*process\.env\.PW_CHROMIUM_PATH/);
 });
+
+// 0.13.1: an update brings the project-side steps of 0.12.0 and 0.13.0 too, not only the files.
+test('the install update applies the routing line and offers branch protection', () => {
+  const install = readFileSync(path.join(ROOT, 'skills', 'install', 'SKILL.md'), 'utf8');
+  const update = install.slice(install.indexOf('## 3. Update'), install.indexOf('## 4.'));
+  assert.match(update, /rb\.mjs doctor/);
+  assert.match(update, /no routing rule/);
+  assert.match(update, /rb\.mjs protect/);
+  assert.match(update, /Branch protection: declined/);
+});
