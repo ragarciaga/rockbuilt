@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.14.0 (2026-11-11)
+
+What happens after the merge and before the design approval (#56, #57, #59, #65, #66, #67).
+
+- **progress.md freshness (#67, #59).** `rb doctor` warns when PR merges on the default branch are
+  newer than progress.md (after 48 hours) and when the file passes 300 lines. rb-status offers the
+  refresh before trusting it.
+- **Deploy check (#56).** Optional `## Deploy check` in AGENTS.md. After every merge the train runs
+  it: "live" goes to the digest, a failure opens an `rb:bug` issue. `rb doctor` warns when a host
+  deploys main and there is no check.
+- **Skeleton in the real environment (#66).** Kickoff files an `rb:skeleton` + `rb:needs-local`
+  issue to run the skeleton once for real. Until you close it, the cycle builds no feature tasks.
+- **External dependencies in design.md (#65).** Every account, client or habit the design relies
+  on, with its limits and the setup you refuse, asked before you approve.
+- **Seed (#57).** Optional `## Seed` in AGENTS.md: fixtures and a test identity for the blind
+  auditor's browser checks.
+- **Cloud "unpushed commits" after a merge (#60).** docs/CLOUD.md explains it (the cloud session's
+  hook, not Rockbuilt) and the three commands that start the next change cleanly.
+- Update a project with "update rockbuilt". Existing AGENTS.md files keep their sections: add
+  `## Deploy check` and `## Seed` by hand where they apply.
+
 ## 0.13.1 (2026-11-11)
 
 "Update rockbuilt" now finishes the project-side steps of 0.12.0 and 0.13.0 instead of leaving

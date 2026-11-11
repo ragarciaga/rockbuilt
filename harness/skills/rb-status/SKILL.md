@@ -85,6 +85,8 @@ Take the first rule that matches:
 | Baseline has new failures on the default branch | The stabilization issue, or `/rb-fix` |
 | Uncommitted non-bookkeeping files on the default branch | Move them to a branch and PR (never push to the default branch) |
 | Open quick batch not reviewed (`rb:quick`) | `/rb-quick` to close it: one review of the batch, then the PR; never call it done before |
+| Skeleton not yet run in the real environment (open `rb:skeleton` + `rb:needs-local`) | Do the steps in issue #n: features wait for it |
+| Doctor `progress` WARN (merges progress.md never recorded) | Refresh docs/progress.md from those merges (offer it; write on approval) before trusting its objective |
 | Lock held and fresh | A run is in progress: wait for its digest |
 | Spec with requirements or design `draft` | `/rb-spec <folder>` to finish approval |
 | Spec PR (`rb/spec-*`) open | Merge it so the cycle can build its tasks |

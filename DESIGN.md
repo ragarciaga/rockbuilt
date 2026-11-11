@@ -163,6 +163,8 @@ Viewports: 320x568, 390x844     # optional: the layout matrix (section 24.7)
 ## E2E               fenced block (npm run test:e2e)
 ## Evals             fenced block (npm run evals)
 ## Setup             fenced block (npm ci)
+## Run / ## Seed     fenced blocks: start the app; load fixtures and a test identity (section 28)
+## Deploy check      fenced block: exits 0 once the merged commit is live (section 28)
 
 ## Autonomy
 Sensitive paths:     globs that always force tier C (adds to the built-in floor)
@@ -839,6 +841,13 @@ documents it.
    commits with no review. 2brain-logic (public repo, so protection was free) never ran `rb
    protect`; the owner merged in the GitHub UI and two PRs with a failing `rockbuilt-ci` reached
    main, red for about a day. The only signal was a doctor WARN nobody ran. Section 27.
+24. 2026-11-10, issues #56, #57, #59, #65, #66 and #67 (2brain-logic and comms-reporting).
+   progress.md stayed nine days old over 13 merges and reached 857 lines; the first real deploy of
+   2brain-logic came nine days and five features after the skeleton and found three live-only
+   defects; Railway deployed every merge and twice served a stale asset while "merged" was
+   reported as done; two features were built on workflow and quota assumptions the owner never
+   confirmed; the auditor's browser checks were rebuilt from scratch three times without a seed.
+   Section 28.
 
 ## 21. rb command interface (binding for skills and the CLI)
 
@@ -1156,3 +1165,27 @@ Evidence 20.23.
    doctor` after vendoring: it appends the routing line to CLAUDE.md when missing (the one
    project-file edit an update makes, additive) and offers `rb protect` when it is free, or asks
    and records a refusal when it costs. It does so even when the harness files are current.
+
+## 28. After the merge, and before the design (0.14.0)
+
+Evidence 20.24.
+
+1. **progress.md freshness.** `rb doctor` warns (`progress`) when PR merges on the default
+   branch are newer than the last commit that touched docs/progress.md and the oldest is more
+   than 48 hours old (a cycle's bookkeeping PR lands within a day), and (`progress size`) past 300
+   lines. rb-status offers the refresh before trusting the file. A contradiction inside the file
+   is not detected: that is not mechanical.
+2. **Deploy check.** An optional AGENTS.md `## Deploy check` block: a command that exits 0 once
+   the merged commit is live. The merge train runs it after every merge: pass is "live" in the
+   digest, fail opens an `rb:bug` issue and leads the digest, and does not stop the train (the
+   code passed CI). `rb doctor` warns when a deploy config exists without it. Keep it an npm
+   script: unattended runs only run allowed commands.
+3. **The skeleton runs in the real environment.** When the project runs where CI cannot reach,
+   kickoff files an `rb:skeleton` + `rb:needs-local` issue with the steps to run it once end to
+   end. While it is open, rb-cycle takes no spec task (bugs, `rb:task` and CI fixes continue) and
+   the digest leads with it.
+4. **External dependencies before design approval.** design.md has a table of every account,
+   client, service or habit the design relies on: how the owner uses it today, its limits and the
+   setup they accept or refuse, asked one question each before approval.
+5. **Seed.** An optional `## Seed` block loads committed fixtures and a test identity; the
+   orchestrator runs it before starting the app for the blind auditor.

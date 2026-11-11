@@ -59,6 +59,22 @@ private ones spend more Actions minutes, each shard repeats setup).
 npm run dev
 ```
 
+## Seed
+```bash
+# Web projects whose data comes from files: load the committed fixtures and create a test
+# identity the blind auditor signs in with (never a real credential). Delete if there is nothing to seed.
+npm run seed
+```
+
+## Deploy check
+```bash
+# Only when the host deploys the default branch on merge: one command that exits 0 once the merged
+# commit is live (a version or health route that returns it, retried up to a time limit).
+# Run after every merge; a failure opens an rb:bug issue. Keep it an npm script: unattended runs
+# only run commands the permission list allows. Delete if nothing deploys on merge.
+npm run deploy:check
+```
+
 ## Evals
 ```bash
 # Delete this section if the project has no AI behavior to grade.

@@ -250,6 +250,20 @@ haces en la interfaz de GitHub se salta el gate, y así entraron dos PRs con la 
 proyecto real. Si decides no pagar GitHub Pro, escribe en el encabezado de `AGENTS.md`
 `Branch protection: declined (<fecha>, <motivo>)` y el aviso desaparece.
 
+## Después del merge
+
+- **Deploy check.** Si tu hosting despliega `main` en cada merge (Railway, Vercel, Fly), agrega a
+  `AGENTS.md` una sección `## Deploy check` con un script de npm que salga en 0 cuando el commit
+  fusionado ya está en producción, por ejemplo una ruta que devuelve la versión. Después de cada
+  merge el harness lo corre. Si falla, abre un issue `rb:bug` y te lo pone primero en el resumen.
+- **El esqueleto en tu entorno real.** Si el proyecto corre donde la CI no llega (tu servidor, un
+  cliente que se conecta), el kickoff crea un issue `rb:needs-local` para que lo pruebes una vez de
+  verdad. Mientras siga abierto, el ciclo no construye funcionalidades.
+- **progress.md al día.** `rb doctor` avisa cuando hay PRs fusionados que progress.md no registra
+  (después de 48 horas) o cuando pasa de 300 líneas, y `/rb-status` te ofrece actualizarlo.
+- **Seed.** La sección `## Seed` de `AGENTS.md` carga datos de prueba y un usuario de prueba para que
+  el auditor revise la app en el navegador sin armar todo cada vez.
+
 ## Playwright (pruebas en el navegador)
 
 En proyectos web, Playwright viene desde el issue del esqueleto. La instalación deja la

@@ -6,8 +6,10 @@ the change was built (self-preference bias).
 
 ## Start the app first
 
-When a criterion is `[e2e]` or `[manual]`, a browser is available and AGENTS.md has `## Run`: run
-its command in the background with `PORT=<3000 + offset>`, wait up to 60 s for
+When a criterion is `[e2e]` or `[manual]`, a browser is available and AGENTS.md has `## Run`: first
+the `## Seed` commands when the section exists (`rb verify-cmds Seed`: committed fixtures and the
+test identity the auditor signs in with, rockbuilt #57; pass that identity under Run instructions,
+never a real credential), then run the Run command in the background with `PORT=<3000 + offset>`, wait up to 60 s for
 `curl -s -o /dev/null http://localhost:<port>` to answer, pass that `App URL`, and stop the
 process after the audit (`kill <pid>`). The auditor cannot start servers itself (its allowlist
 denies it). An auditor `incomplete` with "app not reachable" is an environment problem, not a
