@@ -267,5 +267,16 @@ cuando hay E2E), sin la regla de "rama al día", que bloquearía la cola de merg
   horas después de su última renovación. Puedes verlo con `node tools/rockbuilt/rb.mjs lock status`.
 - **Errores que mencionan GraphQL.** En la nube GitHub GraphQL está bloqueado y `rb` usa solo
   REST. Si aparece ese error, algo llamó a `gh` directamente: repórtalo con `/rb-retro`.
+- **Después de cada merge, la sesión dice que hay "commits sin subir" que ya están en `main`.** Ese
+  aviso es del hook de las sesiones en la nube de Claude Code, no de Rockbuilt: compara la rama con
+  su upstream, y GitHub borró esa rama al fusionar. Para empezar el siguiente cambio en la misma
+  rama asignada, reiníciala desde `main` y quítale el upstream viejo (la próxima subida lo pone de
+  nuevo). No subas una rama idéntica a `main` para silenciarlo.
+
+  ```bash
+  git fetch origin main
+  git checkout -B <rama-asignada> origin/main
+  git branch --unset-upstream
+  ```
 - **La corrida no fusionó nada.** Mira el resumen: lo normal es que falte CI en verde, que el PR
   sea nivel C o que haya un `rb:stop` puesto.

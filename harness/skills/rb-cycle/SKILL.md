@@ -102,7 +102,10 @@ No command substitution: run a command, paste its literal output into the next.
 3. **Spec tasks.** Every `docs/specs/NN-*/` whose requirements.md and design.md say
    `Status: approved` and whose tasks.md exists: `rb tasks <dir> --json`; ready tasks (Status
    `todo`, dependencies done or merged, issue not labelled `rb:blocked`, `rb:needs-human`,
-   `rb:needs-local`, `rb:hold`, `rb:pr-open`).
+   `rb:needs-local`, `rb:hold`, `rb:pr-open`). **Skeleton hold** (rockbuilt #66): while an open
+   issue carries both `rb:skeleton` and `rb:needs-local` (the skeleton is merged but has not run
+   once in the owner's real environment), take no spec task; bugs, `rb:task` issues and CI fixes
+   continue, and the digest opens with that issue as the owner action that blocks features.
 4. **Issues.** `rb gh issue-list --label rb:bug --state open` and `--label rb:task`. Drop issues
    whose body carries `<!-- rockbuilt:task T<n> spec=` (spec tasks are built only from an
    approved tasks.md on the default branch, step 3; the spec PR may still be open), issues

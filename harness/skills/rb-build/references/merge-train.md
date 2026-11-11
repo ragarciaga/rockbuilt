@@ -112,6 +112,11 @@ serial path below: the queue only skips work when GitHub shows the result is the
      run `rb revert <pr>` (it opens a revert PR labelled `rb:tier-c` and `rb:needs-human`; the
      harness never merges it), then escalate on the task issue with the `Default branch red after
      merge` template naming the revert PR as the recommended action.
+   - **Deploy check** (rockbuilt #56), when AGENTS.md has `## Deploy check`: run each command of
+     `rb verify-cmds "Deploy check"` and judge it by exit code. Pass: record "live" for the digest.
+     Fail: record "not live" with the output tail and open `rb gh issue-create --title "Deploy
+     check failed after PR #<pr>" --body-file <f> --label rb:bug`; it does not stop the train (the
+     merged code passed CI), the digest names it first.
    - `rb sync` (tasks done, labels, merged branches cleaned), `rb worktree remove <id>` if one
      is left, then tasks.md `Status: done` and a Decision log line `- <date>: merged as PR #<pr>
      (squash, rb merge-gate).` when `rb sync` did not already write it.

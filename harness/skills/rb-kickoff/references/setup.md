@@ -122,6 +122,7 @@ Stand up the project skeleton so every later task builds on a green, verifiable 
 - [ ] The end-to-end slice works: <observable result>.
 - [ ] `rockbuilt-ci` runs on the PR and is green.
 - [ ] README states how to run locally in 3 commands or fewer.
+- [ ] <when it deploys> Deployed from the default branch and AGENTS.md `## Deploy check` passes.
 
 ## Out of scope
 Any feature behavior. Features come from /rb-spec.
@@ -129,6 +130,13 @@ Any feature behavior. Features come from /rb-spec.
 ## Verify
 `rb verify-cmds` lists the commands; each exits 0. `rb baseline` records a green run.
 ```
+
+When the project runs somewhere the CI cannot reach (a host, a server, a client it connects to),
+also create the real-environment issue now (rockbuilt #66): `rb gh issue-create --title "<Run the
+skeleton in the real environment>" --body-file <f> --label rb:skeleton,rb:needs-local` with the
+exact steps (deploy or install, connect the real client, use the slice once end to end) and what
+to report back. Until the owner closes it, rb-cycle takes no spec task: in 2brain-logic the first
+real deployment came nine days and five features late and found three defects no test could see.
 
 ## 6. Commit path
 

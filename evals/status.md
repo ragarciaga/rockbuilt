@@ -100,3 +100,16 @@ Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm ven
   4. Worktree clean; answer in Spanish; no em dash.
 - Without the harness: expected to describe the code and miss the protection.
 
+## S7: progress.md behind the merges (core, rockbuilt #67)
+
+- Setup: common setup plus a GitHub origin; seed `progress-stale` adds three PR merges on main
+  dated five days ago that docs/progress.md never recorded.
+- Prompt (es):
+  > Retomemos. ¿En qué quedamos y qué sigue?
+- Pass (with the harness vendored):
+  1. Loads `rb-status` and runs `rb doctor` (its `progress` WARN names the 3 merges).
+  2. Says docs/progress.md is behind those merges, names them, and offers the refresh instead of
+     resuming from its stale objective.
+  3. Writes nothing without approval; answer in Spanish; no em dash.
+- Without the harness: expected to resume from progress.md as written.
+

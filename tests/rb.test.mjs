@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { main } from '../scripts/rb.mjs';
 import { sectionCommands } from '../scripts/lib/contract.mjs';
-import { ROUTING_RULE, runDoctor } from '../scripts/lib/doctor.mjs';
+import { PROGRESS_LIMITS, ROUTING_RULE, checkProgress, runDoctor } from '../scripts/lib/doctor.mjs';
 import { planBatches } from '../scripts/lib/parallel.mjs';
 import { coverage, parseRequirements, parseTasks, taskProblems } from '../scripts/lib/spec.mjs';
 import { aggregate, renderTable } from '../scripts/lib/timing.mjs';
@@ -682,6 +682,40 @@ test('doctor: warns about deploy config under auto autonomy and npm ci without a
   assert.match(byName.deploy.detail, /reach production/);
   assert.equal(byName['CI workflow'].status, 'WARN');
   assert.match(byName['CI workflow'].detail, /package-lock\.json/);
+  // #56: a host that deploys main and no Deploy check: nothing confirms a merge is live.
+  assert.equal(byName['deploy check'].status, 'WARN');
+  writeFileSync(path.join(root, 'AGENTS.md'), `${readFileSync(path.join(root, 'AGENTS.md'), 'utf8')}\n## Deploy check\n\`\`\`bash\nnpm run deploy:check\n\`\`\`\n`);
+  const r2 = runDoctor(root, { ghStatusFn: () => ({ installed: true, authenticated: false, detail: 'offline' }) });
+  assert.ok(!r2.checks.some((c) => c.name === 'deploy check'));
+  const v = await rb(root, 'verify-cmds', 'Deploy check');
+  assert.equal(v.code, 0, v.err);
+  assert.equal(v.out, 'npm run deploy:check');
+});
+
+test('doctor (#67, #59): progress.md stale after merges it never recorded, and too long', async () => {
+  const { repoWith, sh: run } = await import('./rb-helpers.mjs');
+  const root = repoWith({ 'docs/progress.md': '# Progress\n\nUpdated: 2026-11-01\n', 'src/a.js': 'export const a = 1;\n' });
+  const commitAt = (iso, msg, file) => {
+    writeFileSync(path.join(root, file), `${msg}\n`);
+    run(root, 'git', ['add', '-A']);
+    spawnSync('git', ['commit', '-q', '-m', msg], { cwd: root, env: { ...process.env, GIT_COMMITTER_DATE: iso, GIT_AUTHOR_DATE: iso } });
+  };
+  const at = (iso) => new Date(iso).getTime();
+  commitAt('2026-11-02T10:00:00Z', 'fix: one (#12)', 'src/a.js');
+  commitAt('2026-11-02T11:00:00Z', 'wip: not a PR merge', 'src/b.js');
+  commitAt('2026-11-03T10:00:00Z', 'feat: two (#13)', 'src/c.js');
+  // Within the grace period (a cycle's bookkeeping PR lands the next day): no warning.
+  assert.deepEqual(checkProgress(root, at('2026-11-03T12:00:00Z')), []);
+  // Two days later: stale, counting PR merges only.
+  const w = checkProgress(root, at('2026-11-05T12:00:00Z'));
+  assert.equal(w.length, 1);
+  assert.equal(w[0].name, 'progress');
+  assert.match(w[0].detail, /^2 merged PR\(s\) on main since docs\/progress\.md last changed/);
+  // Recording them clears it; a file past the limit warns about size.
+  commitAt('2026-11-05T13:00:00Z', 'docs: progress (#14)', 'docs/progress.md');
+  writeFileSync(path.join(root, 'docs', 'progress.md'), '# Progress\n'.repeat(PROGRESS_LIMITS.lines + 1));
+  const s = checkProgress(root, at('2026-11-09T12:00:00Z'));
+  assert.deepEqual(s.map((c) => c.name), ['progress size']);
 });
 
 test('rb timing report --write keeps rows from earlier runs (fresh cloud clone) and accepts audit, ci, merge', async () => {

@@ -696,7 +696,52 @@
         },
         {
           "type": "bashExcludes",
-          "pattern": "rb\\.mjs protect"
+          "pattern": "rb\\.mjs protect(?!\\s+--help)"
+        },
+        {
+          "type": "worktreeClean"
+        },
+        {
+          "type": "finalLanguage",
+          "lang": "es"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "status-progress-stale",
+      "source": "status.md#S7",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "progress-stale"
+      },
+      "prompt": "Retomemos. ¿En qué quedamos y qué sigue?",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-status"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs doctor"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)progress\\.md[\\s\\S]{0,400}(desactualiz|atrasad|no registra|no recoge|viej|actualiz)"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "#5|#6|#7|\\b3 (PR|pull)"
         },
         {
           "type": "worktreeClean"

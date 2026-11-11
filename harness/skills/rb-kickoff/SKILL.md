@@ -149,7 +149,8 @@ Read `references/setup.md` for exact commands and failure handling.
    `Max parallel`, `Max tasks per run`), Goal, Stack (pinned, linked), Conventions (only
    non-obvious rules), Verification/E2E/Evals/Setup blocks with the intended commands,
    `## Autonomy` (`Sensitive paths`, `Tier A paths`, `Paid services` from Round E), Out of
-   scope. Remove E2E or Evals sections that do not apply. Keep it under 200 lines. `CLAUDE.md`
+   scope. Remove E2E, Evals, Seed or Deploy check sections that do not apply (Deploy check stays
+   when the host deploys the default branch on merge). Keep it under 200 lines. `CLAUDE.md`
    stays as vendor wrote it (`@AGENTS.md` plus Claude-only notes). Add stack-specific allow
    rules to `.claude/settings.json` (setup.md section 2).
 4. **Docs.** `docs/brief.md` (approved brief), `docs/v2.md` (from

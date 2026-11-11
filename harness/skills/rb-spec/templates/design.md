@@ -40,6 +40,13 @@ option: <list>. (ADR: docs/adr/NNNN-slug.md) (R..)
 success), each with the criterion it serves (R..), and a link to the mockup or design file
 (`.pen`, Figma, image). rb-e2e-writer uses this list to know which flows to cover.
 
+## External dependencies and the owner's real workflow
+<Every account, client, service or habit this design relies on, confirmed with the owner before
+approval (rockbuilt #65). Delete only when there is none.>
+| Dependency | How the owner uses it today | Limits (quota, plan, admin approval) | Setup the owner accepts or refuses | Serves |
+|---|---|---|---|---|
+| <provider X, a session habit> | <in their words> | <20,000 calls/month, 25,000 in use> | <no cloud project or OAuth app> | R.. |
+
 ## Data model / schema impact
 - <Table/collection/file>: <new | changed fields>, migration: <name or none> (R..)
 - Data retention and deletion: <rule> (R..)

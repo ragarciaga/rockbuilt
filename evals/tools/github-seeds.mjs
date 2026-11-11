@@ -119,4 +119,22 @@ export function empty() {
   return baseState();
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview, empty };
+// Three PRs merged on main five days ago that docs/progress.md never recorded (rockbuilt #67): the
+// session must say progress.md is behind before trusting its objective.
+export function progressStale(ws) {
+  const at = '2026-11-05T15:00:00Z';
+  const env = { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at };
+  const files = [['src/round.js', 'export const r = (n) => Math.round(n);\n', 'feat: redondear totales (#5)'],
+    ['docs/formato.md', '# Formato\n', 'docs: formato de entrada (#6)'],
+    ['src/limit.js', 'export const LIMIT = 100;\n', 'feat: limite por categoria (#7)']];
+  for (const [rel, text, msg] of files) {
+    write(ws, rel, text);
+    git(ws, ['add', '-A']);
+    const r = spawnSync('git', ['commit', '-q', '-m', msg], { cwd: ws, encoding: 'utf8', env });
+    if (r.status !== 0) throw new Error(`git commit: ${r.stderr}`);
+  }
+  git(ws, ['push', '-q', 'origin', 'main']);
+  return baseState();
+}
+
+export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview, empty, 'progress-stale': progressStale };

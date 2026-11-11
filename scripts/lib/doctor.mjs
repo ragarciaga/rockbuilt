@@ -7,7 +7,7 @@ import { CONTROL_TITLE } from './control.mjs';
 import { ghStatus, makeGh, ops } from './gh.mjs';
 import { defaultBranch, originSlug } from './repo.mjs';
 import { missingPlaywrightDeps } from './vendor.mjs';
-import { exists, pluginRoot, readText, repoRoot, run } from './util.mjs';
+import { exists, git, now, pluginRoot, readText, repoRoot, run } from './util.mjs';
 
 // The routing line of harness/project/CLAUDE.md (rockbuilt #55); doctor prints it for projects
 // whose CLAUDE.md predates it. A test keeps both copies equal.
@@ -115,8 +115,40 @@ const DEPLOY_FILES = ['vercel.json', 'netlify.toml', 'fly.toml', 'render.yaml', 
 function checkDeploy(root, autonomy) {
   const found = DEPLOY_FILES.filter((f) => exists(path.join(root, f)));
   if (!found.length) return [];
-  if (/supervised/i.test(autonomy || '')) return [pass('deploy', `${found.join(', ')}; Autonomy: supervised, every merge is human`)];
-  return [warn('deploy', `${found.join(', ')} found: if the host deploys the default branch on push, tier A/B merges reach production unattended. Use preview deploys for main or set Autonomy: supervised`)];
+  const out = [];
+  if (/supervised/i.test(autonomy || '')) out.push(pass('deploy', `${found.join(', ')}; Autonomy: supervised, every merge is human`));
+  else out.push(warn('deploy', `${found.join(', ')} found: if the host deploys the default branch on push, tier A/B merges reach production unattended. Use preview deploys for main or set Autonomy: supervised`));
+  // rockbuilt #56: "merged" is not "live". Without a Deploy check nobody looks after the merge.
+  const cmds = sectionCommands(readContract(root).text || '', 'Deploy check');
+  if (!cmds || !cmds.length) out.push(warn('deploy check', 'no ## Deploy check in AGENTS.md: nothing confirms a merged change is live; add a command that proves the merged commit is deployed (a version or health route), see the template'));
+  return out;
+}
+
+// rockbuilt #67 and #59: progress.md is the resume point. Merges it never recorded, or a file too
+// long to read at every session start, make every resume start from a false or costly state.
+export const PROGRESS_LIMITS = { staleHours: 48, lines: 300 };
+
+export function checkProgress(root, nowMs = now().getTime()) {
+  const file = path.join(root, 'docs', 'progress.md');
+  const text = readText(file);
+  if (text === null) return [];
+  const out = [];
+  const lines = text.split(/\r?\n/).length;
+  if (lines > PROGRESS_LIMITS.lines) out.push(warn('progress size', `docs/progress.md has ${lines} lines (> ${PROGRESS_LIMITS.lines}): every session reads it; keep current state at the top and move dated sections older than a month to docs/progress/<yyyy-mm>.md`));
+  const branch = defaultBranch(root);
+  const ref = git(root, ['rev-parse', '--verify', '--quiet', `origin/${branch}^{commit}`]).ok ? `origin/${branch}` : branch;
+  const last = git(root, ['log', '-1', '--format=%H%x09%cs', ref, '--', 'docs/progress.md']);
+  if (!last.ok || !last.stdout) return out;
+  const [sha, day] = last.stdout.split('\t');
+  const log = git(root, ['log', '--format=%ct%x09%s', `${sha}..${ref}`]);
+  const merges = (log.ok ? log.stdout.split('\n').filter(Boolean) : [])
+    .map((l) => { const [t, ...s] = l.split('\t'); return { at: Number(t) * 1000, subject: s.join('\t') }; })
+    .filter((m) => /\(#\d+\)\s*$/.test(m.subject) || /^Merge pull request #\d+/.test(m.subject));
+  if (!merges.length) return out;
+  const oldest = Math.min(...merges.map((m) => m.at));
+  const ageH = (nowMs - oldest) / 3600000;
+  if (ageH > PROGRESS_LIMITS.staleHours) out.push(warn('progress', `${merges.length} merged PR(s) on ${ref} since docs/progress.md last changed (${day}), the oldest ${Math.floor(ageH / 24)} day(s) ago: refresh it before trusting it (rb-status offers it)`));
+  return out;
 }
 
 function checkPlaywright(root, types) {
@@ -201,7 +233,7 @@ export function runDoctor(cwd, { ghStatusFn = ghStatus, gh = null } = {}) {
   checks.push(...checkGithub(root, ghStatusFn(cwd), gh));
   if (root) {
     const types = projectTypesFrom(readContract(root).text);
-    checks.push(...checkContract(root), ...checkVendored(root), checkCi(root), ...checkDeploy(root, headerField(readContract(root).text || '', 'Autonomy')), ...checkSettings(root, types), checkGitignore(root), ...checkPlaywright(root, types));
+    checks.push(...checkContract(root), ...checkVendored(root), checkCi(root), ...checkProgress(root), ...checkDeploy(root, headerField(readContract(root).text || '', 'Autonomy')), ...checkSettings(root, types), checkGitignore(root), ...checkPlaywright(root, types));
     const b = readBaseline(root);
     if (!b) checks.push(warn('baseline', 'no .rockbuilt/baseline.json; run `rb baseline`'));
     else checks.push(b.green ? pass('baseline', `green at ${String(b.sha).slice(0, 7)} (${b.date})`) : warn('baseline', `red at ${String(b.sha).slice(0, 7)}`));

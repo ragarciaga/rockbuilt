@@ -33,7 +33,7 @@ export const COMMANDS = {
   vendor: 'Install or update the harness  [--tools claude,cursor,codex] [--type web,ai,automation] [--lang es] [--from <harness root>]',
   init: 'Alias of vendor',
   doctor: 'Environment, contract, vendored version, CI, protection mode, labels, control issue',
-  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
+  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup|Run|Seed|"Deploy check"]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
   'e2e-plan': 'CI: has E2E, shard count and matrix from AGENTS.md (key=value lines for GITHUB_OUTPUT)',
   'review-delta': 'Task change since the reviewed head, by content: identical | test-only | different  --reviewed <sha> [--base origin/<default>] [--line --task <id>: print the verifier identity line, exit 3 unless identical after merges only] (exit 3 when different)',
   baseline: 'Run Verification and ratchet against docs/rockbuilt/known-failures.json  [--check] [--accept]',

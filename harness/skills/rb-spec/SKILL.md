@@ -112,7 +112,10 @@ Write `docs/specs/NN-slug/design.md` from `templates/design.md`. Every section i
 the `R` IDs it serves; anything without an `R` reference is removed. Required content (DESIGN.md
 section 15): Overview, Architecture (Mermaid; for AI systems mark
 nodes `code`, `ai-model` or `llm`; the diagram maps 1:1 to the implementation units), Workflow
-vs agent with reason, Data model / schema impact, Interfaces and contracts, Error handling (per
+vs agent with reason, **External dependencies and the owner's real workflow** (rockbuilt #65: for
+each account, client, service or habit the design relies on, one concrete question to the owner
+before approval: how do you do this today, which quotas, plans or admin approvals apply, what setup
+would you refuse; the answers go in the table, never assumed), Data model / schema impact, Interfaces and contracts, Error handling (per
 item vs fatal, retries with backoff, idempotency, cleanup of temporary resources, concurrency
 limits), Security considerations, Testing strategy (unit / integration / e2e / evals mapped to
 criteria tags), **Risk and cost** (which parts will be tier C at build time and why: new
