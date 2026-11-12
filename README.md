@@ -91,8 +91,14 @@ the routine leaves it alone while it shows activity in the last 3 hours. Every r
 goes on the task issue, so the numbers are the same whether the work ran at night or with me.
 
 During the day I answer what it asked, with a comment or the `rb:approved` label, usually from the
-phone. Small work I add as a GitHub issue labelled `rb:task` or `rb:bug`. A new feature is a short
-session where I approve the requirements and the design. That is most of my part.
+phone. Small work I either ask for in a session ("add a total-only option to the CLI"), or add as a
+GitHub issue labelled `rb:task` or `rb:bug` for the night. A new feature is a short session where I
+approve the requirements and the design. That is most of my part.
+
+A small change asked in a session goes through `/rb-quick` and skips the planner and the
+implementer. The session writes it, the tests and lint run after every change, and one verifier
+and one blind auditor review the whole batch once before the session tells me it is done. A batch
+that grows past 400 lines or 12 files, or touches anything tier C, goes back to the full path.
 
 At night the routine picks up the backlog and my answers, builds, reviews and merges. The first
 real night it took a bug from an issue, reproduced it with a test, fixed it, had it verified and
@@ -205,6 +211,13 @@ Header lines at the top of the project's `AGENTS.md`. All have defaults.
 | `Max tasks per run: 6` | 6 | How much one nightly run takes on |
 | `E2E shards: 3` | 1 | Splits the Playwright suite into that many CI jobs, each with its own 30 minute limit. Use it when the suite passes about 15 minutes. On a private repo each shard spends extra Actions minutes |
 | `Hours: local` | `github` (`local` on public repos) | Where your time marks go. Use `local` in a client's repo: the hours issue shows timestamps and branch names to anyone who can see the repo. `off` disables it |
+| `Branch protection: declined (<date>, <reason>)` | none | You chose not to pay for branch protection on a private repo. The digest stops reminding you |
+
+Two optional sections take one command per line. `## Deploy check` runs after every merge when the
+host deploys `main` (Railway, Vercel, Fly): it exits 0 once the merged commit is live, and a
+failure opens an `rb:bug` issue. `## Seed` loads committed fixtures and a test user, so the blind
+auditor can check the app in a browser. Write both as npm scripts: unattended runs only run
+commands the permission list allows.
 
 ### Talking to it
 
@@ -218,10 +231,9 @@ You do not need the command names. These work in any session:
 | "build", "build issue 12", "build without merging" | `/rb-build`, right now, no routine needed |
 | "fix this bug: ..." | `/rb-fix` (failing test first) |
 | "add X", "change Y", any small change | `/rb-quick` (you implement nothing; it batches the changes and reviews the batch once before saying done) |
-| "where are we" after merges outside the cycle | `/rb-status` warns that progress.md is behind and offers to refresh it |
 | "verify the feature" | `/rb-verify` (E2E, security, evals) |
 | "merge PR 12", "revert PR 12" | `/rb-merge` |
-| "where are we", "what happened last night" | `/rb-status` |
+| "where are we", "what happened last night" | `/rb-status` (it also says when progress.md missed merges, and offers to refresh it) |
 | "hours report", "how many hours this month" | `/rb-status` (your hours per project, feature and task) |
 | "log 45 minutes of a client call on feature 02" | `/rb-status` (a manual time entry) |
 | "retro" | `/rb-retro` (includes tests that failed once and passed on a re-run, `rb flaky list`) |
@@ -322,8 +334,9 @@ CI on a commit, read a failing job's log), `browser` (find a preinstalled Chromi
 `digest`, `flaky`, `protect`, `labels`. Every command accepts
 `--json`; `help` lists the flags.
 
-`rb doctor` checks the whole setup (contract, CI, permissions, labels, control issue, branch
-cleanup, deploy settings) and says what to fix.
+`rb doctor` checks the whole setup and says what to fix: the contract, CI, permissions, labels,
+the control issue, branch cleanup and protection, deploy settings and the deploy check, whether
+docs/progress.md missed merges, and whether CLAUDE.md sends chat requests through a skill.
 
 </details>
 
@@ -411,6 +424,21 @@ The retro of the next two features added the rest: bookkeeping PRs that merge wi
 retarget, task ids with a run prefix that no longer block a merge, every safety step in a plan
 tested by deleting it, timing that records itself when the session never calls `rb timing`, and
 CI on the Node version the project pins in `.nvmrc`.
+
+0.12.0 to 0.14.0 come from the retros of two more projects and from my own complaint: simple
+changes took hours and too many tokens, because each one paid for a planner, an implementer and two
+reviewers, about 300k to 450k tokens a task. Most of my work arrives as requests in a chat, and those
+had no path at all, so 25 PRs across those projects went in with no review. `/rb-quick` gives them
+one that runs the review once per batch. In its eval the verifier still sent the batch back for two
+real defects.
+
+0.13.0 closes the ways to opt out without noticing. A kickoff can no longer leave the harness for
+later (one project ran a month in production that way), and branch protection is either on or
+declined in writing, after two PRs with red CI were merged by hand on a repo where protection was
+free. 0.14.0 looks after the merge: an optional deploy check confirms the merged commit is live,
+the walking skeleton runs once in the real environment before features start, the design asks how
+I really use each external account and what its limits are, and `rb doctor` notices when the
+progress notes miss merges.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
 designs, anything that costs money and merging tier C work. I use Cursor little and I have not
