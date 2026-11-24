@@ -21,6 +21,7 @@ test('rb state: owner half and harness half; delegations in force', async () => 
   s.issues[4] = { number: 4, title: 'T2 copy', body: '', state: 'open', labels: ['rb:task'] };
   s.issues[5] = { number: 5, title: 'Which provider?', body: '', state: 'open', labels: ['rb:task', 'rb:needs-human'] };
   s.issues[6] = { number: 6, title: 'T3 api', body: '', state: 'open', labels: ['rb:task', 'rb:in-progress'] };
+  s.issues[7] = { number: 7, title: 'Rename helper', body: '', state: 'open', labels: ['rb:task', 'rb:unplanned'] };
   const until = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const d = await rbJson(root, ['delegate', '--words', 'delego la 3 hasta el viernes', '--scope', 'issues:3', '--until', until], io);
   assert.equal(d.code, 0, d.err);
@@ -31,6 +32,7 @@ test('rb state: owner half and harness half; delegations in force', async () => 
   assert.deepEqual(r.json.waitingOnOwner.questions.map((x) => x.number), [5]);
   assert.deepEqual(r.json.harnessWillDo.ready.map((x) => x.number), [4]);
   assert.deepEqual(r.json.harnessWillDo.inProgress.map((x) => x.number), [6]);
+  assert.deepEqual(r.json.followups.unplanned.map((x) => x.number), [7], 'a follow-up is never ready work (D5)');
   assert.equal(r.json.delegations[0].scope, 'issues:3');
   assert.match(r.json.delegations[0].words, /delego la 3/);
   const t = await rb(root, ['state'], io);

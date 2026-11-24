@@ -9,7 +9,8 @@ description: >
   anything that asks the owner and batches over the limits go to
   /rb-build. Use when the owner asks for a small code, config or docs change without naming a
   skill: "add X", "change Y", "make it do Z", "do it", "agrega", "cambia", "haz que", "ponle",
-  "quita", "hazlo", "dale". A bug goes to /rb-fix, a new feature to /rb-spec.
+  "quita", "hazlo", "dale". Also batches existing small issues: "/rb-quick #12 #15", "haz en lote
+  el 12 y el 15", "batch issues 12 and 15". A bug goes to /rb-fix, a new feature to /rb-spec.
 argument-hint: "<what to change>"
 ---
 
@@ -54,7 +55,8 @@ reported as done before that review passes.
   this is not quick. Create the `rb:task` issue (step 1, without the quick line in the body) and
   hand it to `/rb-build #<n>`, which plans it (and asks the owner only for the closed list). Tell the owner why in one
   sentence. "It's small, do it fast" never overrides the level.
-- Unattended runs (`/rb-cycle`) never use this path.
+- Unattended runs (`/rb-cycle`) use this path only for a level 1 batch of existing issues
+  (rb-cycle step 3, PLAN-1.0 D2).
 
 ## 1. Open the batch
 
@@ -68,6 +70,13 @@ reported as done before that review passes.
   the month total"). `rb gh issue-create --title "<short summary>" --body-file <f> --label
   rb:task,rb:quick`, then prepend `<!-- rockbuilt:task Q<n> spec=none -->` (n = the new issue
   number) to the same file and `rb gh issue-edit <n> --body-file <f>`.
+- **Existing issues (PLAN-1.0 D1).** The owner names issues (`#12 #15`): read each with `rb gh
+  issue-view`; keep only open `rb:task` or `rb:bug` issues with none of `rb:approval-pending`,
+  `rb:needs-human`, `rb:needs-local`, `rb:hold`, `rb:blocked`, `rb:unplanned`, and run `rb risk
+  --files` on their expected files (level 3 or an approval: that issue goes to `/rb-build`, say
+  so in one line). The batch issue copies each criterion as "From #12: ..." and the PR body
+  carries `<!-- rockbuilt:batch 12, 15 -->`: the batch issue stays the PR's only `Closes`, and the
+  gate closes the batched issues after the merge. Claim each batched issue too.
 - `rb claim <n> --run <run id>` (it also starts the task's timing). `git checkout -b
   rb/Q<n>-<slug> origin/<default>`.
 
@@ -134,6 +143,10 @@ timing report --write` and a progress.md line under Current state.
 
 ## Rules
 
+- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
+  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
+  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
+  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
 - No "done" before the batch review passes. A batch never reaches the default branch unreviewed.
 - The mechanical checks run on every change; only the agent review waits for the batch.
 - Level 3 and approvals never take this path; `quick.eligible: false` closes the batch.

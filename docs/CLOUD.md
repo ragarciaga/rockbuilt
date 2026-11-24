@@ -151,6 +151,13 @@ Las rutinas corren **sin pedir aprobación**. Cualquier acción que en tu comput
 confirmar, en la rutina se niega. Por eso el harness nunca depende de una confirmación cuando
 corre solo: lo que necesita tu decisión se convierte en un issue.
 
+Esa negación nunca congela la corrida: el ciclo la reporta como escalación (con el comando que se
+negó) y sigue con otra cosa. Para que no se repita, en tu computador cada aviso de permiso queda
+registrado por un hook (`.rockbuilt/permissions.jsonl`, solo la herramienta y las primeras
+palabras del comando). Pídele a Claude "reporte de permisos" (`node tools/rockbuilt/rb.mjs
+permissions report`): agrupa los avisos y te propone reglas para `permissions.allow` en
+`.claude/settings.json`, nunca para comandos destructivos, con tuberías o de red.
+
 Para probar sin esperar a la noche, abre una sesión en claude.ai/code sobre el repo y escribe
 `Run /rb-cycle.`. Es lo mismo que hará la rutina.
 

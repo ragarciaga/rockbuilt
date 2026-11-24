@@ -180,6 +180,10 @@ cause, the fix, the PR, and whether it merged or what it waits for.
 
 ## Rules
 
+- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
+  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
+  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
+  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
 - No fix before a failing reproduction, or a manual one the human approved.
 - The fix is minimal; extra cleanup becomes a follow-up issue.
 - Never weaken or delete the reproduction test.

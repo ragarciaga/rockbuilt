@@ -93,6 +93,8 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Fusionar un PR del harness o en modo supervisado, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
 | Delegar aprobaciones por un tiempo | "delego todo hasta el viernes", "full auto del milestone MVP" (`/rb-delegate`) |
 | Ver qué espera por ti | `rb state` (o `/rb-status`) |
+| Hacer varios issues pequeños en un solo PR | "haz en lote el 12 y el 15" o `/rb-quick #12 #15` |
+| Ver qué permisos te pide Claude y cuáles permitir | "reporte de permisos" (`rb permissions report`) |
 | Deshacer un merge | `/rb-merge revierte el PR 12` |
 | Retomar al día siguiente | `/rb-status` |
 | Ver tus horas por proyecto, feature y tarea | "reporte de horas" (`/rb-status`) |
@@ -155,6 +157,10 @@ reporta. Las pruebas usan mocks para los servicios pagos.
 celular). Con eso el merge sale solo cuando pasen las revisiones y la CI. Si el plan cambia, te
 lo vuelve a pedir. Nadie más puede escribir esa aprobación por ti: ni una etiqueta ni una bandera
 del agente la reemplazan.
+
+**No pregunta lo obvio.** "¿Lo subo?", "¿sigo?" o "¿abro el PR?" tienen respuesta por defecto: lo
+hace y te dice qué hizo. Los seguimientos que abren las revisiones quedan con `rb:unplanned`,
+fuera de la cola, hasta que les pongas `rb:task`; `rb:parked` los guarda para después.
 
 **Un solo mensaje.** La corrida no se detiene a preguntar: aparta lo que necesita tu decisión
 (`rb:approval-pending`, `rb:needs-human`, `rb:needs-local`), sigue con otro trabajo y al final te

@@ -48,6 +48,23 @@
           }
         ]
       }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/tools/rockbuilt/rb.mjs",
+              "permissions",
+              "log",
+              "--hook"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "permissions": {

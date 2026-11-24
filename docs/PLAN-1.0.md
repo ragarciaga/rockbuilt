@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 0.14.0. Fase en curso: **2 (no interrumpir y lotes)**, después de fusionar la 1.0.0 (PR #83). Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.1.0. Fase en curso: **3 (spec)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -128,8 +128,8 @@ y #52, PRs #26 y #46).
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
 | 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
-| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, falta merge) |
-| 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Pendiente |
+| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, release v1.0.0) |
+| 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Hecha |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
@@ -209,20 +209,20 @@ Bloque C, interrupciones:
       estado en JSON con dos mitades, lo que el harness hará solo y lo que espera al dueño (planes
       por aprobar, PRs, bloqueados, seguimientos, escalaciones), marcado como incompleto si falla
       una consulta a GitHub. La misma salida alimenta la métrica de interrupciones (B3).
-- [ ] C2 Regla en los skills: no preguntar lo que tiene un default razonable ("¿lo subo?",
+- [x] C2 Regla en los skills: no preguntar lo que tiene un default razonable ("¿lo subo?",
       "¿sigo?").
-- [ ] C3 Hook que registra cada aviso de permiso de Claude Code en el proyecto; reporte para
+- [x] C3 Hook que registra cada aviso de permiso de Claude Code en el proyecto; reporte para
       ampliar la lista de comandos permitidos. En corridas sin supervisión, documentar en CLOUD
       el modo en que un aviso de permiso se vuelve una negación reportada como escalación, en vez
       de congelar la corrida.
-- [ ] C4 Fase de "espera humana" separada en los tiempos; arreglo de fases abiertas y totales en 0.
+- [x] C4 Fase de "espera humana" separada en los tiempos; arreglo de fases abiertas y totales en 0.
 
 Bloque D, lotes:
-- [ ] D1 `/rb-quick` acepta una lista de issues existentes como un lote.
-- [ ] D2 El ciclo agrupa los pendientes de nivel 1 en un solo PR.
-- [ ] D3 `/rb-build` avisa cuando recibe algo de nivel 1 o 2 pequeño y sugiere el lote.
-- [ ] D4 Tareas de spec más grandes (revisar límites de `rb tasks`).
-- [ ] D5 Seguimientos que abren las revisiones: fuera del objetivo actual hasta que el dueño los
+- [x] D1 `/rb-quick` acepta una lista de issues existentes como un lote.
+- [x] D2 El ciclo agrupa los pendientes de nivel 1 en un solo PR.
+- [x] D3 `/rb-build` avisa cuando recibe algo de nivel 1 o 2 pequeño y sugiere el lote.
+- [x] D4 Tareas de spec más grandes (revisar límites de `rb tasks`).
+- [x] D5 Seguimientos que abren las revisiones: fuera del objetivo actual hasta que el dueño los
       promueva; `rb-status` los lista aparte. Diseño de trail-blazer-flow: nacen con una etiqueta
       de "sin plan" que los saca de toda cola, otra etiqueta los estaciona, y cerrarlos como no
       planeados los descarta.
@@ -387,3 +387,11 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   diseño; el fixture de aprobación contradecía el Out of scope del spec) y quedaron corregidos.
   Costo total de evals de la 1.0.0: 17,18 USD a precio de API. Fase 1 lista para merge; después
   del merge, crear el release `v1.0.0`. Siguiente: fase 2 (C2 a C4, D1 a D5).
+- 2026-11-24: 1.0.0 fusionada por Andrés (#83) y release `v1.0.0` publicado. Andrés pide terminar
+  el plan sin preguntar y fusionar yo mismo.
+- 2026-11-24: fase 2 hecha (1.1.0, DESIGN 30): C2 regla de defaults en los skills; C3 hook
+  `PermissionRequest` y `rb permissions report`; C4 fase `wait` y cierre de fases en `rb sync`;
+  D1 `/rb-quick #a #b` con la marca `rockbuilt:batch` (el gate revisa y cierra los issues del
+  lote); D2 lote de nivel 1 en el ciclo; D3 aviso en `/rb-build`; D4 tareas de hasta 10 archivos
+  de producción y 6 criterios; D5 `rb:unplanned` y `rb:parked`. Evals 22/22, 13,18 USD
+  (`evals/results/2026-11-24-1.1.md`).

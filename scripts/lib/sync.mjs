@@ -2,7 +2,7 @@
 import { readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { holdsLock } from './control.mjs';
-import { taskMarker } from './timing.mjs';
+import { autoPhase, taskMarker } from './timing.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
 import { currentBranch, defaultBranch } from './repo.mjs';
@@ -141,6 +141,10 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
 
   // Tasks done from merged PRs.
   for (const pr of merged) {
+    // PLAN-1.0 C4: a PR merged by hand never ran the gate's timing close; close its open phases so
+    // the task's total is not left at 0 with phases open forever (2brain, maysa).
+    const marker = taskMarker(pr.body);
+    if (marker) autoPhase(root, marker, null);
     const ref = taskRefFromPr(pr);
     if (!ref) continue;
     if (!ref.spec) {

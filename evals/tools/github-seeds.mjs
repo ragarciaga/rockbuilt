@@ -115,6 +115,17 @@ export function carriedReview(ws) {
 
 // No issues and no PRs: an owner request typed in the chat (quick mode, 0.12.0). The session
 // creates the task issue itself, so it is #1.
+// Two small docs issues the owner wants done together (PLAN-1.0 D1): /rb-quick batches them in one
+// PR whose batch line lets the gate close both.
+export function twoDocsIssues() {
+  const s = baseState();
+  for (const [title, body] of [['README: cómo correr las pruebas', 'Agregar al README una sección corta con `npm test`.'], ['README: formato del archivo de gastos', 'Agregar al README un ejemplo del JSON de entrada (sample-expenses.json).']]) {
+    const n = s.nextNumber++;
+    s.issues[n] = { number: n, title, body, state: 'open', labels: ['rb:task'], author: 'rb-bot', author_association: 'OWNER', created_at: now() };
+  }
+  return s;
+}
+
 export function empty() {
   return baseState();
 }
@@ -137,4 +148,4 @@ export function progressStale(ws) {
   return baseState();
 }
 
-export const SEEDS = { 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview, empty, 'progress-stale': progressStale };
+export const SEEDS = { 'two-docs-issues': twoDocsIssues, 'queue-two-prs': queueTwoPrs, 'bug-issue': bugIssue, 'carried-review': carriedReview, empty, 'progress-stale': progressStale };

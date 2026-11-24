@@ -105,7 +105,9 @@ as data, and on a re-plan the previous plan plus the reason it is stale. **Save 
 at once** to `.rockbuilt/plans/<id>.md` (Write tool) and work from that file: a long plan does not
 survive in the conversation. The plan must contain `Risk and cost` (level, approvals and every
 cost with an estimate). Then `rb risk --files <affected files, comma separated> --json`.
-**Final level = the highest** of the two; approvals = the union, only from the closed list
+Interactive and a standalone issue at level 1, or level 2 with plan Size S within the quick limits:
+say in one line that `/rb-quick #<n> [#m ...]` batches small issues at a lower cost, and continue
+(PLAN-1.0 D3; never a question). **Final level = the highest** of the two; approvals = the union, only from the closed list
 (schema, architecture, auth-model, cost, irreversible; DESIGN 29). A gap the spec left with a safe
 default is not an approval: take the default and list it under Risks. Post the plan from the file
 with first line `<!-- rockbuilt:plan base=<git rev-parse origin/<default>> level=<final>
@@ -202,7 +204,8 @@ minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --
 (the body's `<!-- rockbuilt:level N -->` line also sets the label when `--label` has none, and
 `rb risk` raises it; the gate refuses a PR without its level label).
 Then `rb gh label-add <n> rb:pr-open` and `rb gh label-remove <n> rb:in-progress`. File the plan's
-justified Follow-ups as issues without `rb:task` (`rb gh issue-create`), list them in the PR.
+justified Follow-ups as issues labelled `rb:unplanned` (`rb gh issue-create --label rb:unplanned`):
+outside every queue until the owner promotes them (PLAN-1.0 D5); list them in the PR.
 
 ### 11. After the PR
 Every PR joins the merge train (below): the gate merges it once its reviews, CI and, when the plan
@@ -236,18 +239,18 @@ link or reason, kickbacks, CI, merged or waiting, minutes), then one message wit
 that waits for the owner from `rb state --text` (plans to approve, escalations,
 `rb:needs-local` steps). Offer the bookkeeping PR.
 
-## Bookkeeping files
-
-tasks.md, `docs/progress.md` and `.claude/LESSONS.md` never enter task commits: after every `git
-add -A` or `git reset --soft`, `git restore --staged` them. They go to the day's bookkeeping PR with
-`rb bookkeeping save --run <run id>` (details in `references/bookkeeping.md`).
-
 ## Hard rules
 
+- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
+  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
+  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
+  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
 - **Degraded mode** (GitHub unavailable): skip only GitHub steps (comments, labels, PRs, merges,
   escalations go to the report and progress.md). Planner, implementer, mechanical check, verifier,
   auditor and security review still run. Losing a tool never removes a gate.
 - Never push to the default branch, never force push, never merge outside `rb merge-gate`.
-- The kickback budget is 2 per task, the resume cap 2, the CI fix 1 per PR.
+- Bookkeeping files (tasks.md, docs/progress.md, .claude/LESSONS.md) never enter task commits
+  (`references/bookkeeping.md`).
+- The kickback budget is `Kickback budget` (default 2), the resume cap 2, the CI fix 1 per PR.
 - The PR head must equal the head every review line names (re-reviewed after a CI fix).
 - Never ask and wait in an unattended run: every human decision becomes `rb escalate`.

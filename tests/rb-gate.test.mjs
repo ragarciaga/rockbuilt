@@ -181,6 +181,11 @@ test('merge-gate: label level lower than the live risk, declared level above the
   gh.state.comments[3].push({ id: 5000, body: '<!-- rockbuilt:plan base=abc level=3 approvals=schema -->\nPlan', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T01:00:00Z' });
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.deepEqual(reasonRules(r), ['approval']);
+  // PLAN-1.0 C4: the wait for the owner is its own phase, not CI time.
+  gh.state.issues[10].body += '<!-- rockbuilt:task T1 -->\n';
+  await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  const events = readFileSync(path.join(root, '.rockbuilt', 'timing.jsonl'), 'utf8');
+  assert.match(events, /"task":"T1","phase":"wait","event":"start"/);
   r = await gate(root, gh, ['--run', 'run-1', '--human-approved', '--dry-run']);
   assert.ok(reasonRules(r).includes('approval'), 'never a flag');
   gh.state.comments[3].push({ id: 5001, body: '<!-- rockbuilt:note -->\naprobado', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T02:00:00Z' });
@@ -314,7 +319,7 @@ test('lock: acquire, refuse while held, take over after 3 hours, release', async
     assert.equal(a.code, 0);
     assert.equal(a.json.control, 1);
     assert.deepEqual(gh.state.issues[1].labels.sort(), ['rb:control', 'rb:running']);
-    assert.equal(Object.keys(gh.state.labels).length, 21, 'labels ensured with the control issue');
+    assert.equal(Object.keys(gh.state.labels).length, 23, 'labels ensured with the control issue');
   });
   await withEnv({ RB_NOW: '2026-10-09T03:59:00.000Z' }, async () => {
     const b = await rbJson(root, ['lock', 'acquire', '--run', 'n2'], io);
@@ -436,7 +441,7 @@ test('rb gh ops: issue-view with comments and association, checks merge, labels-
   assert.deepEqual(checks.json.map((c) => [c.name, c.status, c.conclusion]), [['rockbuilt-ci', 'completed', 'success'], ['ci/legacy', 'completed', 'failure']]);
 
   const labels = await rbJson(root, ['labels'], io);
-  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 21);
+  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 23);
   assert.ok((await rbJson(root, ['gh', 'labels-ensure'], io)).json.every((l) => l.action === 'ok'));
 
   const pr = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-x', '--title', 'T1', '--body-file', path.join(dir, 'b.md'), '--label', 'rb:tier-a'], io);
@@ -627,6 +632,28 @@ test('merge-gate: revert and spec PRs never merge unattended, but do with --huma
   gh.state.pulls[10].head = 'rb/spec-01-x';
   const r = await gate(root, gh, ['--human-approved', '--dry-run']);
   assert.ok(reasonRules(r).includes('kind-files'), JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate (PLAN-1.0 D1): a quick batch of existing issues closes them all; held ones block it', async () => {
+  const root = project();
+  const quickBody = `Closes #3\n<!-- rockbuilt:quick -->\n<!-- rockbuilt:batch 7, 8 -->\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor')}\n<!-- rockbuilt:tier B -->\n`;
+  let gh = fakeGh();
+  seed(gh, { tier: 'B', body: quickBody });
+  gh.state.issues[7] = { number: 7, title: 'copy', body: '', state: 'open', labels: ['rb:task'] };
+  gh.state.issues[8] = { number: 8, title: 'fix', body: '', state: 'open', labels: ['rb:bug', 'rb:approval-pending'] };
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'batch' && /#8 carries rb:approval-pending/.test(x.detail)), JSON.stringify(r.json.reasons));
+  gh.state.issues[8].labels = ['rb:bug'];
+  r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.equal(gh.state.issues[7].state, 'closed');
+  assert.equal(gh.state.issues[8].state, 'closed');
+  gh = fakeGh();
+  seed(gh, { tier: 'B', body: quickBody.replace('<!-- rockbuilt:quick -->\n', '') });
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(reasonRules(r).includes('batch'), 'only quick batches carry a batch line');
 });
 
 test('merge-gate: one open task issue of the same task; old and new labels take the higher level (review of 1.0)', async () => {

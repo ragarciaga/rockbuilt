@@ -7,6 +7,8 @@ import { ensureControl } from './control.mjs';
 import { ops } from './gh.mjs';
 
 const WAIT = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:blocked', 'rb:hold'];
+// PLAN-1.0 D5: review follow-ups wait outside every queue until the owner promotes them.
+const OUT = ['rb:unplanned', 'rb:parked'];
 
 export function projectState(c, { at = new Date().toISOString() } = {}) {
   const errors = [];
@@ -30,13 +32,14 @@ export function projectState(c, { at = new Date().toISOString() } = {}) {
     pullRequests: prs.filter((p) => prLabels(p).some((l) => ['rb:approval-pending', 'rb:hold', 'rb:needs-human'].includes(l))).map((p) => ({ number: p.number, title: p.title, labels: prLabels(p).filter((l) => WAIT.includes(l)) })),
   };
   const harnessWillDo = {
-    ready: work.filter((i) => !WAIT.some((l) => has(i, l)) && !has(i, 'rb:in-progress') && !has(i, 'rb:pr-open')).map(brief),
+    ready: work.filter((i) => ![...WAIT, ...OUT].some((l) => has(i, l)) && !has(i, 'rb:in-progress') && !has(i, 'rb:pr-open')).map(brief),
     inProgress: work.filter((i) => has(i, 'rb:in-progress')).map(brief),
     mergeTrain: prs.filter((p) => !prLabels(p).some((l) => WAIT.includes(l)) && /^rb\//.test((p.head && p.head.ref) || '')).map((p) => ({ number: p.number, title: p.title })),
   };
+  const followups = { unplanned: issues.filter((i) => has(i, 'rb:unplanned')).map(brief), parked: issues.filter((i) => has(i, 'rb:parked')).map(brief) };
   const delegations = parseDelegations(controlComments, at);
   const ownerCount = Object.values(waitingOnOwner).reduce((s, xs) => s + xs.length, 0);
-  return { complete: errors.length === 0, errors, waitingOnOwner, ownerCount, harnessWillDo, delegations };
+  return { complete: errors.length === 0, errors, waitingOnOwner, ownerCount, harnessWillDo, followups, delegations };
 }
 
 export function stateText(s) {
@@ -57,5 +60,10 @@ export function stateText(s) {
   list('  ready', h.ready);
   list('  in progress', h.inProgress);
   list('  merge train', h.mergeTrain);
+  if (s.followups && (s.followups.unplanned.length || s.followups.parked.length)) {
+    out.push('Follow-ups (outside the queue until you promote them with rb:task):');
+    list('  unplanned', s.followups.unplanned);
+    list('  parked', s.followups.parked);
+  }
   return out.join('\n');
 }

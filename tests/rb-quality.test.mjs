@@ -93,13 +93,13 @@ test('rb escalate refuses a tier C plan without its security read (eval build-ti
 
 test('rb tasks: size L needs a reason, and too many files or criteria mean split it', () => {
   const block = (id, size, files, covers) => `## ${id}: x\n- Purpose: p\n- Covers: ${covers}\n- Size: ${size}\n- Depends on: none\n- Files: ${files}\n- Verify: \`npm test\`\n- Status: todo\n`;
-  const many = Array.from({ length: 9 }, (_, i) => `src/f${i}.js`).join(', ');
-  const t = parseTasks(`# Tasks: x\n\n${block('T1', 'L', 'src/a.js', 'R1.1')}\n${block('T2', 'L (one migration, cannot be split)', 'src/a.js', 'R1.1')}\n${block('T3', 'M', many, 'R1.1')}\n${block('T4', 'S', 'src/a.js', 'R1.1, R1.2, R1.3, R1.4, R1.5')}`);
+  const many = Array.from({ length: 11 }, (_, i) => `src/f${i}.js`).join(', ');
+  const t = parseTasks(`# Tasks: x\n\n${block('T1', 'L', 'src/a.js', 'R1.1')}\n${block('T2', 'L (one migration, cannot be split)', 'src/a.js', 'R1.1')}\n${block('T3', 'M', many, 'R1.1')}\n${block('T4', 'S', 'src/a.js', 'R1.1, R1.2, R1.3, R1.4, R1.5, R1.6, R1.7')}`);
   const p = taskProblems(t.tasks, t.errors);
   assert.ok(p.some((x) => /T1 is size L without a reason/.test(x)));
   assert.ok(!p.some((x) => /T2/.test(x)));
-  assert.ok(p.some((x) => /T3 lists 9 files/.test(x)));
-  assert.ok(p.some((x) => /T4 covers 5 criteria/.test(x)));
+  assert.ok(p.some((x) => /T3 lists 11 production files/.test(x)));
+  assert.ok(p.some((x) => /T4 covers 7 criteria/.test(x)));
 });
 
 test('rb quality: kickbacks by source, reverts and bugs traced to merged PRs', async () => {

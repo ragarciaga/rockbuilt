@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.0 (2026-11-24)
+
+Fewer interruptions and fewer small PRs (PLAN-1.0 phase 2, issues #77 and #78; DESIGN 30).
+
+- **No obvious questions.** Skills take the reasonable default for "push?", "continue?", "open the
+  PR?" and say what they did; they ask only for the closed list of 1.0 or what nothing answers.
+- **Permission prompts.** A hook logs every Claude Code permission prompt in the project;
+  "permissions report" (`rb permissions report`) proposes safe allow rules. In routines a prompt
+  is a denial the cycle escalates and moves past.
+- **Honest times.** A new `wait` phase holds the time a PR waits for you, apart from CI; `rb sync`
+  closes the phases of PRs merged by hand.
+- **Batches.** `/rb-quick #12 #15` builds existing small issues in one PR and closes them all on
+  merge; the nightly cycle batches docs-only issues the same way; `/rb-build` suggests it for small
+  issues.
+- **Larger tasks:** up to 10 production files (tests not counted) and 6 criteria.
+- **Follow-ups parked:** issues opened by reviews are `rb:unplanned` until you promote them;
+  `rb:parked` keeps them for later.
+- Update a project with "update rockbuilt" (new labels and the permissions hook come with it).
+
 ## 1.0.0 (2026-11-24)
 
 Help instead of block: fewer agents on trivial work, fewer interruptions, the full cycle only where
