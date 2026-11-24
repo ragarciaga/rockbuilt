@@ -294,6 +294,8 @@ export function reviewLevel(tier, files = []) {
     } else if (r.rule === 'dependency') {
       const changes = r.changes || [r.detail];
       if (!/package\.json$/.test(r.path)) checks.add('dependency');
+      // A manifest whose content was not read (rb risk --files) may change a script: level 3.
+      if (/not inspected/.test(r.detail)) { levelReasons.push(r); continue; }
       for (const c of changes) {
         if (RUNTIME_DEP_FIELDS.test(c)) { if (!/^removed /.test(c)) checks.add('dependency'); } else if (/\(devDependencies\)$/.test(c)) continue;
         else if (/\(\w+\)$/.test(c)) levelReasons.push({ ...r, detail: c });
@@ -487,9 +489,10 @@ export const QUICK_LIMITS = { lines: 400, files: 12 };
 
 export function quickCheck(r) {
   const reasons = [];
-  if (r.tier === 'C') {
-    const why = (r.reasons || []).filter((x) => x.rule !== 'tier-b').slice(0, 3).map((x) => `${x.rule} ${x.path || ''}`.trim()).join('; ');
-    reasons.push(`tier C${why ? ` (${why})` : ''}: plan it with /rb-build, the owner approves`);
+  // PLAN-1.0: level 3 work and anything that asks the owner need a plan (/rb-build).
+  if (r.level === 3 || (r.approvals || []).length) {
+    const why = [...(r.approvals || []).map((a) => `${a.reason} ${a.path || ''}`.trim()), ...(r.levelReasons || []).map((x) => `${x.rule} ${x.path || ''}`.trim())].slice(0, 3).join('; ');
+    reasons.push(`${(r.approvals || []).length ? 'needs the owner' : 'level 3'}${why ? ` (${why})` : ''}: plan it with /rb-build`);
   }
   if ((r.changedLines || 0) > QUICK_LIMITS.lines) reasons.push(`${r.changedLines} changed lines (> ${QUICK_LIMITS.lines})`);
   const n = (r.files || []).length;

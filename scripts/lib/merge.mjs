@@ -574,6 +574,6 @@ export function revertPr(root, c, pr) {
     rmSync(path.dirname(dir), { recursive: true, force: true });
   }
   const body = `Reverts #${view.number} (${view.merge_commit_sha}).\n\nOpened by \`rb revert\`. Revert PRs merge only when the user asks (\`rb merge-gate <n> --human-approved\`).\n\n<!-- rockbuilt:tier C -->\n`;
-  const created = ops.prCreate(c, { head: revBranch, base: branch, title: `Revert "${view.title}"`, body, labels: ['rb:tier-c', 'rb:needs-human'] });
+  const created = ops.prCreate(c, { head: revBranch, base: branch, title: `Revert "${view.title}"`, body, labels: ['rb:needs-human'] });
   return { reverted: view.number, branch: revBranch, pr: created.number, url: created.url };
 }

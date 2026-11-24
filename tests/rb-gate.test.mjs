@@ -529,7 +529,7 @@ test('rb revert: reverts the squash commit on rb/revert-<pr> in a temporary work
   assert.equal(r.code, 0, r.err);
   assert.equal(r.json.branch, 'rb/revert-10');
   assert.equal(r.json.pr, 11);
-  assert.deepEqual(gh.state.issues[11].labels, ['rb:tier-c', 'rb:needs-human']);
+  assert.deepEqual(gh.state.issues[11].labels, ['rb:needs-human']);
   assert.equal(gh.state.pulls[11].head, 'rb/revert-10');
   assert.match(gh.state.issues[11].title, /^Revert "feat: T1"$/);
   const files = sh(bare, 'git', ['ls-tree', '-r', '--name-only', 'rb/revert-10']);

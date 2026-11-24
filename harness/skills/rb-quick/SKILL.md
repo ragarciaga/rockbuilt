@@ -4,8 +4,9 @@ description: >
   Quick mode for small changes the owner asks for in the chat: one batch issue, the session
   implements with no planner and no implementer dispatch, the mechanical check after every change,
   rb risk decides on the real diff whether the batch is still small, then ONE review of the whole
-  batch (rb-verifier, rb-auditor on tier B, rb-security-reviewer when the diff requires it) before
-  saying it is done, PR, merge through rb merge-gate. Tier C and batches over the limits go to
+  batch (by level: rb-verifier, rb-auditor when something visible changes, rb-security-reviewer when
+  the diff requires it) before saying it is done, PR, merge through rb merge-gate. Level 3 work,
+  anything that asks the owner and batches over the limits go to
   /rb-build. Use when the owner asks for a small code, config or docs change without naming a
   skill: "add X", "change Y", "make it do Z", "do it", "agrega", "cambia", "haz que", "ponle",
   "quita", "hazlo", "dale". A bug goes to /rb-fix, a new feature to /rb-spec.
@@ -47,11 +48,12 @@ reported as done before that review passes.
 - A bug (behavior that contradicts a spec, test, doc or obvious intent): `/rb-fix`. A new feature
   with design decisions, or work that needs `/rb-spec`: say so in one sentence and stop.
 - A question or an explanation changes no file: answer it, no batch.
-- List the files you expect to touch and run `rb risk --files <a,b,c> --json`. Tier C (dependency,
-  auth, payments, schema, CI or deploy, harness, secrets, a cost) or `quick.eligible: false`:
+- List the files you expect to touch and run `rb risk --files <a,b,c> --json`. Level 3 or an
+  approval (auth, payments, schema, CI or deploy, harness, secrets, a cost) or `quick.eligible:
+  false`:
   this is not quick. Create the `rb:task` issue (step 1, without the quick line in the body) and
-  hand it to `/rb-build #<n>`, whose tier C plan waits for the owner. Tell the owner why in one
-  sentence. "It's small, do it fast" never overrides the tier.
+  hand it to `/rb-build #<n>`, which plans it (and asks the owner only for the closed list). Tell the owner why in one
+  sentence. "It's small, do it fast" never overrides the level.
 - Unattended runs (`/rb-cycle`) never use this path.
 
 ## 1. Open the batch
@@ -79,9 +81,9 @@ For each request in the batch:
    code**, never by the last line of output. `rb secrets` exits 0. A red command: fix it now.
 3. Commit (`git add -A`, `git restore --staged` bookkeeping files, `git commit -m "<type>(<scope>):
    <request> (Q<n>)"`).
-4. `rb risk --base origin/<default> --json`. Tier C, or `quick.eligible: false`: stop adding to
-   this batch. Tier C: push the branch, escalate per build step 7 (`rb escalate <n> --kind human`
-   with the rb risk reasons), tell the owner, and stop. Over the limits: finish the request you are
+4. `rb risk --base origin/<default> --json`. `quick.eligible: false`: stop adding to this batch.
+   Level 3 or an approval: push the branch, hand it to build step 7 (`rb:approval-pending` with the
+   rb risk reasons), tell the owner, and stop. Over the limits: finish the request you are
    on, close the batch now (step 3) and put the remaining requests in a new batch.
 
 Do not refactor beyond the request; extra cleanup becomes a follow-up issue.
@@ -94,14 +96,15 @@ anything is done. Requests that arrive while the reviews run go to the next batc
 1. `rb baseline --check` on the branch (no failure outside known-failures, counts not lower).
 2. Collapse as build step 8 (one commit, message `<type>: <summary> (Q<n>)`; on a branch already
    on origin only local commits squash). Record `git rev-parse HEAD` as the reviewed head.
-3. `rb risk --base origin/<default> --json`: tier, `security.required`, `quick.eligible`. Not
-   eligible any more: build step 7 (tier C) or split as in step 2.4.
+3. `rb risk --base origin/<default> --json`: level, `userVisible`, `security.required`,
+   `quick.eligible`. Not eligible any more: build step 7 or split as in step 2.4. Level 1: no
+   review (the gate merges it on CI); go to step 6.
 4. Reviews, serially, each once for the whole batch:
    - `rb-verifier`: `Mode: quick`, task id `Q<n>`, `Reviewed head: <sha>`, the issue's criteria as
      the plan (with "Plan written by the orchestrator, who also implemented; there is no planner
      and no implementer report"), `git diff origin/<default>...HEAD --stat`, the default branch,
      the working directory, `Docs language`.
-   - `rb-auditor` (tier B), after the verifier passes, per `audit.md`: ONLY the task id, the
+   - `rb-auditor` (when `userVisible`, or the PR number is a multiple of 5), after the verifier passes, per `audit.md`: ONLY the task id, the
      reviewed head, the working directory, the issue's criteria and how to run the app from
      AGENTS.md. Never the diff, your notes or the verifier verdict.
    - `rb-security-reviewer` when `security.required` (the gate enforces it): `Mode: task`, spec
@@ -111,11 +114,11 @@ anything is done. Requests that arrive while the reviews run go to the next batc
    the issue (`rb gh issue-comment <n> --body-file <its report>`).
 5. Any finding: you fix it (one commit on top), run step 2.2 again, and the reviewer that failed
    re-reviews the new head; the others carry when `rb review-delta` says identical or test-only
-   (DESIGN 8.3). Budget 2 kickbacks for the batch, then the blocked path as in build.
+   (DESIGN 8.3). `Kickback budget` (default 2) for the batch, then the blocked path as in build.
 6. PR: push (`git push -u origin rb/Q<n>-<slug>`), body per `pr-template.md` with `Closes #<n>`,
-   the line `<!-- rockbuilt:quick -->`, every status line, `<!-- rockbuilt:tier <A|B> -->` and the
+   the line `<!-- rockbuilt:quick -->`, every status line, `<!-- rockbuilt:level <1|2> -->` and the
    output of `rb timing line Q<n>`. `rb gh pr-create --head rb/Q<n>-<slug> --base <default> --title
-   "<type>: <summary> (Q<n>)" --body-file <f> --label rb:tier-<a|b>`, then `rb gh label-add <n>
+   "<type>: <summary> (Q<n>)" --body-file <f> --label rb:level-<1|2>`, then `rb gh label-add <n>
    rb:pr-open` and `rb gh label-remove <n> rb:in-progress`.
 7. Merge: the merge train as rb-fix does (lock, `merge-train.md`, `rb merge-gate <pr> --run <run
    id>`), unless `Autonomy: supervised` or the owner said not to merge. The gate refuses a quick
@@ -133,7 +136,7 @@ timing report --write` and a progress.md line under Current state.
 
 - No "done" before the batch review passes. A batch never reaches the default branch unreviewed.
 - The mechanical checks run on every change; only the agent review waits for the batch.
-- Tier C never takes this path; `quick.eligible: false` closes the batch.
+- Level 3 and approvals never take this path; `quick.eligible: false` closes the batch.
 - Never merge outside `rb merge-gate`; never push to the default branch or force push.
 - No GitHub (`rb gh whoami` fails): id `L<n>` as rb-fix, every review still runs, report the
   skipped GitHub steps.

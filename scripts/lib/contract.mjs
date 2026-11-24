@@ -138,6 +138,8 @@ export function contractInfo(root) {
     parallel: headerField(text, 'Parallel') || 'auto',
     maxParallel: intField(text, 'Max parallel', 3),
     maxTasksPerRun: intField(text, 'Max tasks per run', 6),
+    // PLAN-1.0 A12: kickbacks per task before the blocked path, 0 to 3 (default 2).
+    kickbackBudget: (() => { const n = Number.parseInt(headerField(text, 'Kickback budget') ?? '', 10); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 2; })(),
     // rockbuilt #64: the owner's recorded refusal of branch protection (it costs money on a
     // private repo). Anything else, or no line, means protection is still pending.
     protectionDeclined: /^declined\b/i.test(headerField(text, 'Branch protection') || ''),

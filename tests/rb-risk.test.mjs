@@ -284,14 +284,14 @@ test('cost scan: hosts in config files count; namespaces and look-alike names do
   assert.equal(c('locales/es/messages.json', '{"a": "https://help.site.io"}'), 'A');
 });
 
-test('quick mode (#63): eligible within the limits on tier A and B; tier C, size and file count leave it', async () => {
+test('quick mode (#63): eligible within the limits on levels 1 and 2; level 3, size and file count leave it', async () => {
   const root = base();
   let r = await rbJson(root, ['risk', '--files', 'src/a.ts,README.md']);
   assert.equal(r.json.quick.eligible, true);
   assert.deepEqual(r.json.quick.limits, QUICK_LIMITS);
   r = await rbJson(root, ['risk', '--files', 'package.json,src/cli.js']);
   assert.equal(r.json.quick.eligible, false);
-  assert.match(r.json.quick.reasons[0], /^tier C .*rb-build/);
+  assert.match(r.json.quick.reasons[0], /^level 3 .*rb-build/);
   // Git mode: the real diff decides, tests included.
   write(root, 'src/big.js', `${'export const x = 1;\n'.repeat(QUICK_LIMITS.lines + 1)}`);
   commitAll(root, 'big');

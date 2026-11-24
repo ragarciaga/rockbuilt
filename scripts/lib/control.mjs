@@ -156,14 +156,15 @@ export function requirePlanReview(c, issue) {
   const comments = view.comments.filter((cm) => TRUSTED.has(cm.author_association));
   let plan = -1;
   for (let i = comments.length - 1; i >= 0; i--) {
-    if (/^<!--\s*rockbuilt:plan\b[^>]*\btier=C\b/im.test(comments[i].body)) { plan = i; break; }
+    // A plan that asks the owner (approvals=..., or tier=C before 1.0) gets the security read first.
+    if (/^<!--\s*rockbuilt:plan\b[^>]*(\btier=C\b|\bapprovals=(?!none\b)[\w-])/im.test(comments[i].body)) { plan = i; break; }
     if (/^<!--\s*rockbuilt:plan\b/im.test(comments[i].body)) return;
   }
   if (plan === -1) return;
   const after = comments.slice(plan);
   if (after.slice(1).some((cm) => /<!--\s*rockbuilt:escalation\b/.test(cm.body) || /<!--\s*rockbuilt:status\s+[^>]*stage=rb-verifier/.test(cm.body))) return;
   const reviewed = after.some((cm) => /<!--\s*rockbuilt:status\s+[^>]*stage=rb-security-reviewer[^>]*\bmode=plan\b/.test(cm.body));
-  if (!reviewed) throw new CliError(`#${issue} has a tier C plan without its security read: dispatch rb-security-reviewer with Mode: plan, post its verdict on the issue (rb-build step 3b), then escalate`, 3);
+  if (!reviewed) throw new CliError(`#${issue} has a plan waiting for the owner without its security read: dispatch rb-security-reviewer with Mode: plan, post its verdict on the issue (rb-build step 3b), then escalate`, 3);
 }
 
 export function escalate(c, issue, { kind, title, body }) {

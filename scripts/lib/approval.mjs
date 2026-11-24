@@ -78,3 +78,26 @@ export function approvalStatus({ reasons, issueComments = [], controlComments = 
   if (d) return { ok: true, how: 'delegation', delegation: d };
   return { ok: false, how: null, detail: `needs the owner's approval of the plan on #${issue} (${reasons.join(', ')}): a comment from the owner starting with "aprobado" or "approved", newer than the plan, or a delegation that covers it` };
 }
+
+// rb delegate: the skill that hears the owner delegate records their words, verbatim, on the
+// control issue. Scope: all | milestone:<name> | issues:12,15. The words are required: a
+// delegation without the owner's words is a flag the agent passed.
+export function recordDelegation(c, ops, ensureControl, { scope = 'all', until = null, include = [], run = null, words, at = new Date().toISOString() }) {
+  if (!words || !String(words).trim()) throw new Error('--words "<the owner\'s words, verbatim>" is required');
+  if (!/^(all|milestone:\S+|issues:#?\d+(,#?\d+)*)$/.test(scope)) throw new Error('--scope must be all, milestone:<name> (spaces as _) or issues:12,15');
+  const end = until || addDays(at, DELEGATION_DAYS);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) throw new Error('--until must be YYYY-MM-DD');
+  const bad = include.filter((x) => !ALWAYS_OUT.includes(x));
+  if (bad.length) throw new Error(`--include takes cost and irreversible only (got ${bad.join(', ')})`);
+  const attrs = [`scope=${scope.replace(/#/g, '')}`, `until=${end}`, include.length ? `include=${include.join(',')}` : null, run ? `run=${run}` : null].filter(Boolean).join(' ');
+  const ctl = ensureControl(c);
+  const quoted = String(words).trim().split('\n').map((l) => `> ${l}`).join('\n');
+  ops.issueComment(c, ctl.number, `<!-- rockbuilt:delegation ${attrs} -->\n${quoted}\n\nDelegated approval: ${scope}${run ? ` for run ${run} only` : ''}, until ${end}${include.length ? `, including ${include.join(' and ')}` : ''}. Merges it covers say "merged by delegation". Revoke: rb delegate revoke.`);
+  return { control: ctl.number, scope, until: end, include, run };
+}
+
+export function revokeDelegations(c, ops, ensureControl, { words = '' } = {}) {
+  const ctl = ensureControl(c);
+  ops.issueComment(c, ctl.number, `<!-- rockbuilt:delegation-revoke -->\nEvery delegation before this comment is revoked.${words ? `\n> ${words}` : ''}`);
+  return { control: ctl.number, revoked: true };
+}

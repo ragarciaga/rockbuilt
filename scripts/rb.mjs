@@ -19,6 +19,8 @@ import { findingsText, scanBranch } from './lib/secrets.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, prKind, revertPr } from './lib/merge.mjs';
+import { parseDelegations, recordDelegation, revokeDelegations } from './lib/approval.mjs';
+import { projectState, stateText } from './lib/state.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -58,6 +60,8 @@ export const COMMANDS = {
   lock: 'acquire --run <id> | release --run <id> | status',
   stop: 'status: exit 3 when the stop switch is on',
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
+  delegate: 'Delegated approval on the control issue: --words "<owner words>" [--scope all|milestone:<name>|issues:12,15] [--until YYYY-MM-DD] [--include cost,irreversible] [--run <id>] | revoke [--words t] | list',
+  state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
   digest: 'post --file <md>: append the run digest to the control issue',
   flaky: 'record <test> [--pr <n>] [--note t] | list: flaky candidates on the control issue (a failure that passed on re-run)',
   protect: 'Require the rockbuilt-ci check on the default branch (exit 3 when the plan does not allow it)',
@@ -165,7 +169,7 @@ function flushSession(root, session, flags, io) {
 // Each handler returns { data, text, code }.
 const handlers = {
   help() {
-    return { data: { commands: COMMANDS, ghOps: GH_OPS }, text: helpText(), code: 0 };
+    return { data: { commands: COMMANDS, ops: GH_OPS }, text: helpText(), code: 0 };
   },
 
   doctor({ cwd, io }) {
@@ -768,6 +772,29 @@ const handlers = {
     if (positionals[0] !== 'status') throw new CliError('usage: rb stop status', 2);
     const r = stopStatus(client(projectRoot(cwd), flags, io));
     return { data: r, text: r.stop ? `STOP: ${r.issues.map((i) => `#${i.number} ${i.title}`).join(', ')}` : 'stop switch off', code: r.stop ? 3 : 0 };
+  },
+
+  delegate({ cwd, positionals, flags, io }) {
+    const c = client(projectRoot(cwd), flags, io);
+    const [sub] = positionals;
+    const wrap = (fn) => { try { return fn(); } catch (e) { throw new CliError(e.message, 2); } };
+    if (sub === 'revoke') {
+      const r = wrap(() => revokeDelegations(c, ops, ensureControl, { words: stringFlag(flags, 'words') || '' }));
+      return { data: r, text: `every delegation revoked on #${r.control}`, code: 0 };
+    }
+    if (sub === 'list') {
+      const ctl = ensureControl(c, { create: false });
+      const list = ctl ? parseDelegations(ops.issueComments(c, ctl.number)) : [];
+      return { data: list, text: list.length ? list.map((d) => `${d.scope}${d.run ? ` (run ${d.run})` : ''} until ${d.until}: ${d.words}`).join('\n') : 'no delegation in force', code: 0 };
+    }
+    if (sub) throw new CliError('usage: rb delegate --words "<owner words>" [--scope ...] | revoke | list', 2);
+    const r = wrap(() => recordDelegation(c, ops, ensureControl, { scope: stringFlag(flags, 'scope') || 'all', until: stringFlag(flags, 'until') || null, include: listFlag(flags.include), run: stringFlag(flags, 'run') || null, words: stringFlag(flags, 'words') }));
+    return { data: r, text: `delegation recorded on #${r.control}: ${r.scope} until ${r.until}`, code: 0 };
+  },
+
+  state({ cwd, flags, io }) {
+    const s = projectState(client(projectRoot(cwd), flags, io));
+    return { data: s, text: stateText(s), code: s.complete ? 0 : 3 };
   },
 
   escalate({ cwd, positionals, flags, io }) {

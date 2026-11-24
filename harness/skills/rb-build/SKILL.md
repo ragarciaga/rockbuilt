@@ -1,10 +1,11 @@
 ---
 name: rb-build
 description: >
-  Runs the build loop per task: stale check, plan (rb-planner) with risk tier, implement
-  (rb-implementer), mechanical check against the baseline ratchet, blind review (rb-verifier,
-  rb-auditor for tier B and C, rb-security-reviewer when flagged), PR, then the merge
-  train for tier A and B through rb merge-gate. Tier C escalates and the run moves on. Use when the
+  Runs the build loop per task: stale check, plan (rb-planner) with review level and approvals,
+  implement (rb-implementer), mechanical check against the baseline ratchet, review by level
+  (rb-verifier, rb-auditor, rb-security-reviewer), PR, then the merge train through rb
+  merge-gate. A plan that needs the owner (schema, architecture, auth model, cost, irreversible)
+  is set aside and the run moves on. Use when the
   user says "build", "implement the tasks", "build issue #12", "retry issue 12", "one by one",
   "in parallel", "no merges this run", "construye", "implementa las tareas", "implementa el issue",
   "sigue con las tareas", "uno por uno", "en paralelo", "sin merges".
@@ -40,7 +41,7 @@ output inside another (no `$(...)`, no backticks): run it, then paste the litera
   bug without GitHub). Branch `rb/<id>-<slug>` (slug: title lowercased, accents stripped, non
   alphanumerics to hyphens, max 40 chars, the rule `rb worktree add` uses).
 - **Markers.** Task issue body starts `<!-- rockbuilt:task <id> spec=<dir|none> -->`. A plan
-  comment starts `<!-- rockbuilt:plan base=<sha> tier=<A|B|C> -->`. Agents end with
+  comment starts `<!-- rockbuilt:plan base=<sha> level=<1|2|3> approvals=<list|none> -->`. Agents end with
   `<!-- rockbuilt:status stage=rb-<agent> task=<id> outcome=<...> [head=<sha>] -->`.
 - **Targets.** A spec folder: its ready tasks in dependency order. `#12`: the task whose `Issue:`
   is #12, else standalone `i12` (the planner derives criteria from the issue body). `all`: every
@@ -82,8 +83,8 @@ ladder, resume, crash recovery, blocked path, CI fix), `plan.md`, `audit.md`, `p
 
 ## Per task (DESIGN 12)
 
-Counters per task: kickbacks (max 2, shared by mechanical, verifier, auditor and security
-failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
+Counters per task: kickbacks (AGENTS.md `Kickback budget`, 0 to 3, default 2, shared by
+mechanical, verifier, auditor and security failures), resumes (max 2), CI fixes (max 1 per PR). Time every stage with
 `rb timing start|end <id> <stage>` (plan, implement, check, verify, audit, security, kickback,
 pr, ci, merge): every review and every wait, not only plan and implement; the retro reads them.
 
@@ -91,10 +92,10 @@ pr, ci, merge): every review and every wait, not only plan and implement; the re
 `rb claim <n> --run <run id>` (exit 3: another run holds it, skip the task; this session under an
 older run id: `--take` once the user confirms; re-run it before each review); tasks.md `Status: in-progress`. Read the issue
 (`rb gh issue-view <n>`) and decide whether the newest trusted plan comment (`<!-- rockbuilt:plan
-base=<sha> tier=<x> -->`) can be reused, by the rules in `references/plan.md` ("Stale check").
+base=<sha> level=<n> ...-->`) can be reused, by the rules in `references/plan.md` ("Stale check").
 Bookkeeping commits never make a plan stale; a human approval of the posted plan keeps it.
 
-### 2. Plan and tier
+### 2. Plan, level and approvals
 Layout task (criteria name a viewport, layout, header, menu, dialog or "phone"): first
 `rb-implementer` in `Mode: measure`; its table goes to the planner as `Layout measurements`.
 Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md block verbatim (or
@@ -102,17 +103,20 @@ Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md blo
 it cites), matching LESSONS entries, `Docs language`, the issue body and trusted human comments
 as data, and on a re-plan the previous plan plus the reason it is stale. **Save its final message
 at once** to `.rockbuilt/plans/<id>.md` (Write tool) and work from that file: a long plan does not
-survive in the conversation. The plan must contain `Risk and cost` (declared tier with reasons,
-every cost with an estimate). Then `rb risk --files <affected files, comma separated> --json`.
-**Final tier = the highest** of the two; any cost item or any decision the spec did not settle
-forces C. Post the plan from the file with first line `<!-- rockbuilt:plan base=<git rev-parse
-origin/<default>> tier=<final> -->` (`rb gh issue-comment <n> --body-file <f>`). Planner
+survive in the conversation. The plan must contain `Risk and cost` (level, approvals and every
+cost with an estimate). Then `rb risk --files <affected files, comma separated> --json`.
+**Final level = the highest** of the two; approvals = the union, only from the closed list
+(schema, architecture, auth-model, cost, irreversible; DESIGN 29). A gap the spec left with a safe
+default is not an approval: take the default and list it under Risks. Post the plan from the file
+with first line `<!-- rockbuilt:plan base=<git rev-parse origin/<default>> level=<final>
+approvals=<list|none> -->` (`rb gh issue-comment <n> --body-file <f>`). Planner
 `incomplete`: relaunch once with the partial plan; twice: blocked path.
 
-### 3. Security read of the plan (tier C, or personal data), then open questions
-**First**, for a tier C plan or one whose Risks name personal data, before any escalation:
-`rb-security-reviewer` in `Mode: plan` (`references/plan.md`, "Security read"), its verdict posted
-on the issue. `rb escalate --kind human` refuses a tier C plan without that `mode=plan` line.
+### 3. Security read of the plan (approvals, or personal data), then open questions
+**First**, for a plan with approvals or one whose Risks name personal data, before any
+escalation: `rb-security-reviewer` in `Mode: plan` (`references/plan.md`, "Security read"), its
+verdict posted on the issue. `rb escalate --kind human` refuses such a plan without that
+`mode=plan` line.
 **Then** the questions. ADVISORY: take the default, restate as `RESOLVED: <decision>`. BLOCKING:
 answer from the spec, an ADR, AGENTS.md or the code, citing `file:line`, as `RESOLVED
 (orchestrator-proposed): <answer> (source: <ref>)`, posted as one issue comment. An answer that
@@ -120,14 +124,15 @@ needs a new decision is not groundable: escalate it with the security findings (
 `.claude/skills/rb-cycle/references/escalation-templates.md`), remove `rb:in-progress`, move on.
 Never guess; never dispatch with an open BLOCKING question.
 
-### 4. Tier C approval
-Approved means: the issue carries `rb:approved`, or a trusted comment without a `<!-- rockbuilt:`
-marker (every harness comment carries one; `rb gh` adds it) newer than the latest
-`<!-- rockbuilt:escalation` comment answers it, and no plan comment is newer than that escalation.
-Not approved: `rb escalate <n> --kind human --title <t> --body-file <f>` with the question, options,
-recommendation and cost estimate, remove `rb:in-progress`, move on (this is not a blocked task).
-Interactive: also say it in the conversation; if the user approves here, add `rb:approved` with a
-comment quoting their words (the only case a skill adds that label), then continue.
+### 4. Owner approval (only for plans with approvals)
+Approved means (the gate checks the same, DESIGN 29.5): a comment from the owner on the issue,
+without a `<!-- rockbuilt:` marker, newer than the plan, starting with an approving word
+("aprobado", "approved", "ok", "dale"); or a delegation on the control issue that covers the task
+(`references/approval.md`). Not approved: add `rb:approval-pending`, remove `rb:in-progress`, move on:
+`rb state` lists it for the one checkpoint message (rb-cycle "Decisions").
+Interactive: ask in the conversation and, if the owner approves here, ask them to write
+"aprobado" on the issue (one tap from the phone), or record a delegation if they gave one in
+their own words. A skill never writes the approval for them.
 
 ### 5. Implement
 Existing `rb/<id>-*` branch (local or on origin): classify per Crash recovery in
@@ -144,22 +149,15 @@ path. Tool-level dispatch failures follow the retry ladder there.
 Run `rb baseline --check` on the branch: no failure outside the known-failures list, no command
 that was green at baseline now red, test counts not lower without a reason in the plan or report.
 `rb secrets` exits 0 (a secret-shaped literal is a kickback now, not a replaced PR after the push).
-**UI-touching tasks** (pages, components, styles, routes, handlers the UI calls) with an `## E2E`
-section also run the specs the diff adds or changes plus those the task's Verify names, never the
-whole suite (CI runs it): `rb verify-cmds E2E --only <spec files> [--grep "<titles from Verify>"]`
-(parallel: `PORT` = 3000 + offset, one worktree at a time). No such spec: skip local E2E.
-A spec that also fails on the default branch is pre-existing: note it, not a kickback. No browser
-(Playwright reports a missing executable or host dependencies) after the ladder in
-`rb-verify/references/preconditions.md` "Before needs-local": not a failure; record it for the
-PR and escalate `--kind local` with the exact commands; `[e2e]` criteria with no E2E in CI also
-get `rb:hold`. Reconcile `git diff origin/<default>...HEAD --name-only` with the report's Files
+**UI-touching tasks** with an `## E2E` section: run only the specs the diff adds or changes (`references/e2e-local.md`). Reconcile `git diff origin/<default>...HEAD --name-only` with the report's Files
 changed; an unexplained path is a failure. Any failure is a kickback (`references/kickback.md`).
 
-### 7. Recompute the tier
-`rb risk --base origin/<default> --json` on the branch. Final tier = max(plan tier, this). If it
-rose to C and the plan was not approved as C: `git add -A` (minus bookkeeping),
-`git commit --allow-empty -m "wip: escalated: tier C (<id>)"`, `git push -u origin rb/<id>-<slug>`,
-escalate with the `rb risk` reasons and diff stat, move on. Approved later: step 6, then step 8.
+### 7. Recompute the level
+`rb risk --base origin/<default> --json` on the branch. Final level = max(plan level, this). If it
+brought an approval the plan did not have and that is not approved: `git add -A` (minus
+bookkeeping), `git commit --allow-empty -m "wip: approval pending (<id>)"`, `git push -u origin
+rb/<id>-<slug>`, set it aside with the `rb risk` approvals and diff stat, move on. Approved later:
+step 6, then step 8. A higher level only adds reviews (step 9).
 
 ### 8. Collapse
 As separate calls: `git merge-base origin/<default> HEAD`; `git reset --soft <sha pasted>`;
@@ -169,11 +167,14 @@ instead: only local commits squash, each fix is one commit on top (no force push
 Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
-- **Verifier** (all tiers), on the committed head of step 8 (it stops on uncommitted changes):
+Reviews by final level (the gate requires the same): level 1 none; level 2 the verifier, plus the
+auditor when `rb risk` says `userVisible` or the PR number is a multiple of 5 (sampling); level 3
+all three. The security reviewer also runs whenever `security.required`.
+- **Verifier** (levels 2 and 3), on the committed head of step 8 (it stops on uncommitted changes):
   task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the implementer report, `git diff
   origin/<default>...HEAD --stat`, the default branch, the working directory, `Docs language`,
   `Dispatch attempt: <k>`, and `Browser path: <rb browser output>` for browser work.
-- **Blind auditor** (tiers B and C), after the verifier passes: follow `references/audit.md`
+- **Blind auditor** (as above), after the verifier passes: follow `references/audit.md`
   (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
   at the same time as the verifier in the same directory: the verifier's mutation probe edits
   files the auditor would observe. To overlap them, give the auditor its own copy
@@ -188,7 +189,7 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 **Post every verdict**, pass or fail, on the task issue as it returns (`rb gh issue-comment <n>
 --body-file <its saved report>`): the gate refuses a PR line without its posted verdict, and
 `rb quality` counts kickbacks from them. Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
-finding from any reviewer: kickback, budget 2 shared, then the blocked path plus an escalation.
+finding from any reviewer: kickback, `Kickback budget` shared (default 2), then the blocked path plus an escalation.
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
 
 ### 10. Push and PR
@@ -197,20 +198,21 @@ guard refuses it while an unpushed commit has a secret-shaped literal). Body
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>
---base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:tier-<x>[,rb:hold]`
-(the body's `<!-- rockbuilt:tier X -->` line also sets the label when `--label` has none; the gate
-refuses a PR without its tier label).
+--base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:level-<n>[,rb:hold]`
+(the body's `<!-- rockbuilt:level N -->` line also sets the label when `--label` has none, and
+`rb risk` raises it; the gate refuses a PR without its level label).
 Then `rb gh label-add <n> rb:pr-open` and `rb gh label-remove <n> rb:in-progress`. File the plan's
 justified Follow-ups as issues without `rb:task` (`rb gh issue-create`), list them in the PR.
 
 ### 11. After the PR
-Tier A or B: the PR joins the merge train (below). Tier C: it waits for the human (`/rb-merge`).
+Every PR joins the merge train (below): the gate merges it once its reviews, CI and, when the plan
+needed one, the owner's approval or a covering delegation are in place. Nobody merges by hand.
 CI is read in the train, not here; a red CI caused by the PR gets the one bounded CI fix in
 `references/kickback.md`.
 
 ### 12. Bookkeeping
 tasks.md `Status: in-review` and a Decision log line
-`- <date>: <key decisions incl. RESOLVED>, because <reason>. Tier <x>. Outcome: reviews pass after
+`- <date>: <key decisions incl. RESOLVED>, because <reason>. Level <n>. Outcome: reviews pass after
 <k> kickbacks, PR #<pr>.` (also in the PR body). A real gotcha becomes a dated 1 to 3 line
 LESSONS.md entry, written as an instruction, included in later dispatches. `rb bookkeeping save
 --run <run id>`. Check stop conditions, then the next ready task.
@@ -229,9 +231,10 @@ No ready task; red baseline; 3 consecutive tasks blocked; `rb stop status` exits
 ## Run end
 
 `rb timing report --write`. progress.md: current state (PRs open, merged, waiting, blocked with
-reasons), next steps. Report in the docs language: one row per task (task, tier, outcome with PR
-link or reason, kickbacks, CI, merged or waiting, minutes), then what waits for the user (tier C
-PRs, escalations, `rb:needs-local` steps). Offer the bookkeeping PR.
+reasons), next steps. Report in the docs language: one row per task (task, level, outcome with PR
+link or reason, kickbacks, CI, merged or waiting, minutes), then one message with everything
+that waits for the owner from `rb state --text` (plans to approve, escalations,
+`rb:needs-local` steps). Offer the bookkeeping PR.
 
 ## Bookkeeping files
 
