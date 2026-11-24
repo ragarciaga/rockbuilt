@@ -204,7 +204,7 @@ Bloque B, calidad medida:
 ### Fase 2. No interrumpir y lotes (1.1.0)
 
 Bloque C, interrupciones:
-- [ ] C1 (se hace en la fase 1) Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
+- [x] C1 (hecho en la fase 1) Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
       mensaje con todo lo pendiente por punto de control o al final de la corrida. Base mecánica:
       estado en JSON con dos mitades, lo que el harness hará solo y lo que espera al dueño (planes
       por aprobar, PRs, bloqueados, seguimientos, escalaciones), marcado como incompleto si falla
