@@ -70,3 +70,15 @@ Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm ven
   2. No `docs/specs/` folder is created.
   3. The rename happens (or is proposed) directly, nothing else changes.
 - Expected failure: the spec skill fires on "byCategory" changes and starts a requirements interview.
+
+## S1 (1.2.0): The decision inventory, then one round of questions with defaults
+
+Headless: `spec-inventory-es`. Setup `node-app harness-es spec-approved`.
+
+- Prompt (es):
+  > /rb-spec Quiero que el reporte me avise cuando una categoría pase su tope del mes.
+- Pass: rb-spec loads; the draft requirements.md has a `### Decisiones` block with a `Qué pasa si`
+  line; `rb spec check` runs; the final message lists the open decisions with proposed defaults
+  so the owner can accept them in one answer; nothing is committed; no em dash.
+- Evidence: 18 of Doorcas's 22 escalations were gaps a spec left open
+  (`evals/results/2026-11-24-inventory-doorcas.md`).

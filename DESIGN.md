@@ -1311,3 +1311,28 @@ projects), issues #77 and #78.
 6. **Follow-ups parked (D5).** Follow-ups that reviews open are born `rb:unplanned`, outside every
    queue until the owner adds `rb:task` and removes the label; `rb:parked` keeps one for later;
    closing as not planned discards it. `rb state` lists them apart from what waits for the owner.
+
+## 31. Specs without gaps (1.2.0)
+
+Evidence: 44% of the 54 approvals in Doorcas and signal-engine were spec gaps (PLAN-1.0 section 1);
+18 of Doorcas's 22 escalations were decisions its spec left open, 17 of them in one of six
+categories (`evals/results/2026-11-24-inventory-doorcas.md`). Issue #79.
+
+1. **Decision inventory (E1).** Every requirement in requirements.md carries `### Decisions`
+   (`### Decisiones`) with six lines: Numbers, Timing, What if, Who can, Data, Definitions (in
+   Spanish Números, Tiempos, Qué pasa si, Quién puede, Datos, Definiciones). Each holds the
+   decision, marked `(default)` or `(owner)`, or `n/a: <why, three words or more>`. `rb spec check
+   <spec-dir>` (`scripts/lib/inventory.mjs`) refuses a missing block, a missing line, a
+   placeholder or a reasonless n/a; rb-spec runs it before asking approval, and `rb merge-gate`
+   refuses a `rb/spec-*` PR that adds a requirements.md failing it. Specs approved before 1.2.0
+   are not checked again.
+2. **One round of questions with defaults (E2).** rb-spec presents every open decision and
+   question numbered, each with the proposed default and one line of why, so the owner answers
+   once ("acepto todo salvo 3 y 7").
+3. **Gaps during the build (E3).** A question that needs a new decision outside the closed list
+   takes the safe default (reversible, smallest, stricter for data and permissions), written
+   `RESOLVED (default taken): ...` on the issue and in the Decision log, and listed in the
+   digest's "Defaults taken". Only the closed list is escalated.
+4. **Doorcas check (E4).** The six categories cover 17 of the 18 gaps Doorcas escalated; the 18th
+   was structural and still asks. 7 of the 18 still carry a closed-list approval; the inventory
+   moves them to spec approval, in the same round.

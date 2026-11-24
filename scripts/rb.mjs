@@ -23,6 +23,7 @@ import { parseDelegations, recordDelegation, revokeDelegations } from './lib/app
 import { projectState, stateText } from './lib/state.mjs';
 import { dependencyCheck, depsText } from './lib/deps.mjs';
 import { logPermission, permissionReport, permissionText } from './lib/permissions.mjs';
+import { inventoryProblems } from './lib/inventory.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -64,6 +65,7 @@ export const COMMANDS = {
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
   delegate: 'Delegated approval on the control issue: --words "<owner words>" [--scope all|milestone:<name>|issues:12,15] [--until YYYY-MM-DD] [--include cost,irreversible] [--run <id>] | revoke [--words t] | list',
   deps: 'Runtime dependencies the branch adds outside the design: license, deprecation, maintenance  [--base <ref>] (exit 3 when one needs the owner)',
+  spec: 'check <spec-dir>: the decision inventory of requirements.md is complete (exit 3 with the gaps)',
   permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
   state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
   digest: 'post --file <md>: append the run digest to the control issue',
@@ -803,6 +805,18 @@ const handlers = {
     const risk = computeRisk(root, { base: stringFlag(flags, 'base') || undefined });
     const r = dependencyCheck(root, risk);
     return { data: r, text: depsText(r), code: r.ok ? 0 : 3 };
+  },
+
+  spec({ cwd, positionals }) {
+    const [sub, dir] = positionals;
+    if (sub !== 'check' || !dir) throw new CliError('usage: rb spec check <spec-dir>', 2);
+    const root = requireRepoRoot(cwd);
+    const file = path.join(path.resolve(cwd, dir), 'requirements.md');
+    const text = readText(file);
+    if (text === null) throw new CliError(`no requirements.md in ${dir}`, 2);
+    const problems = inventoryProblems(text);
+    void root;
+    return { data: { spec: dir, problems }, text: problems.length ? problems.join('\n') : 'decision inventory complete', code: problems.length ? 3 : 0 };
   },
 
   permissions({ cwd, positionals, flags, io }) {

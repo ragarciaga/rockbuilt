@@ -122,9 +122,12 @@ verdict posted on the issue. `rb escalate --kind human` refuses such a plan with
 **Then** the questions. ADVISORY: take the default, restate as `RESOLVED: <decision>`. BLOCKING:
 answer from the spec, an ADR, AGENTS.md or the code, citing `file:line`, as `RESOLVED
 (orchestrator-proposed): <answer> (source: <ref>)`, posted as one issue comment. An answer that
-needs a new decision is not groundable: escalate it with the security findings (`rb escalate`,
-`.claude/skills/rb-cycle/references/escalation-templates.md`), remove `rb:in-progress`, move on.
-Never guess; never dispatch with an open BLOCKING question.
+needs a new decision (E3): on the closed list (schema, architecture, auth model, cost,
+irreversible) it is escalated with the security findings (`rb escalate`,
+`.claude/skills/rb-cycle/references/escalation-templates.md`), `rb:in-progress` removed, move on;
+anything else takes the safe default (reversible, smallest, stricter for data and permissions),
+written `RESOLVED (default taken): <decision>, because <why safe>` in the same comment, the
+tasks.md Decision log and the digest's "Defaults taken". Never dispatch with an open question.
 
 ### 4. Owner approval (only for plans with approvals)
 Approved means (the gate checks the same, DESIGN 29.5): a comment from the owner on the issue,
@@ -132,9 +135,7 @@ without a `<!-- rockbuilt:` marker, newer than the plan, starting with an approv
 ("aprobado", "approved", "ok", "dale"); or a delegation on the control issue that covers the task
 (`references/approval.md`). Not approved: add `rb:approval-pending`, remove `rb:in-progress`, move on:
 `rb state` lists it for the one checkpoint message (rb-cycle "Decisions").
-Interactive: ask in the conversation and, if the owner approves here, ask them to write
-"aprobado" on the issue (one tap from the phone), or record a delegation if they gave one in
-their own words. A skill never writes the approval for them.
+Interactive: ask once and point to "aprobado" on the issue or `/rb-delegate`; never write it for them.
 
 ### 5. Implement
 Existing `rb/<id>-*` branch (local or on origin): classify per Crash recovery in

@@ -94,12 +94,24 @@ Write `docs/specs/NN-slug/requirements.md` from `templates/requirements.md`. EAR
   failure of a dependency, empty state, and permission boundary the feature has.
 - Adopted repos: `## Existing behavior to preserve`, only what the feature touches, each with how
   it is verified.
+- **Decision inventory (PLAN-1.0 E1).** Under every requirement a `### Decisions` block (Spanish:
+  `### Decisiones`) with six lines, each the decision itself or `n/a: <why, three words or more>`:
+  **Numbers** (thresholds, limits, caps, retries), **Timing** (deadlines, timers, windows,
+  schedules), **What if** (failures, cancellations, duplicates, a cap reached, an empty state),
+  **Who can** (which role sees and does what), **Data** (what is stored, retention, deletion,
+  redaction, who receives it), **Definitions** (every metric or state named in the criteria).
+  Mark each `(default)` when you propose it or `(owner)` when the user decided it. These are the
+  decisions that otherwise reach the owner one by one during the build (18 of Doorcas's 22
+  escalations). `rb spec check docs/specs/NN-slug` must exit 0 before you ask for approval.
 - Web project with UI flows: at least one `[e2e]` per user flow. AI feature: LLM output quality
   criteria are `[eval]` with a threshold. If an `[eval]` calls a paid model, the requirement
   says so; running it needs a budget in AGENTS.md `Paid services` (asked at design approval).
 
 Present a compact view (requirement titles, criterion count, tags breakdown, anything
-`[manual]`), ask the questions you still have one at a time, and get explicit approval. In the
+`[manual]`) and **one round of questions with defaults (E2)**: every open decision of the
+inventory and every question you still have, numbered, each with the default you propose and one
+line of why, so the owner can answer "acepto todo salvo 3 y 7" (and then only those two). Mark
+the answers `(owner)` in the inventory, run `rb spec check` again, and get explicit approval. In the
 same sitting ask the user for the feature's baseline: how many hours it would take them (or the
 person who would otherwise build it) without agents. On approval set `Status: approved`, the
 date, and the line `Baseline: <hours> h` (Spanish docs: `Línea base: <horas> h`) under the

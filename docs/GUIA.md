@@ -173,6 +173,16 @@ Un "full auto" vale solo para esa corrida, nunca para la rutina nocturna. Cada m
 "fusionado por delegación" y el resumen la muestra arriba mientras esté vigente. "Revoca la
 delegación" la termina.
 
+## El spec sin huecos
+
+Cada requisito trae un bloque **Decisiones** con seis líneas: números (topes, umbrales,
+reintentos), tiempos, qué pasa si (fallas, cancelaciones, duplicados), quién puede, datos
+(retención, borrado, a quién se mandan) y definiciones. El spec te las pregunta todas de una vez,
+numeradas y con un default propuesto: respondes "acepto todo salvo 3 y 7". `rb spec check` no deja
+aprobar un spec con huecos. Si en la construcción aparece algo que el spec no dijo, se toma el
+default seguro y te llega en el resumen bajo "Defaults tomados"; solo te pregunta lo de la lista
+cerrada.
+
 ## Dónde apruebas
 
 1. El brief (kickoff).
