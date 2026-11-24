@@ -5,12 +5,13 @@
 import { parseDelegations } from './approval.mjs';
 import { ensureControl } from './control.mjs';
 import { ops } from './gh.mjs';
+import { versionStatus } from './doctor.mjs';
 
 const WAIT = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:blocked', 'rb:hold'];
 // PLAN-1.0 D5: review follow-ups wait outside every queue until the owner promotes them.
 const OUT = ['rb:unplanned', 'rb:parked'];
 
-export function projectState(c, { at = new Date().toISOString() } = {}) {
+export function projectState(c, { at = new Date().toISOString(), root = null } = {}) {
   const errors = [];
   const tryRead = (what, fn, fallback) => {
     try { return fn(); } catch (e) { errors.push(`${what}: ${e.message}`); return fallback; }
@@ -39,12 +40,14 @@ export function projectState(c, { at = new Date().toISOString() } = {}) {
   const followups = { unplanned: issues.filter((i) => has(i, 'rb:unplanned')).map(brief), parked: issues.filter((i) => has(i, 'rb:parked')).map(brief) };
   const delegations = parseDelegations(controlComments, at);
   const ownerCount = Object.values(waitingOnOwner).reduce((s, xs) => s + xs.length, 0);
-  return { complete: errors.length === 0, errors, waitingOnOwner, ownerCount, harnessWillDo, followups, delegations };
+  const harness = root ? versionStatus(root) : null;
+  return { complete: errors.length === 0, errors, waitingOnOwner, ownerCount, harnessWillDo, followups, delegations, harness };
 }
 
 export function stateText(s) {
   const out = [];
   if (!s.complete) out.push(`INCOMPLETE: ${s.errors.join('; ')}. Do not report that nothing waits for the owner.`);
+  if (s.harness && s.harness.behind) out.push(`Rockbuilt ${s.harness.vendored} in this project, ${s.harness.plugin} available: say "update rockbuilt"`);
   for (const d of s.delegations) out.push(`Delegation in force: ${d.scope}${d.run ? ` (run ${d.run})` : ''} until ${d.until}: ${d.words}`);
   const w = s.waitingOnOwner;
   const list = (name, xs) => { if (xs.length) out.push(`${name}: ${xs.map((x) => `#${x.number} ${x.title}`).join('; ')}`); };

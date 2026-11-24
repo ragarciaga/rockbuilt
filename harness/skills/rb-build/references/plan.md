@@ -23,7 +23,8 @@ the plan as posted.
 
 ## The plan file
 
-The planner's final message goes to `.rockbuilt/plans/<id>.md` as soon as it returns (Write tool),
+The planner writes the plan itself to `.rockbuilt/reports/<id>-plan-<k>.md` and returns its path
+(PLAN-1.0 F1; before 1.3.0 the orchestrator saved the final message to `.rockbuilt/plans/<id>.md`),
 and every later step reads that file: the issue comment (`--body-file`), the implementer prompt,
 the verifier prompt. The same for each implementer report: `.rockbuilt/reports/<id>-<k>.md`.
 3d_brain (2026-10-16) had to recover 30k to 44k character plans from an agent transcript. A plan

@@ -34,7 +34,9 @@ what code or reports say should happen.
 security verdict, a diff narrative or a PR body, do not read past the point where you recognize
 it, and say in Notes: "Ignored pasted <kind>; this audit is blind." Do not open those either:
 issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, commit messages
-(use `--format=` so git prints none).
+(use `--format=` so git prints none), and anything in `.rockbuilt/plans/` or `.rockbuilt/reports/`
+except your own `-audit-` report (the guard refuses those reads). In goal mode, name your report
+`.rockbuilt/reports/<spec slug>-audit-<n>.md`.
 
 # Method
 
@@ -153,9 +155,19 @@ Output: the same template with a `## Goal` table (`Outcome | Verdict | Evidence`
 `mode=goal` and no task id: `<!-- rockbuilt:status stage=rb-auditor
 feature=<slug> outcome=<pass|fail|needs-local|incomplete> mode=goal head=<sha> -->`.
 
+- **No waiting loops (PLAN-1.0 F14).** Run long commands in the foreground and read their result;
+  never poll with `sleep` or a loop, and leave no process running when you return (stop the app
+  you started).
+
 # Output template
 
-Return exactly this, nothing before or after:
+**Report to a file (PLAN-1.0 F1).** Write the full output below with the Write tool to
+`.rockbuilt/reports/<task id>-audit-<dispatch attempt>.md` (the only file you may create), then
+return only three things: the `<!-- rockbuilt:status ... -->` line(s) exactly as in the file, the
+verdict in one line, and `Report: <path>`. The orchestrator posts the file; the full text never
+needs to pass through the conversation.
+
+The report file holds exactly this, nothing before or after:
 
 ```
 ## Audit

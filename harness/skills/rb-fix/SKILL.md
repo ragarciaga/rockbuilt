@@ -119,7 +119,8 @@ the reproduction test. Do not refactor beyond the plan. Return your report." Che
 
 ## 5. Mechanical check and level recompute
 
-`rb baseline --check` on the branch: no failure outside known-failures; the reproduction test is
+`rb safety-check --plan <plan file> --report <implementer report>` first (F3, exit 3 is a
+kickback), then `rb baseline --check` on the branch: no failure outside known-failures; the reproduction test is
 among the passing tests; counts not lower than baseline; `rb secrets` exits 0. The reproduction test must not be weakened
 (`git diff <reproduce sha> HEAD -- <test file>`). UI bugs also run the E2E commands when a browser
 exists. Any failure: kickback. Then `rb risk --base origin/<default> --json`; a new approval
@@ -131,6 +132,7 @@ only adds reviews.
 Collapse as build step 8 with the message `fix(<scope>): <symptom> (B<n>)` (only before the first
 push; later fixes are commits on top); record the reviewed head. Then, serially:
 
+After every reviewer below: `rb tree-check --restore` (F4).
 - `rb-verifier`: task id, `Reviewed head: <sha>`, `Reproduction commit: <reproduce sha>` (the
   `wip: reproduce` checkpoint recorded in step 3; it survives the collapse as a reachable object,
   and the verifier needs it to check that the test was not weakened), the plan, both implementer

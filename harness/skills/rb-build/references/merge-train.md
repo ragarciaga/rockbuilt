@@ -132,6 +132,15 @@ serial path below: the queue only skips work when GitHub shows the result is the
 7. The next PR may now be behind: the gate decides (step 5); a bookkeeping-only gap needs no update,
    and a queued PR whose step passed needs none either (section 1b).
 
+## 2b. CI after the merge, and fixing forward (PLAN-1.0 F11)
+
+When the PR's CI did not run the whole suite (E2E sharded or skipped on PRs, evals only on main),
+wait for the default branch's CI on each merge commit (`rb ci wait <merge sha>`) before the next
+merge. Red, and caused by a merge of this run (it passed on the commit before): open an `rb:bug`
+issue "fix forward: <check> after #<pr>" with the failing lines, build it at once through
+`/rb-fix` under the same gates, merge it once. A second red in the same run stops the train:
+`rb revert <pr>` of the merge that caused it, escalate `red-after-merge`, no more merges.
+
 ## 3. Outcome classes
 
 - **Per-PR hold**: anything not eligible, CI pending, a conflict, a failed update. Continue with

@@ -2,11 +2,11 @@
 name: rb-planner
 description: >
   Turns ONE task or issue into a concrete implementation plan grounded in the live code, with a
-  declared review level, approvals and any cost spelled out. Read-only: no Bash, no writes. Dispatched by
-  /rb-build, /rb-cycle and /rb-fix with the task block, spec paths and relevant LESSONS entries.
-  Returns the plan as its final message (under about 12,000 characters); the orchestrator saves
-  it to a file and posts it on the issue.
-tools: Read, Grep, Glob
+  declared review level, approvals and any cost spelled out. Read-only: no Bash; its only write is
+  the plan itself, to `.rockbuilt/reports/<task>-plan-<n>.md`. Dispatched by /rb-build, /rb-cycle
+  and /rb-fix with the task block, spec paths and relevant LESSONS entries. Returns the plan
+  marker, the Summary and the file path; the orchestrator posts the file on the issue.
+tools: Read, Grep, Glob, Write
 model: opus
 readonly: true
 ---
@@ -125,7 +125,10 @@ criteria each covers), then plan only the first part.
 
 # Output template
 
-Return exactly this, nothing before or after. The first line is the plan marker with the base
+**Plan to a file (PLAN-1.0 F1).** Write the plan with the Write tool to
+`.rockbuilt/reports/<task id>-plan-<attempt>.md` (the only file you may create), then return only
+its first line (the plan marker), the Summary paragraph and `Report: <path>`. The plan file holds
+exactly this, nothing before or after. The first line is the plan marker with the base
 SHA from the prompt, your level and your approvals; the orchestrator rewrites the level to the
 final one and posts your output verbatim.
 

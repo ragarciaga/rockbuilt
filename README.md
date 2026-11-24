@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.2.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.3.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -383,7 +383,8 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 1.2.0. 1.2 makes each spec settle its decisions up front (a six-line inventory per
+Version 1.3.0. 1.3 checks safety steps before the reviewers, keeps reviewers from seeing each
+other's leftovers and moves agent reports to files. 1.2 makes each spec settle its decisions up front (a six-line inventory per
 requirement, asked in one round with defaults). 1.1 stops the obvious questions, batches small issues in one PR and keeps the
 time a PR waits for me apart from CI. 1.0 changed what asks me and who reviews what, after measuring 539 merged PRs of
 five projects: the old rule put 52% to 87% of PRs in the tier that waits for me, and one project

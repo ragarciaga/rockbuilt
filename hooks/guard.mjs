@@ -29,6 +29,18 @@ export const READONLY_ROLES = new Set([
 ]);
 // Read-only roles that may still use Edit (transient mutation probes, DESIGN 4).
 const READONLY_EDITORS = new Set(['verifier']);
+const REPORT_WRITERS = new Set(['verifier', 'security-reviewer', 'planner', 'task-reviewer']);
+const REPORT_WORD = { verifier: 'verifier', 'security-reviewer': 'security', planner: 'plan', 'task-reviewer': 'tasks', auditor: 'audit' };
+// A report of this role only (its own word in the name), directly in .rockbuilt/reports/, never
+// overwriting a file: the plan and the other reviewers' reports stay as written.
+function ownReport(p, cwd, role) {
+  if (!auditScratch(p, cwd, 'reports')) return false;
+  const rel = path.relative(path.resolve(cwd || '.'), path.resolve(cwd || '.', p)).split(path.sep).join('/');
+  const segs = rel.split('/');
+  if (segs.length !== 3) return false;
+  if (!new RegExp(`^[\\w.-]+-${REPORT_WORD[role]}-\\d+\\.md$`).test(segs[2])) return false;
+  return !existsSync(path.resolve(cwd || '.', p));
+}
 
 // rb subcommands no subagent may run (orchestrator only).
 const PRIVILEGED_RB = new Set([
@@ -587,6 +599,19 @@ const INTERPRETERS = new Set([
 ]);
 const INLINE_FLAGS = /^(-e|-p|-c|-pe|-ne|-E|--eval|--print|-command|-encodedcommand|-ec|\/c|\/k|eval)$/i;
 
+// The first argument names a file of the project (relative, inside the working directory, not a
+// harness or settings path) and no argument is an inline-code flag or an option before it.
+const HARNESS_PATHS = /^(tools\/rockbuilt|\.claude|\.cursor|\.codex|\.agents|\.git|\.github|\.rockbuilt|hooks|node_modules)(\/|$)/i;
+function projectScript(args, ctx) {
+  if (!args.length || args.some((a) => INLINE_FLAGS.test(a))) return false;
+  const file = String(args[0]).replace(/\\/g, '/');
+  if (file.startsWith('-') || file.startsWith('/') || /^[A-Za-z]:/.test(file) || file.split('/').includes('..')) return false;
+  // Normalized (no "./", no "//"), and resolved inside the session's project (a cd elsewhere does not count).
+  const rel = file.split('/').filter((x) => x && x !== '.').join('/');
+  if (!rel || HARNESS_PATHS.test(rel) || !/\.(c|m)?[jt]s$|\.py$/i.test(rel)) return false;
+  return typeof ctx.projectFile === 'function' ? ctx.projectFile(rel) : false;
+}
+
 // Commands that read a file named as an argument.
 const ENV_READERS = new Set([
   'cat', 'less', 'more', 'head', 'tail', 'type', 'bat', 'nl', 'od', 'xxd', 'hexdump', 'strings',
@@ -692,6 +717,8 @@ function readonlySegmentReason(seg, role, ctx) {
     if (lower.some((a) => /^(-e|-p|--eval|--print|-r|--require|--import|--loader|--experimental-loader)(=|$)/.test(a))) {
       return 'node --test with code-loading flags is not allowed';
     }
+    // Reports and scratch files are written by agents: never run them (independent review of 1.3.0).
+    if (args.slice(1).some((a) => /(^|[\\/])\.rockbuilt([\\/]|$)/i.test(a))) return 'node --test on files under .rockbuilt/ is not allowed';
     return null;
   }
   if (name === 'pytest') return null;
@@ -701,6 +728,11 @@ function readonlySegmentReason(seg, role, ctx) {
     return null;
   }
   if (ctx.contractCommand(seg.text)) return null;
+  // PLAN-1.0 F9 (3d_brain on 0.9.0; still true in 1.2.0): the auditor and the verifier run the
+  // project's own program with arguments to observe a criterion (`node src/cli.js data.json
+  // 2026-10`). A plain interpreter on a file of the project, outside the harness, with no inline
+  // code flag, is allowed; redirections and pipes are refused by the rules above and below.
+  if (['node', 'nodejs', 'python', 'python3', 'deno', 'bun'].includes(name) && !/\b(NODE_OPTIONS|NODE_PATH|PYTHON[A-Z_]*|DENO_[A-Z_]+|BUN_[A-Z_]+|LD_PRELOAD)\s*=/.test(seg.text) && projectScript(args, ctx)) return null;
   if (INTERPRETERS.has(name) || POSIX_SHELLS.has(name)) return `interpreter ${name} is not allowed for ${role} (read-only role)`;
   if (name === 'tee') return `tee is not allowed for ${role} (read-only role)`;
   return `${name} is not on the read-only allowlist for ${role}`;
@@ -1032,17 +1064,17 @@ function e2eWriterAllowed(p, cwd) {
 }
 
 // The blind auditor may write throwaway checks only under .rockbuilt/audit/ (DESIGN 4).
-function auditScratch(p, cwd) {
+function auditScratch(p, cwd, sub = 'audit') {
   const rel = p.replace(/\\/g, '/');
   const base = (cwd || '').replace(/\\/g, '/').replace(/\/+$/, '');
   const r = base && rel.toLowerCase().startsWith(base.toLowerCase() + '/') ? rel.slice(base.length + 1) : rel;
   if (path.isAbsolute(r)) return false;
   const segs = splitSegs(r);
   if (segs.includes('..')) return false;
-  if (!(segs[0] === '.rockbuilt' && segs[1] === 'audit' && segs.length > 2)) return false;
+  if (!(segs[0] === '.rockbuilt' && segs[1] === sub && segs.length > 2)) return false;
   // Resolve symlinks: the real path must stay inside .rockbuilt/audit.
   try {
-    const expected = path.join(realpathSync(cwd || '.'), '.rockbuilt', 'audit');
+    const expected = path.join(realpathSync(cwd || '.'), '.rockbuilt', sub);
     if (!existsSync(expected)) return true; // not created yet: the lexical check above holds
     const realBase = realpathSync(expected);
     const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
@@ -1066,7 +1098,12 @@ function checkWrite(n) {
   }
   if (!role) return null;
   if (role === 'auditor') {
-    return paths.every((p) => auditScratch(p, cwd)) ? null : 'rb-auditor may only write throwaway checks under .rockbuilt/audit/';
+    return paths.every((p) => auditScratch(p, cwd) || ownReport(p, cwd, role)) ? null : 'rb-auditor may only write throwaway checks under .rockbuilt/audit/ and its report as .rockbuilt/reports/<task>-audit-<n>.md';
+  }
+  // PLAN-1.0 F1: reviewers and the planner write their full report to .rockbuilt/reports/ and
+  // return a short summary; the orchestrator publishes from the file.
+  if (REPORT_WRITERS.has(role) && n.name === 'Write') {
+    return paths.every((p) => ownReport(p, cwd, role)) ? null : `${role} may only Write a new report .rockbuilt/reports/<task>-${REPORT_WORD[role]}-<n>.md`;
   }
   if (READONLY_ROLES.has(role) && !READONLY_EDITORS.has(role)) return `writing files is not allowed for ${role} (read-only role)`;
   // The verifier only patches existing files for a transient mutation probe; it never creates files.
@@ -1081,6 +1118,13 @@ function checkWrite(n) {
 
 function checkRead(n) {
   for (const p of n.paths) if (isEnvName(p)) return 'reading .env files is not allowed';
+  // The auditor stays blind: plans, implementer and other reviewers' reports are not for it.
+  if (n.role === 'auditor') {
+    for (const p of n.paths) {
+      const rel = String(p).replace(/\\/g, '/');
+      if (/(^|\/)\.rockbuilt\/(plans|reports)\//i.test(rel) && !/-audit-\d+\.md$/i.test(rel)) return 'rb-auditor is blind: plans and other reports are not for it';
+    }
+  }
   return null;
 }
 
@@ -1185,6 +1229,17 @@ function makeCtx(cwd, env) {
     defaultBranches: () => cached(`def:${dir}`, () => env.defaultBranches(dir) || ['main', 'master']),
     secretScan: (ref) => (typeof env.secretScan === 'function' ? env.secretScan(dir, ref, cwd) : null),
     pushConfig: (remote) => (typeof env.pushConfig === 'function' ? env.pushConfig(dir, remote) : null),
+    projectFile: (rel) => {
+      try {
+        const abs = path.resolve(dir, rel);
+        const root = realpathSync(cwd || '.');
+        const real = realpathSync(abs);
+        const inside = (a, b) => (process.platform === 'win32' || process.platform === 'darwin' ? a.toLowerCase() : a).startsWith((process.platform === 'win32' || process.platform === 'darwin' ? b.toLowerCase() : b) + path.sep);
+        if (!inside(real, root)) return false;
+        const relReal = path.relative(root, real).split(path.sep).join('/');
+        return !HARNESS_PATHS.test(relReal) && statSync(real).isFile();
+      } catch { return false; }
+    },
     contractCommand: (text) => {
       if (typeof env.contractCommands !== 'function') return false;
       const cmds = cached(`contract:${cwd}`, () => (env.contractCommands(cwd) || []).map(squash));

@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 1.2.0. Fase en curso: **4 (menos devoluciones y contexto)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.3.0. Fase en curso: **5 (trabajo complejo)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -130,8 +130,8 @@ y #52, PRs #26 y #46).
 | 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
 | 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, release v1.0.0) |
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Hecha |
-| 3. Spec | 1.2.0 | Bloque E | Hecha |
-| 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
+| 3. Spec | 1.2.0 | Bloque E | Hecha (release v1.2.0) |
+| 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Hecha |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
 | 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Pendiente |
 | 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | Pendiente |
@@ -243,30 +243,30 @@ Bloque E:
 ### Fase 4. Menos devoluciones y menos contexto (1.3.0)
 
 Bloque F:
-- [ ] F1 Agentes escriben su informe en `.rockbuilt/reports/` y devuelven un resumen corto; el
+- [x] F1 Agentes escriben su informe en `.rockbuilt/reports/` y devuelven un resumen corto; el
       orquestador publica desde el archivo.
-- [ ] F2 Subcomando nuevo de rb `criteria`: imprime los criterios vigentes, literales, desde su
+- [x] F2 Subcomando nuevo de rb `criteria`: imprime los criterios vigentes, literales, desde su
       fuente; las enmiendas se editan en la fuente.
-- [ ] F3 Chequeo de Safety steps antes del verifier: cada paso del plan con su prueba y la
+- [x] F3 Chequeo de Safety steps antes del verifier: cada paso del plan con su prueba y la
       evidencia de que falla sin él.
-- [ ] F4 Cada revisor en su propia copia; el verifier nunca muta el directorio de trabajo; nada de
+- [x] F4 Cada revisor en su propia copia; el verifier nunca muta el directorio de trabajo; nada de
       archivos de sondas en el árbol.
-- [ ] F5 Subir la rama apenas se colapsa (heads revisados alcanzables, menos PRs reemplazados).
-- [ ] F6 `rb parallel` trata la carpeta de migraciones como archivo compartido.
-- [ ] F7 El ciclo no escribe entradas vacías en progress.md.
-- [ ] F8 Aviso de versión del harness desactualizada en doctor y digest.
-- [ ] F9 Investigar: cola de merge atascada en `queue-pending` (maysa) y si el guard sigue
+- [x] F5 Subir la rama apenas se colapsa (heads revisados alcanzables, menos PRs reemplazados).
+- [x] F6 `rb parallel` trata la carpeta de migraciones como archivo compartido.
+- [x] F7 El ciclo no escribe entradas vacías en progress.md.
+- [x] F8 Aviso de versión del harness desactualizada en doctor y digest.
+- [x] F9 Investigar: cola de merge atascada en `queue-pending` (maysa) y si el guard sigue
       bloqueando scripts con argumentos a verifier y auditor (visto en 3d_brain con 0.9.0).
-- [ ] F10 Vigilar: `rb-fix` dejó una corrección como segundo commit en un eval (2026-11-11).
-- [ ] F11 CI después del merge y arreglo hacia adelante: si las pruebas del PR no corren toda la
+- [x] F10 Vigilar: `rb-fix` dejó una corrección como segundo commit en un eval (2026-11-11).
+- [x] F11 CI después del merge y arreglo hacia adelante: si las pruebas del PR no corren toda la
       suite, cada merge espera la CI de la rama principal; si queda en rojo por un merge de la
       corrida, se abre un issue de arreglo que se construye y fusiona una vez bajo los mismos
       gates; un segundo rojo detiene la corrida y se revierte.
-- [ ] F12 El doctor avisa cuando las acciones de la CI no están fijadas a un commit (SHA) y cuando
+- [x] F12 El doctor avisa cuando las acciones de la CI no están fijadas a un commit (SHA) y cuando
       la protección de rama no exige ramas al día.
-- [ ] F13 Clase de hallazgo `wording` en el verifier: si todo lo que falla es texto, trae el
+- [x] F13 Clase de hallazgo `wording` en el verifier: si todo lo que falla es texto, trae el
       reemplazo exacto y tiene una ronda de corrección que no gasta presupuesto de devoluciones.
-- [ ] F14 Agentes sin esperas en bucle: comandos largos en primer plano o esperando la
+- [x] F14 Agentes sin esperas en bucle: comandos largos en primer plano o esperando la
       notificación, nada queda corriendo al terminar.
 
 ### Fase 5. Trabajo complejo (1.4.0)
@@ -401,3 +401,10 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   resumen. E4: las seis categorías cubren 17 de los 18 huecos que Doorcas escaló
   (`evals/results/2026-11-24-inventory-doorcas.md`). Eval nuevo `spec-inventory-es`. Evals 23/23, 15,77 USD con la repetición tras la revisión independiente (`evals/results/2026-11-24-1.2.md`); el eval nuevo encontró que el paso 1 de rb-spec seguía preguntando de a una (corregido).
 - 2026-11-24: Andrés pregunta si Rockbuilt se usa para construir Rockbuilt: no (se sigue el proceso del repo, sin planner, verifier ni gate). Desde entonces cada PR lleva una revisión independiente antes de fusionar; la de las fases 2 y 3 encontró 11 hallazgos (3 altos), todos corregidos con prueba (DESIGN 31.5).
+- 2026-11-24: fase 4 hecha (1.3.0, DESIGN 32). Defaults decididos: F4 con `rb tree-check` en vez
+  de una copia por revisor (el verifier necesita las dependencias instaladas); F12 sin aviso de
+  "ramas al día" porque la cola de merges depende de no exigirlo y el gate lo exige por su cuenta;
+  F6 ya estaba hecho desde 0.7. F9: la cola de maysa no estaba atascada (fusionó en minutos); el
+  guard sí bloqueaba al auditor corriendo la CLI con argumentos (corregido). F10 no se repitió.
+- 2026-11-24: revisión independiente de la fase 4: 10 hallazgos (1 alto: un revisor podía crear y ejecutar código desde su informe), todos corregidos con prueba (DESIGN 32.14).
+- 2026-11-24: evals de la 1.3.0: 23/23, 14,18 USD (`evals/results/2026-11-24-1.3.md`).
