@@ -1,6 +1,7 @@
 # Roadmap
 
 Autonomy rises by proven need, not ambition. Each item below has the signal that says it is time.
+The concrete plan in progress lives in [PLAN-1.0.md](PLAN-1.0.md).
 
 v0.3 delivered what this file used to list: scheduled cloud runs (`/rb-cycle` in a routine, with
 lock, stop switch and digest), plan auto-approval for tiers A and B, automatic merges through
