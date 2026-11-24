@@ -94,17 +94,18 @@ constraints, hosting, security and data sensitivity, and **operation** (Round E)
 
 - **Tools.** Which tools will they use besides Claude Code? Cursor, Codex (experimental). Default
   `claude` only. This becomes `rb vendor --tools`.
-- **Autonomy.** Default `auto`. Explain the tiers in two lines, in their language, for example:
-  "A (tests, docs, estilos) y B (código normal de un spec aprobado) se planean, construyen,
-  auditan y fusionan solos si CI está verde. C (arquitectura, datos, auth, dependencias, infra,
-  cualquier costo) espera tu decisión en un issue." Add that anything that can cost money always
+- **Autonomy.** Default `auto`. Explain the review levels in two lines, in their language, for example:
+  "Nivel 1 (docs, estilos, textos, pruebas nuevas) se fusiona solo con CI en verde; nivel 2
+  (código normal) lo revisa el verifier; nivel 3 (rutas sensibles, auth, datos, borrado) pasa por
+  las tres revisiones. Solo te pregunto por esquema, arquitectura, modelo de auth, costo o algo
+  irreversible, y lo agrupo en un mensaje." Add that anything that can cost money always
   asks first, in every mode. Offer `supervised` (every PR waits for them) as the alternative.
   **The harness is never deferred** (rockbuilt #54). "Activate it after the first version" or
   "less ceremony for now" means `Autonomy: supervised` from day one, never a later vendoring: a
   deferral written only in the brief was never acted on, and a month of production work ran with
   no review. Say so in one sentence and record `supervised` instead.
 - **Branch protection.** On a public repo (or a paid plan) `rb protect` is free and becomes part
-  of this approval. On a private free repo it needs GitHub Pro (cost, tier C): ask, and record a
+  of this approval. On a private free repo it needs GitHub Pro (cost, owner approval): ask, and record a
   refusal as the header line `Branch protection: declined (<date>, <reason>)` in AGENTS.md.
 - **Paid services** already approved, each with a monthly cap, or `none`.
 
@@ -167,7 +168,7 @@ Read `references/setup.md` for exact commands and failure handling.
    got.
 7. **Commit path.** Commit on `rb/kickoff` and push the branch; open the PR with
    `rb gh pr-create --head rb/kickoff --base <default> --title <t> --body-file <f>`. It touches
-   AGENTS.md, `.claude/`, `.github/` and `tools/rockbuilt/`: tier C, the user merges it. If the
+   AGENTS.md, `.claude/`, `.github/` and `tools/rockbuilt/`: owner approval, the user merges it. If the
    remote has no commits yet (repo created by `gh repo create`), the user makes the first push
    from their terminal instead (setup.md section 6).
 8. `rb protect` when the approval included it (exit 3: the plan does not allow it; tell the user

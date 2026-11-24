@@ -41,7 +41,7 @@ npm run build
 ```
 
 Add `npm run test:e2e` for web, `npm run evals` for ai. The walking skeleton makes each exist
-and pass. Evals and tests use mocks for paid services; live calls to a paid model are tier C and
+and pass. Evals and tests use mocks for paid services; live calls to a paid model need the owner's approval and
 run only with a budget recorded in AGENTS.md `Paid services`.
 
 ## Library you have never used

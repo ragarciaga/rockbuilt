@@ -6,14 +6,16 @@ any other way, never approves a PR, never routes around a refusal. `rb <cmd>` me
 `node tools/rockbuilt/rb.mjs <cmd>`.
 
 Precondition: this run holds the lock (`rb lock acquire --run <run id>` succeeded; the gate checks
-it through `--run`). Tier C PRs are never in the train: they wait for the human (`/rb-merge`).
+it through `--run`). Every task PR is in the train; one whose plan needs the owner merges once
+the owner approved it or a delegation covers it (the gate checks, DESIGN 29).
 
 ## 1. The queue
 
 `rb gh pr-list --state open --head-prefix rb/`. Skip `rb/bookkeeping-*` (rb-cycle merges those at
 run start) and the human-only kinds (`rb/revert-*`, `rb/spec-*`, `rb/verify-*`, `rb/kickoff*`,
-`rb/adopt*`, `rb/retro-*`): the gate refuses them without `--human-approved`. Keep PRs labelled `rb:tier-a` or `rb:tier-b` and
-none of `rb:needs-human`, `rb:blocked`, `rb:tier-c`, `rb:hold`. Order: PRs whose task other ready
+`rb/adopt*`, `rb/retro-*`): the gate refuses them without `--human-approved`. Keep PRs with a level label
+(`rb:level-1`, `rb:level-2` or `rb:level-3`, or an old tier label) and none of `rb:needs-human`, `rb:blocked`, `rb:hold`.
+A gate refusal `approval` is not a failure: leave the PR, it is in `rb state` for the owner. Order: PRs whose task other ready
 tasks depend on first, then oldest PR number first. Human PRs and branches outside `rb/` are never
 touched.
 
@@ -88,7 +90,7 @@ serial path below: the queue only skips work when GitHub shows the result is the
        stays; the security review, when required, runs again (test code runs in CI with secrets).
      - **`different`, or the short verifier fails:** full re-review. Dispatch the verifier
        with `Previously reviewed commit: <old head>` and `Reviewed head: <new head>` (scope: the
-       base merge), for tier B the auditor again (a re-audit, `audit.md`), security when
+       base merge), when the level needs it the auditor again (a re-audit, `audit.md`), security when
        required; rewrite every machine line with the new head.
      The gate re-checks the class through GitHub and refuses a carried line it cannot confirm.
      Then apply the new lines with `rb gh pr-line <pr> --stage <rb-agent> --task <id> --outcome
@@ -100,8 +102,9 @@ serial path below: the queue only skips work when GitHub shows the result is the
      post its verdict on the task issue, add `<!-- rockbuilt:security required -->` and its line
      (`rb gh pr-edit` for the flag, `rb gh pr-line` for the line), run the gate again. A blocker:
      kickback as in `kickback.md`.
-   - Tier rose (`rb risk` on the live diff above the label): relabel `rb:tier-c`
-     (`rb gh label-remove`, `rb gh label-add`) and escalate (`Tier rose at merge` template).
+   - Level rose (`rb risk` on the live diff above the label): relabel `rb:level-<n>`
+     (`rb gh label-remove`, `rb gh label-add`), run the reviews the new level needs; an approval it
+     brought goes to the owner (`rb:approval-pending`, `Level rose at merge` template).
    - Anything else: hold with the reasons verbatim in the digest; next PR.
    Exit 1 (error): stop the train for this run (merge-halting), digest it.
 6. **After a merge.**
@@ -109,7 +112,7 @@ serial path below: the queue only skips work when GitHub shows the result is the
      default branch (`git log -1 --format=%H` changed, or the PR's merge commit is an ancestor:
      `git merge-base --is-ancestor <merge sha> HEAD`). A pull that did not land stops the train.
    - `rb baseline --check` on the new head. A failure outside known-failures stops the train:
-     run `rb revert <pr>` (it opens a revert PR labelled `rb:tier-c` and `rb:needs-human`; the
+     run `rb revert <pr>` (it opens a revert PR labelled `rb:needs-human`; the
      harness never merges it), then escalate on the task issue with the `Default branch red after
      merge` template naming the revert PR as the recommended action.
    - **Deploy check** (rockbuilt #56), when AGENTS.md has `## Deploy check`: run each command of
@@ -120,7 +123,7 @@ serial path below: the queue only skips work when GitHub shows the result is the
    - `rb sync` (tasks done, labels, merged branches cleaned), `rb worktree remove <id>` if one
      is left, then tasks.md `Status: done` and a Decision log line `- <date>: merged as PR #<pr>
      (squash, rb merge-gate).` when `rb sync` did not already write it.
-   - Record for the digest: PR, title, tier, `rb revert <pr>`, minutes from PR open to merge.
+   - Record for the digest: PR, title, level, `rb revert <pr>`, minutes from PR open to merge.
    - Minutes that happened after the PR opened (CI waits, re-reviews, the merge): `rb timing line
      <id> --pr <pr>` adds them to the line already in the body; replace that line with the output
      (`rb gh pr-line <pr> --line "<timing line>"`). Also after a hold, so the next run starts from it.

@@ -109,7 +109,16 @@ every harness file is `unchanged` (a project updated before 0.13.1 still lacks t
   user's yes. When it needs GitHub Pro, it is a cost: say so, and on a refusal add
   `Branch protection: declined (<date>, <reason>)` to the AGENTS.md header in the same PR.
 
-Only when every harness file is `unchanged` and neither item applies, say the project already
+- **1.0 levels** (`contract 1.0` WARN): replace the "How the harness decides" paragraphs of
+  AGENTS.md `## Autonomy` with the level text from `tools/rockbuilt/project/AGENTS.md`, add
+  `Kickback budget: 2` to the header, and run `node tools/rockbuilt/rb.mjs labels` (level labels).
+  Open PRs keep their old tier labels: the gate reads them as levels.
+- **Sensitive paths review** (`sensitive paths` WARN, once per project): show the owner the globs
+  and how much of the code they cover, propose narrowing them to what is truly sensitive (money,
+  auth, personal data, deletion), apply what they accept, and add `Sensitive paths reviewed:
+  <date>` to the header in the same PR. Never narrow without their yes.
+
+Only when every harness file is `unchanged` and no item applies, say the project already
 has this version (`tools/rockbuilt/VERSION`) and stop.
 
 ## 4. Show what changed

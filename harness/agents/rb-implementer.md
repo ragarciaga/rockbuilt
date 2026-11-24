@@ -114,7 +114,7 @@ once at the end. Sweep, mutate and probe only what the fix changes. Report only 
   assigned to a name with key, token, secret, password or auth in it, in every commit. Run
   `node tools/rockbuilt/rb.mjs secrets` before you report; exit 3 lists the lines to fix.
 - **No unplanned dependencies or env vars.** Do not add a package, a new env var name, or a new
-  external host that the plan's Risk and cost does not list. Each raises the tier; needing one
+  external host that the plan's Risk and cost does not list. Each raises the level; needing one
   is `Status: blocked` with the reason.
 - **Never write** to `.claude/`, `.cursor/`, `.codex/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`,
   `tools/rockbuilt/`, `.github/`, `.env*`, `.mcp.json` (guard-enforced). A gotcha worth a

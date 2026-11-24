@@ -54,6 +54,17 @@ issue the session creates is #1.
      the tier is C (dependency change).
   3. Leaves quick mode: no PR carries `<!-- rockbuilt:quick -->`, package.json is not changed,
      and the default branch is unchanged. It routes to the full path (an `rb:task` issue and
-     `/rb-build`, whose tier C plan waits for the owner) and says why in one sentence.
+     `/rb-build`, whose level 3 plan waits for the owner) and says why in one sentence.
   4. No em dash anywhere.
 - Without the harness: expected to install the dependency at once.
+
+## S3: A docs-only request is level 1: no agent review (1.0, A9)
+
+Headless: `quick-s3-level1-docs`. GitHub simulator, seed `empty`.
+
+- Prompt (es):
+  > Agrega al README una sección corta que explique cómo correr las pruebas.
+- Pass: rb-quick loads; no planner, implementer, verifier, auditor or security reviewer runs; the
+  PR body carries `<!-- rockbuilt:level 1 -->`; the merge goes through `rb merge-gate` (it may land
+  on `main`, level 1 merges on CI); no em dash.
+- Expected failure before 1.0: the verifier runs on a README change.

@@ -24,8 +24,8 @@ package.json)."
 ## 2. Plan the batch
 
 Apply the stale check (build step 1) per task. Dispatch one `rb-planner` per task that still needs
-a plan, in a single message (read-only, no worktree needed). Then, sequentially: compute the tier
-(`rb risk --files`), post each plan with its marker, resolve open questions, escalate tier C plans
+a plan, in a single message (read-only, no worktree needed). Then, sequentially: compute the level
+(`rb risk --files`), post each plan with its marker, resolve open questions, escalate plans that need the owner
 that are not approved, and drop escalated or blocked tasks from the batch. Re-check Affected files
 overlap across the remaining plans; a task whose Affected files overlap another member leaves the
 batch and runs after it.
@@ -38,7 +38,7 @@ rb worktree add Tn --base origin/<default-branch> --spec <spec-dir>
 
 It creates `../<repo>-wt-Tn` on branch `rb/Tn-<slug>`, copies `.env*` files, sets
 `core.longpaths=true`, and prints the path and a port offset. Run the Setup commands inside each
-worktree. Keep a table in context: task, worktree path, branch, port offset, stage, tier,
+worktree. Keep a table in context: task, worktree path, branch, port offset, stage, level,
 kickbacks, resumes, last WIP SHA, minutes.
 
 ## 4. Implement concurrently
@@ -62,7 +62,7 @@ report (never hold a finished task behind an unfinished one):
   (Tn)"` (bookkeeping files never live in a worktree);
 - mechanical check with the worktree as working directory (`rb baseline --check` reads the main
   checkout's baseline);
-- recompute the tier inside the worktree (`rb risk --base origin/<default> --json`);
+- recompute the level inside the worktree (`rb risk --base origin/<default> --json`);
 - collapse with `git -C <wt> merge-base origin/<default> HEAD`, `git -C <wt> reset --soft <sha>`,
   `git -C <wt> commit ...`; record the head;
 - reviews: verifier, then (B and C) the blind auditor, then security when flagged, each with

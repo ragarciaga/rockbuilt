@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 0.14.0. Fase en curso: **0 (preparación)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 0.14.0. Fase en curso: **2 (no interrumpir y lotes)**, después de fusionar la 1.0.0 (PR #83). Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -127,9 +127,9 @@ y #52, PRs #26 y #46).
 
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
-| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Pendiente |
-| 1. Niveles y aprobación | 1.0.0 | Bloques A y B | Pendiente |
-| 2. No interrumpir y lotes | 1.1.0 | Bloques C y D | Pendiente |
+| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
+| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, falta merge) |
+| 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Pendiente |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
@@ -142,61 +142,69 @@ costo pesa más que las interrupciones, puede subir al segundo lugar sin romper 
 
 ### Fase 0. Preparación (sin cambios al harness)
 
-- [ ] 0.1 Abrir issues en `ragarciaga/rockbuilt` con la evidencia de la sección 1, uno por bloque
-      (A a H), enlazados a este plan.
-- [ ] 0.2 Línea base de calidad e interrupciones de los 5 repos: PRs por nivel C, devoluciones
+- [x] 0.1 Abrir issues en `ragarciaga/rockbuilt` con la evidencia de la sección 1, uno por bloque
+      (A a H), enlazados a este plan. Hecho: A #75, B #76, C #77, D #78, E #79, F #80, G #81,
+      H #82.
+- [x] 0.2 Línea base de calidad e interrupciones de los 5 repos: PRs por nivel C, devoluciones
       por revisor, reversiones, bugs escapados, intervenciones del dueño por día. Guardarla en
       `evals/results/` como archivo fechado.
-- [ ] 0.3 Script de reproducción (en `evals/tools/`) que clasifica los PRs fusionados de los 5
+      Hecho: `evals/results/2026-11-24-field-baseline.md`, calculada con
+      `evals/tools/field-baseline.mjs`.
+- [x] 0.3 Script de reproducción (en `evals/tools/`) que clasifica los PRs fusionados de los 5
       repos con la regla nueva (nivel y motivo de aprobación) usando la lista real de archivos de
       cada PR. Resultado: qué porcentaje pediría aprobación y cuántos agentes se ahorran. La
       fase 1 solo se publica si cumple la meta de interrupciones.
+      Hecho: `evals/tools/replay-levels.mjs` y `evals/results/2026-11-24-replay-levels.md`. No
+      cumple la meta en Doorcas sin agrupar decisiones (ver bitácora).
 
 ### Fase 1. Niveles y aprobación (1.0.0)
 
 Bloque A, niveles y aprobación:
-- [ ] A1 `rb risk` devuelve nivel (1, 2, 3) y la lista de motivos de aprobación (lista cerrada
-      de la sección 2), en lugar de un solo nivel A, B o C.
-- [ ] A2 El límite de tamaño no cuenta pruebas ni fixtures.
-- [ ] A3 Archivos de contabilidad (LESSONS, progress, tasks.md) dentro de un PR de tarea no suben
+- [x] A1 `rb risk` devuelve nivel (1, 2, 3) y la lista de motivos de aprobación (lista cerrada
+      de la sección 2), en lugar de un solo nivel A, B o C. Hecho: junto al tier, que sigue
+      decidiendo el merge hasta A5 (DESIGN 29).
+- [x] C1 (adelantado desde la fase 2, decisión del 2026-11-24) Agrupar las decisiones en un solo
+      mensaje por punto de control. Ver su texto completo en la fase 2.
+- [x] A2 El límite de tamaño no cuenta pruebas ni fixtures.
+- [x] A3 Archivos de contabilidad (LESSONS, progress, tasks.md) dentro de un PR de tarea no suben
       el nivel.
-- [ ] A4 El planner puede subir la profundidad de revisión, pero no pedir aprobación fuera de la
+- [x] A4 El planner puede subir la profundidad de revisión, pero no pedir aprobación fuera de la
       lista cerrada. Un servicio pago aprobado con tope en `Paid services` no pide aprobación.
-- [ ] A5 Merge gate: exige las revisiones según el nivel; para lo que pide aprobación, verifica
+- [x] A5 Merge gate: exige las revisiones según el nivel; para lo que pide aprobación, verifica
       el comentario del dueño sobre el plan (autor y fecha), nunca una bandera que pase el agente.
       Las reglas (`Sensitive paths`, delegación, presupuesto) se leen de AGENTS.md en la base del
       PR, nunca en su head, para que un PR no afloje la regla con la que lo juzgan.
-- [ ] A6 Aprobación delegada: registro en el issue de control con palabras textuales, alcance y
+- [x] A6 Aprobación delegada: registro en el issue de control con palabras textuales, alcance y
       vencimiento; el gate la acepta dentro del alcance; marca en cada PR; aviso en el digest.
       Incluye la forma por alcance de una corrida ("full auto" de un milestone o de issues
       nombradas), que nunca aplica a corridas desatendidas.
-- [ ] A7 Dependencias: preaprobadas si están en el diseño; libres las de desarrollo y pruebas;
+- [x] A7 Dependencias: preaprobadas si están en el diseño; libres las de desarrollo y pruebas;
       chequeo automático (licencia, vulnerabilidades, mantenimiento) para las demás.
-- [ ] A8 Etiquetas nuevas de nivel (level-1, level-2, level-3) y de aprobación pendiente; el gate
+- [x] A8 Etiquetas nuevas de nivel (level-1, level-2, level-3) y de aprobación pendiente; el gate
       acepta las etiquetas de nivel viejas durante la transición.
-- [ ] A9 Nivel 1 se fusiona sin agentes; nivel 2 sin auditor cuando no cambia algo visible.
-- [ ] A10 Conversión en "actualiza rockbuilt": campos nuevos en AGENTS.md y recalibración de
+- [x] A9 Nivel 1 se fusiona sin agentes; nivel 2 sin auditor cuando no cambia algo visible.
+- [x] A10 Conversión en "actualiza rockbuilt": campos nuevos en AGENTS.md y recalibración de
       `Sensitive paths` que el dueño revisa una vez por proyecto.
-- [ ] A11 Revisión adversarial del gate nuevo por dos revisores independientes antes de publicar.
+- [x] A11 Revisión adversarial del gate nuevo por dos revisores independientes antes de publicar.
       Casos obligatorios, tomados de la auditoría externa de trail-blazer-flow v3.7.1: un veredicto
       del verifier publicado por una cuenta distinta a la autora del PR, y nombres de rama con
       caracteres fuera de `[A-Za-z0-9._/-]` que puedan llegar a una línea de comandos.
-- [ ] A12 Presupuesto de devoluciones configurable en AGENTS.md (0 a 3, por defecto 2).
+- [x] A12 Presupuesto de devoluciones configurable en AGENTS.md (0 a 3, por defecto 2).
 
 Bloque B, calidad medida:
-- [ ] B1 Pruebas en nivel 1 solo si agregan (el diff no quita ni cambia aserciones existentes y el
+- [x] B1 Pruebas en nivel 1 solo si agregan (el diff no quita ni cambia aserciones existentes y el
       número de pruebas no baja); si no, nivel 2.
-- [ ] B2 Auditoría por muestreo: 1 de cada 5 PRs de nivel 2 lleva auditor.
-- [ ] B3 `rb quality` y el digest muestran métricas por nivel e intervenciones del dueño por día.
-- [ ] B4 `/rb-retro` aplica la regla de retroceso de la sección 3.
-- [ ] B5 Reescribir los evals que exigen auditor o nivel C y ya no aplican; agregar escenarios
+- [x] B2 Auditoría por muestreo: 1 de cada 5 PRs de nivel 2 lleva auditor.
+- [x] B3 `rb quality` y el digest muestran métricas por nivel e intervenciones del dueño por día.
+- [x] B4 `/rb-retro` aplica la regla de retroceso de la sección 3.
+- [x] B5 Reescribir los evals que exigen auditor o nivel C y ya no aplican; agregar escenarios
       por nivel y de aprobación delegada.
-- [ ] B6 DESIGN (sección nueva con evidencia), CHANGELOG, README, GUIA.
+- [x] B6 DESIGN (sección nueva con evidencia), CHANGELOG, README, GUIA.
 
 ### Fase 2. No interrumpir y lotes (1.1.0)
 
 Bloque C, interrupciones:
-- [ ] C1 Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
+- [x] C1 (hecho en la fase 1) Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
       mensaje con todo lo pendiente por punto de control o al final de la corrida. Base mecánica:
       estado en JSON con dos mitades, lo que el harness hará solo y lo que espera al dueño (planes
       por aprobar, PRs, bloqueados, seguimientos, escalaciones), marcado como incompleto si falla
@@ -326,3 +334,56 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   A6 (full auto por alcance), A11 (casos de su auditoría externa), A12, C1 (estado en JSON), C3
   (corridas sin avisos de permiso), D5 (etiquetas de seguimientos), E1 (patrón decision record),
   F11 a F14 y la fase 8 (tracker en vivo). Agregado el prompt para arrancar una sesión.
+- 2026-11-24: 0.1 hecho. Issues por bloque abiertos con la etiqueta `harness-feedback`, en inglés
+  como los anteriores: A #75, B #76, C #77, D #78, E #79, F #80, G #81, H #82. Sin evals.
+- 2026-11-24: 0.2 hecho. Línea base en `evals/results/2026-11-24-field-baseline.md` (539 PRs
+  fusionados, datos vía Composio con la cuenta "rag"), script `evals/tools/field-baseline.mjs` con
+  su prueba. Cifras: nivel C 52% a 87%; intervenciones por día 20,8 Doorcas, 8,4 signal-engine,
+  6,2 2brain, menos de 3 en maysa y 3d_brain; devoluciones en 53% a 88% de los PRs con datos (el
+  plan decía 55% a 76%: otra definición; la nueva queda en el script); 0 reversiones y 0 bugs
+  escapados trazados; 3d_brain (0.9.0) sin veredictos de revisores. Definición de intervención:
+  escalaciones más merges aprobados por humano más merges a mano, por día calendario. Sin evals.
+- 2026-11-24: 0.3 hecho. `evals/tools/replay-levels.mjs` usa el `classify` real de `rb risk` sobre
+  los archivos y parches de los 539 PRs; resultado en `evals/results/2026-11-24-replay-levels.md`.
+  Piden aprobación 17% a 24% de los PRs. Interrupciones por día solo por el diff: Doorcas 3,2,
+  signal-engine 1,9, 2brain 2,0, maysa 1,1, 3d_brain 0,8; sumando las escalaciones de hoy (huecos
+  del spec, hasta la fase 3): Doorcas 7,6 y signal-engine 4,4. Agrupando las decisiones en un
+  mensaje por día (C1) todos quedan en 1 o menos. Agentes ahorrados: 3% a 16%, mucho menos de lo
+  esperado, porque `Sensitive paths` cubre casi todo `src/` (Doorcas: 44 de 82 PRs en nivel 3).
+  Hallazgos para la fase 1: `rb risk` no aprueba `Anthropic API (...)` en `Paid services` por
+  comparar la clave exacta (A4); las ediciones del design.md o requirements.md de la propia
+  funcionalidad dentro de una tarea piden aprobación (16 de 26 en 2brain); `**/design.md` toca la
+  plantilla del harness. Decisión del dueño pendiente antes de publicar la fase 1: la regla sola no
+  cumple la meta; recomiendo adelantar C1 (agrupar decisiones) a la 1.0.0. Sin evals.
+- 2026-11-24: Andrés decide adelantar C1 (agrupar decisiones) a la 1.0.0, porque la regla de
+  niveles sola no cumple la meta en Doorcas. Regla de versión de la fase 1: los PRs de cada punto
+  no suben la versión; la 1.0.0 sale cuando la fase completa esté fusionada, para no publicar un
+  gate a medias.
+- 2026-11-24: A1 hecho. `rb risk` devuelve `level`, `approvals`, `checks` y `levelReasons` junto
+  al tier (DESIGN 29, `tests/rb-level.test.mjs`). Defaults decididos con la reproducción: editar
+  un spec existente dentro de una tarea es nivel 3 y se reporta, no se pregunta (crear uno sí
+  pregunta); un host externo nuevo es nivel 3 sin aprobación; una dependencia de runtime va al
+  chequeo automático (A7), las de desarrollo son libres; el design.md de las plantillas del
+  harness no cuenta como arquitectura. Sin evals: el cambio es una función de `rb` sin consumidores
+  todavía, y lo cubren pruebas unitarias. Siguiente: A2.
+- 2026-11-24: A2, A3 y B1 hechos en `rb risk` (DESIGN 29.2 a 29.4). Default: LESSONS.md no sube a
+  nivel 3, pero un diff que la toca es al menos nivel 2 (obliga a todos los agentes). B1 usa
+  "ninguna línea borrada en archivos de prueba" como criterio de "solo agrega".
+- 2026-11-24: fase 1 completa en código, falta B5 (evals). Hechos A4 a A12, B2, B3, B4, B6 y C1
+  (DESIGN 29.5 a 29.12): gate por nivel, aprobación por comentario del dueño, `rb delegate` y el
+  skill `/rb-delegate`, `rb deps`, `rb state`, `rb quality` por nivel, conversión en doctor e
+  install, versión 1.0.0, CHANGELOG, README, GUIA y CLOUD. Defaults decididos: en nivel 2 el
+  auditor también corre siempre en bugs (`rb/B<n>`) y lotes rápidos (`rb/Q<n>`), porque describen
+  lo que el usuario ve; el muestreo 1 de 5 usa el commit, no el número de PR; una delegación
+  necesita fecha y no pasa de 90 días; solo aprueba quien tiene permiso de escritura. A11: dos
+  revisores adversariales encontraron 23 hallazgos (2 críticos), todos corregidos con prueba salvo
+  los veredictos por asociación (límite conocido, DESIGN 13). Pruebas: 636 en verde. Evals:
+  reescrito `build-tier-c-escalates` como `build-approval-escalates` (una dependencia ya no
+  pregunta; un servicio pago sí) y agregados `delegate-records-words`,
+  `delegate-ignores-issue-text` y `quick-s3-level1-docs`; pendiente correrlos (requiere visto
+  bueno del costo).
+- 2026-11-24: B5 hecho. Suite completa 21/21 en verde (`evals/results/2026-11-24-1.0.md`). Los dos
+  fallos de la primera pasada de los escenarios nuevos eran del eval (main se mueve en nivel 1 por
+  diseño; el fixture de aprobación contradecía el Out of scope del spec) y quedaron corregidos.
+  Costo total de evals de la 1.0.0: 17,18 USD a precio de API. Fase 1 lista para merge; después
+  del merge, crear el release `v1.0.0`. Siguiente: fase 2 (C2 a C4, D1 a D5).

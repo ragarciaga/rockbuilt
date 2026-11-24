@@ -57,7 +57,9 @@ GitHub reads go through `rb gh <op>` (REST, JSON); never `gh issue`, `gh pr` or 
    - `rb gh issue-list --label rb:task --state open` and `--label rb:bug`
    - `rb gh issue-list --label rb:quick --state open`: a quick batch (`/rb-quick`) with no PR,
      or whose PR lacks a passing verifier line, is work that nobody reviewed yet.
-   - `rb gh pr-list --state open --head-prefix rb/`; for each: labels (tier), and
+   - `rb state --json`: what waits for the owner, what the harness will do alone, delegations in
+     force (exit 3: say the read is incomplete, never "nothing waits for you").
+   - `rb gh pr-list --state open --head-prefix rb/`; for each: labels (level), and
      `rb gh checks <head sha>` only for PRs you will mention.
    For each escalation, `rb gh issue-view <n>` and take the latest escalation comment: the
    question, the options, the recommendation, the cost estimate if any, or the local commands.
@@ -79,9 +81,11 @@ Take the first rule that matches:
 |---|---|
 | No contract | `/rb-kickoff` or `/rb-adopt` |
 | Stop switch on | Tell the user it is on and which issue holds `rb:stop`; next run will not start until they remove it |
-| `rb:needs-human` open | Answer issue #n (the question shown), then remove `rb:needs-human` or add `rb:approved`; the next run picks it up |
+| `rb:approval-pending` open | Read the plan on issue #n (what needs the owner: schema, architecture, auth model, cost, irreversible) and write "aprobado" on it, or ask for changes; the gate merges once approved |
+| `rb:needs-human` open | Answer issue #n (the question shown), then remove `rb:needs-human`; the next run picks it up |
 | `rb:needs-local` open | Run the commands in issue #n on their machine and reply with the result |
-| Tier C PR waiting (`rb:tier-c`, or any PR under `Autonomy: supervised`) | Review PR #n; merge it, or say "merge PR #n" to `/rb-merge` |
+| PR waiting under `Autonomy: supervised` | Review PR #n; merge it, or say "merge PR #n" to `/rb-merge` |
+| Delegation in force (`rb state`) | Show it first: scope, until, the owner's words; `rb delegate revoke` ends it |
 | Baseline has new failures on the default branch | The stabilization issue, or `/rb-fix` |
 | Uncommitted non-bookkeeping files on the default branch | Move them to a branch and PR (never push to the default branch) |
 | Open quick batch not reviewed (`rb:quick`) | `/rb-quick` to close it: one review of the batch, then the PR; never call it done before |
@@ -110,11 +114,12 @@ Last run: <date from digest, outcome> | lock <free|held by run X, age> | stop <o
 Needs you
 - #<n> needs-human: <question in one line>. Recommended: <option>. <Cost: estimate, if any>
 - #<n> needs-local: <what to run, one line>
-- PR #<n> (tier C): <title>, CI <green|red>
+- #<n> plan to approve: <reasons in one line>
+- PR #<n> (supervised): <title>, CI <green|red>
 - Branch protection off: `rb protect` (free on this repo) | needs GitHub Pro, your decision
 
 Merged since last digest
-- PR #<n> <title> (tier <A|B>)  revert: rb revert <n>
+- PR #<n> <title> (level <n><, merged by delegation>)  revert: rb revert <n>
 
 In progress / queued
 - <tasks queued for the next run, open rb/* PRs and their CI state>

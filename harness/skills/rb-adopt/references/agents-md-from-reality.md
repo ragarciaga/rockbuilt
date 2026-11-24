@@ -39,7 +39,7 @@ stabilization issue.
 
 Commands that call paid services (a test suite that hits a live LLM, an eval run against a paid
 API) do not go into `## Verification`: the cycle runs Verification unattended, and paid calls are
-tier C (DESIGN.md section 14). Put them under `## Evals` and note that they need a budget in
+owner approval (DESIGN.md section 14). Put them under `## Evals` and note that they need a budget in
 `Paid services`; suggest a mocked variant for Verification.
 
 ## Existing CLAUDE.md

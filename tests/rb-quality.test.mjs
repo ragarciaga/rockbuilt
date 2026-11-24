@@ -128,6 +128,32 @@ test('rb quality: kickbacks by source, reverts and bugs traced to merged PRs', a
   assert.equal(r.json.rates.escapedPerMerged, 0.5);
 });
 
+test('rb quality (PLAN-1.0 B3): counts per level and owner interventions per day', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const s = gh.state;
+  const pr = (n, head, labels, merged) => {
+    s.issues[n] = { number: n, title: `PR ${n}`, body: '<!-- rockbuilt:kickbacks verifier=1 -->', state: 'closed', labels, isPr: true, created_at: '2026-10-10T00:00:00Z' };
+    s.pulls[n] = { number: n, head, base: 'main', headSha: 'f'.repeat(40), merged_at: merged };
+  };
+  pr(10, 'rb/T1-a', ['rb:level-2'], '2026-10-10T05:00:00Z');
+  pr(11, 'rb/T2-b', ['rb:tier-c'], '2026-10-11T05:00:00Z');
+  pr(12, 'rb/T3-c', ['rb:level-3'], '2026-10-12T05:00:00Z');
+  const c = (issue, body, at, assoc = 'OWNER') => (s.comments[issue] ||= []).push({ id: Math.floor(Math.random() * 1e9), body, user: { login: 'owner' }, author_association: assoc, created_at: at });
+  c(10, 'Merged by `rb merge-gate` (level 2). To undo: x', '2026-10-10T05:00:00Z');
+  c(11, 'Merged by `rb merge-gate` (level 3, human approved). To undo: x', '2026-10-11T05:00:00Z');
+  c(12, 'Merged by `rb merge-gate` (level 3, merged by delegation: > "delego"). To undo: x', '2026-10-12T05:00:00Z');
+  c(3, '<!-- rockbuilt:escalation kind=human -->\nQ', '2026-10-10T06:00:00Z');
+  c(3, 'aprobado', '2026-10-10T07:00:00Z');
+  c(3, 'aprobado', '2026-10-10T08:00:00Z', 'NONE');
+  const r = await rbJson(root, ['quality', '--since', '2026-10-10', '--until', '2026-10-13'], { ghRunner: gh.runner });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.json.byLevel['2'].merged, 1);
+  assert.equal(r.json.byLevel['3'].merged, 2, 'an old tier label reads as its level');
+  assert.equal(r.json.byLevel['3'].kickbacks.verifier, 2);
+  assert.deepEqual(r.json.interventions, { escalations: 1, approvals: 1, humanApproved: 1, byHand: 0, delegated: 1, total: 3, days: 3, perDay: 1 });
+});
+
 test('review fixes: plan read only for a pending plan from trusted authors; limits skip done tasks; fenced lines stay', async () => {
   const root = project();
   const gh = fakeGh();

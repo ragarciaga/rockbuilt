@@ -84,10 +84,10 @@ Follow `references/agents-md-from-reality.md`.
 Ask in the same message (batched, recommendation first):
 
 - **Tools** besides Claude Code: Cursor, Codex (experimental), or none (default `claude`).
-- **Autonomy:** `auto` (default) or `supervised`. Explain the tiers in two lines: A (tests,
-  docs, styles) and B (normal code from an approved spec or an `rb:task`/`rb:bug` issue) are
-  built, audited and merged by the harness when CI is green; C (architecture, data and schema,
-  auth, dependencies, infra, anything that costs money) waits for the user. Anything that can
+- **Autonomy:** `auto` (default) or `supervised`. Explain the review levels in two lines:
+  level 1 (docs, styles, added tests) merges on green CI, level 2 (normal code) gets the
+  verifier, level 3 (sensitive paths, auth, data, deletion) all three reviews; the owner approves
+  only schema, architecture, the auth model, costs and irreversible steps, in one message per run. Anything that can
   cost money always asks first.
 - **Paid services** already approved, with a monthly cap, or none. **Sensitive paths** beyond
   the built-in floor, if the map found any (for example a legacy billing folder).
@@ -117,7 +117,7 @@ once before calling it red, to separate flaky from broken. Details:
 `references/stabilize.md`.
 
 - **Green:** report counts per command. Done.
-- **Red:** do not block all work. Propose, as one tier C decision the user must explicitly
+- **Red:** do not block all work. Propose, as one decision for the owner the user must explicitly
   accept: (1) `rb baseline --accept`, which records the current failures in
   `docs/rockbuilt/known-failures.json` as pre-existing (the cycle then stops only on new
   failures, and the list may only shrink automatically), plus (2) a **"Stabilize the
@@ -137,7 +137,7 @@ or `## E2E`), `rb vendor --type web` has already laid down the config, smoke spe
 `.mcp.json`. Propose a standalone issue "Add Playwright E2E baseline": pin `@playwright/test`
 and `@playwright/mcp`, install chromium, make the smoke spec cover the most critical existing
 flow, add `npm run test:e2e` to AGENTS.md `## E2E` and to CI. It goes right after the
-stabilization issue, before feature work. Adding dev dependencies is tier C: the issue body
+stabilization issue, before feature work. Adding dev dependencies needs the owner's approval: the issue body
 says so, so the plan is approved by the user before it runs.
 
 ## Step 6: Labels, control issue and agreed issues
@@ -173,9 +173,9 @@ untested, recommend a characterization test task before the change.
 
 ## Step 8: Commit path, report and handoff
 
-Adopt touches AGENTS.md, CLAUDE.md, `.claude/`, `.github/` and `tools/rockbuilt/`: tier C.
+Adopt touches AGENTS.md, CLAUDE.md, `.claude/`, `.github/` and `tools/rockbuilt/`: owner approval.
 Commit on `rb/adopt`, push the branch and open the PR with
-`rb gh pr-create --head rb/adopt --base <default> --title <t> --body-file <f> --label rb:tier-c`.
+`rb gh pr-create --head rb/adopt --base <default> --title <t> --body-file <f> --label rb:level-3`.
 Never push to the default branch. The user reviews and merges it. Update `docs/progress.md`
 (create from the vendored template if missing) in that commit.
 

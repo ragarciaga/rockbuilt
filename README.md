@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.14.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.0.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -21,7 +21,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-a-day-looks">How a day looks</a> ·
   <a href="#what-you-need">What you need</a> ·
-  <a href="#autonomy-tiers">Autonomy tiers</a> ·
+  <a href="#review-levels">Review levels</a> ·
   <a href="docs/GUIA.md">Guía en español</a>
 </p>
 
@@ -53,11 +53,11 @@ experimental.
 
 | Who | Does | Cannot |
 |---|---|---|
-| Planner | Reads the live code and writes the plan for one task, with its risk tier and any cost | Write code |
+| Planner | Reads the live code and writes the plan for one task, with its review level, what needs my approval and any cost | Write code |
 | Implementer | Writes the code and the tests | Touch git, GitHub or secrets |
 | Verifier | Checks the work against the plan, and plants small bugs on purpose to see if the tests catch them | Fix anything |
 | Blind auditor | Tests the running software against the acceptance criteria | See the plan, the review or how it was built |
-| Merge gate | Decides what merges on its own. It is code, so a model cannot talk its way past it | Merge tier C work |
+| Merge gate | Decides what merges on its own. It is code, so a model cannot talk its way past it | Merge a plan I did not approve |
 
 It covers the whole path: the idea and whether it is worth building, the spec, the tasks as GitHub
 issues, the code, unit and end-to-end tests with Playwright, evals for AI features, a security
@@ -73,8 +73,8 @@ flowchart TD
     T --> N{{Nightly routine in the cloud}}
     N --> W[Plan, build, verify, blind audit]
     W --> G{Merge gate}
-    G -->|tier A or B, CI green| M([Merged])
-    G -->|tier C| H([Waits for you])
+    G -->|reviews by level, CI green| M([Merged])
+    G -->|schema, architecture, cost, irreversible| H([Waits for your approval])
     M --> D[Morning digest on GitHub]
     H --> D
 ```
@@ -98,7 +98,8 @@ approve the requirements and the design. That is most of my part.
 A small change asked in a session goes through `/rb-quick` and skips the planner and the
 implementer. The session writes it, the tests and lint run after every change, and one verifier
 and one blind auditor review the whole batch once before the session tells me it is done. A batch
-that grows past 400 lines or 12 files, or touches anything tier C, goes back to the full path.
+that grows past 400 lines or 12 files, or reaches level 3 or anything I must approve, goes back to
+the full path. A docs-only change is level 1: CI checks it and nothing else runs.
 
 At night the routine picks up the backlog and my answers, builds, reviews and merges. The first
 real night it took a bug from an issue, reproduced it with a test, fixed it, had it verified and
@@ -238,22 +239,34 @@ You do not need the command names. These work in any session:
 | "log 45 minutes of a client call on feature 02" | `/rb-status` (a manual time entry) |
 | "retro" | `/rb-retro` (includes tests that failed once and passed on a re-run, `rb flaky list`) |
 
-## Autonomy tiers
+## Review levels
 
-Every change gets a tier, computed by `rb risk` from the real diff. The planner declares one too
-and the higher wins: a model can raise a tier, never lower it.
+Every change gets a level, computed by `rb risk` from the real diff. The planner declares one too
+and the higher wins: a model can raise a level, never lower it. The level decides who reviews; it
+never decides whether I am asked.
 
-| Tier | Typical change | Plan | Reviews | Merge |
-|---|---|---|---|---|
-| **A** | Tests, docs, styles, copy | Automatic | Verifier | Automatic |
-| **B** | Product code from an approved spec, an `rb:task` or an `rb:bug` | Automatic | Verifier, blind auditor, security review when the diff needs it (`rb risk`) | Automatic |
-| **C** | Architecture, dependencies, anything that costs money, data and schema, auth, payments, CI and deploy, secrets, large deletions | **You approve** | Same as B | **You merge** |
+| Level | Typical change | Reviews | Merge |
+|---|---|---|---|
+| **1** | Docs, styles, copy, tests that only add | None, CI only | Automatic |
+| **2** | Product code | Verifier; the blind auditor when something I see changes, on every bug fix and quick batch, and on one PR in five by sampling | Automatic |
+| **3** | `Sensitive paths`, auth, payments, personal data, deletion, schema, CI and deploy, harness files, large diffs | Verifier, blind auditor, security reviewer | Automatic |
 
-Tier C cannot be configured away. Anything that can cost money (paid APIs, new services, deploys,
-cloud CLIs, plan upgrades, paid model calls in tests) always comes to you first, with an estimate.
-Before a tier C plan reaches you (or any plan that touches personal data), the security reviewer
-reads it and checks every decision in it against the requirements, so a wrong call shows up in
-two minutes instead of after the code is written.
+I am asked only for a closed list: schema and migrations, architecture (an ADR, a new spec, a
+design decision), the auth model, a cost outside `Paid services` or over its cap, and anything
+irreversible. A new runtime dependency is checked by code (license, deprecation, maintenance) and
+reaches me only if it fails. Everything else takes a safe default and shows up in the report. I
+approve the plan by writing "aprobado" on its issue; then the merge happens on its own when the
+reviews and CI pass. The run never stops to ask: it sets the item aside, keeps working, and sends
+me one message at the end (`rb state`).
+
+To hand approvals over for a while I say it in a session: "delego todo hasta el viernes", "full
+auto del milestone MVP". `/rb-delegate` records my words on the control issue, for 14 days by
+default, without costs or irreversible items unless I name them; a "full auto" covers only that
+run. Every merge it covers says "merged by delegation", and `rb delegate revoke` ends it.
+
+Before a plan reaches me (or any plan that touches personal data), the security reviewer reads it
+and checks every decision in it against the requirements, so a wrong call shows up in two minutes
+instead of after the code is written.
 `Autonomy: supervised` in `AGENTS.md` makes every PR wait for you.
 
 **Stop everything:** add the `rb:stop` label to any open issue. **Hold one PR:** add `rb:hold`.
@@ -265,8 +278,9 @@ opens a revert PR for you to merge.
 From strongest to weakest:
 
 1. **GitHub side.** `rockbuilt-ci` (verification, end-to-end tests when possible, gitleaks secret
-   scan) and `rb merge-gate`, the only merge path. The gate checks: tier labels against the live
-   diff, reviewer verdicts on the exact head commit, a green CI run from GitHub Actions (and the
+   scan) and `rb merge-gate`, the only merge path. The gate checks: level labels against the live
+   diff (with the rules read from `AGENTS.md` at the PR's base), the reviews each level needs, my
+   approval or a delegation when the plan needs one, reviewer verdicts on the exact head commit, a green CI run from GitHub Actions (and the
    `rockbuilt-e2e` check when the project has end-to-end tests), the PR is up to date with
    `main`, the stop switch is off, and the run holds the lock. After an update with `main`, the
    auditor's verdict on the previous commit only counts if the gate itself confirms, through
@@ -312,7 +326,7 @@ plugin is only the installer and updater: run `/rockbuilt:install` again to upda
 | Agent | Model | Role |
 |---|---|---|
 | rb-scout | Sonnet | Read-only map of an existing repo or of the code a spec touches |
-| rb-planner | Opus | Plan per task with verified facts, risk tier and costs, open questions |
+| rb-planner | Opus | Plan per task with verified facts, review level, approvals and costs, open questions |
 | rb-task-reviewer | Sonnet | Judges one task: size, alignment, completeness, necessity |
 | rb-implementer | Sonnet | Executes an approved plan; no git, no GitHub, no secrets |
 | rb-verifier | Opus | Plan conformance, criteria by ID, test quality with a mutation probe |
@@ -348,8 +362,8 @@ private repository has a free monthly quota of minutes, and CI only runs when a 
 new push.
 
 Branch protection on a private repository needs GitHub Pro, 4 dollars a month. I have not bought
-it; the merge gate does the same job meanwhile. Any other cost, like a paid API or hosting, is a
-tier C decision and comes to me first.
+it; the merge gate does the same job meanwhile. Any other cost, like a paid API or hosting, comes
+to me first.
 
 ## Your hours
 
@@ -368,11 +382,12 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.14.0. Before trusting it I asked two separate agents, with no context on how it was
-built, to try to break it. The first review found the money check switched off in every project:
-the harness decides if code uses a paid service by looking for that service in the project, and
-its own files list those services by name. That one is fixed, with a test, together with everything
-else both reviews found.
+Version 1.0.0. It changed what asks me and who reviews what, after measuring 539 merged PRs of
+five projects: the old rule put 52% to 87% of PRs in the tier that waits for me, and one project
+reached about 21 interruptions a day. Before releasing it I asked two separate agents, with no
+context on how it was built, to break the new merge gate. They found real holes (an "ok" that
+approved a migration the plan never named, a second `Closes` riding on another issue's approval, a
+spec branch that could carry code); every one is fixed with a test (DESIGN.md section 29).
 
 Then I ran it against a private test repository with real GitHub and real CI, and later as a real
 scheduled routine. CI passes on Windows, macOS and Linux; the macOS run is how I found that the
@@ -441,7 +456,8 @@ I really use each external account and what its limits are, and `rb doctor` noti
 progress notes miss merges.
 
 What stays manual for now: creating each repository, giving the Claude app access to it, approving
-designs, anything that costs money and merging tier C work. I use Cursor little and I have not
+designs, anything that costs money and the plans on the closed list (schema, architecture, auth
+model, cost, irreversible). I use Cursor little and I have not
 tested Codex at all. The full history is in [CHANGELOG.md](CHANGELOG.md) and the evidence for each
 decision in [DESIGN.md](DESIGN.md) (section 20).
 

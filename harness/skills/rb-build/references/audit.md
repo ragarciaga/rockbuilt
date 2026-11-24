@@ -1,6 +1,6 @@
 # Blind audit dispatch (rb-build step 9)
 
-Loaded by rb-build, rb-fix and rb-cycle for tiers B and C, after the verifier passes. The point
+Loaded by rb-build, rb-fix and rb-cycle for levels 2 and 3, after the verifier passes. The point
 of the audit is independence: the auditor judges behavior against the spec without knowing how
 the change was built (self-preference bias).
 

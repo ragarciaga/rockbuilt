@@ -47,11 +47,11 @@ Every "yes" here means the security gate runs for features touching it. Record i
 
 - Tools besides Claude Code: Cursor, Codex (experimental), or none. Recommended: none unless the
   user already works in another tool. Becomes `rb vendor --tools claude[,cursor][,codex]`.
-- Autonomy: `auto` (recommended) or `supervised`. Explain the tiers in two lines in the user's
-  language: tiers A (tests, docs, styles) and B (normal code from an approved spec) are planned,
-  built, audited and merged by the harness when CI is green; tier C (architecture and design,
-  data and schema, auth, dependencies, infra, anything that costs money) waits for the user in an
-  `rb:needs-human` issue. Then one line: anything that can cost money always asks first, in both
+- Autonomy: `auto` (recommended) or `supervised`. Explain the review levels in two lines in the
+  user's language: level 1 (docs, styles, added tests) merges on green CI, level 2 (normal code)
+  gets the verifier, level 3 (sensitive paths, auth, data, deletion) all three reviews; the owner
+  approves only schema, architecture, the auth model, costs and irreversible steps, grouped in one
+  message per run. Then one line: anything that can cost money always asks first, in both
   modes. `supervised` means every PR waits for the user.
 - Paid services already approved, each with a monthly cap (for example "OpenAI, USD 20/month for
   evals"), or none. Only what the user names explicitly goes into AGENTS.md `Paid services`.

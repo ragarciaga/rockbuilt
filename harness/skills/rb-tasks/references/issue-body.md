@@ -25,7 +25,7 @@ Spec). The marker line stays exactly as shown, in English.
 <#issue numbers of the tasks in Depends on, the skeleton issue for greenfield T1, or "none">
 
 ## Expected risk
-Tier <A|B|C> (estimate from the files and design.md Risk and cost; `rb risk` decides at build
+Level <1|2|3> (estimate from the files and design.md Risk and cost; `rb risk` decides at build
 time). <For C: the reason, e.g. "adds a migration", "new dependency">
 
 ## Spec

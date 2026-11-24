@@ -217,7 +217,7 @@ test('every rb:* label mentioned in the harness, plugin skills and docs exists i
   const known = new Set(LABELS.map((l) => l.name));
   const unknown = [];
   for (const f of docFiles()) {
-    for (const m of readFileSync(f, 'utf8').matchAll(/\brb:([a-z][a-z-]*)(<)?/g)) {
+    for (const m of readFileSync(f, 'utf8').matchAll(/\brb:([a-z][a-z0-9-]*)(<)?/g)) {
       if (m[1] === 'timing') continue; // progress.md timing markers, not a label
       if (m[1].endsWith('-') && m[2]) continue; // placeholder such as rb:tier-<x>
       if (!known.has(`rb:${m[1]}`)) unknown.push(`${rel(f)}: rb:${m[1]}`);

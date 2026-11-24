@@ -1,8 +1,8 @@
 # Rockbuilt en la nube: el ciclo nocturno
 
 Una rutina de Claude Code corre `/rb-cycle` cada noche sobre tu repo, sin que tengas el
-computador prendido. En la mañana encuentras PRs revisados (y los de nivel A y B ya fusionados),
-más un resumen en GitHub con lo que necesita tu decisión.
+computador prendido. En la mañana encuentras PRs revisados y fusionados, más un mensaje con lo que necesita tu
+decisión.
 
 Esta guía te lleva paso a paso: instalar el harness en el repo, crear la rutina, leer los
 resultados y frenar todo si algo no te gusta.
@@ -17,24 +17,27 @@ Cada corrida es una pasada acotada de `/rb-cycle`, en este orden:
 4. Corre la verificación en la rama principal. Si aparece una falla nueva, se detiene y te avisa.
 5. Recoge tus respuestas a preguntas anteriores y arma la cola: tareas de specs aprobados, issues
    `rb:task` y `rb:bug`, y PRs con CI en rojo. Máximo `Max tasks per run` (6 por defecto).
-6. Por cada tarea: planner, implementer, revisión mecánica, verifier y, en nivel B o C, el
-   auditor ciego. Cualquier hallazgo devuelve la tarea al implementer (máximo 2 veces).
+6. Por cada tarea: planner, implementer, revisión mecánica y las revisiones que pide su nivel.
+   Cualquier hallazgo devuelve la tarea al implementer (máximo `Kickback budget`, 2 por defecto).
 7. Fusiona en fila, uno por uno, solo los PRs que pasan `rb merge-gate`.
 8. Publica el resumen de la noche en el issue de control y suelta el candado.
 
-Nunca se queda esperando una respuesta. Lo que necesita tu decisión queda como un issue con la
-etiqueta `rb:needs-human`, y la corrida sigue con otra cosa.
+Nunca se queda esperando una respuesta. Lo que necesita tu decisión queda apartado
+(`rb:approval-pending` si es un plan por aprobar, `rb:needs-human` si es una pregunta), la corrida
+sigue con otra cosa y al final te deja un solo mensaje con todo lo pendiente (`rb state`). Una
+delegación de "full auto" nunca aplica a la rutina: vale solo para la corrida en que la diste.
 
 ### Los tres niveles
 
-| Nivel | Qué entra | Qué pasa |
+| Nivel | Qué entra | Quién revisa |
 |---|---|---|
-| A | Pruebas, documentación, estilos, textos | Se planea, se construye, se verifica y se fusiona solo |
-| B | Código normal de un spec aprobado o de un issue `rb:task` / `rb:bug` | Igual que A, más el auditor ciego; se fusiona solo con CI en verde |
-| C | Arquitectura, dependencias nuevas, base de datos, autenticación, pagos, CI, despliegue, archivos del harness, secretos, cualquier cosa que cueste plata | Se detiene y te pregunta; el PR lo fusionas tú |
+| 1 | Documentación, estilos, textos, pruebas que solo agregan | Nadie: basta la CI en verde |
+| 2 | Código normal | El verifier; el auditor ciego cuando cambia algo visible, en cada bug y por muestreo |
+| 3 | Rutas sensibles, auth, pagos, datos personales, borrado, esquema, CI, archivos del harness | Verifier, auditor ciego y revisión de seguridad |
 
-El nivel lo calcula `rb risk` con código a partir del diff real. Un modelo puede subir el nivel,
-nunca bajarlo.
+Todos se fusionan solos al pasar. El nivel lo calcula `rb risk` con código a partir del diff real;
+un modelo puede subirlo, nunca bajarlo. Solo te pregunta por esquema, arquitectura, modelo de
+auth, costo o algo irreversible, y lo aprueba un "aprobado" tuyo en el issue.
 
 ## Antes de empezar
 
@@ -76,7 +79,7 @@ Después pídele a Claude que lo suba en una rama y abra el PR.
 
 ## Paso 2: fusionar los archivos del harness
 
-El PR del paso 1 toca archivos del harness, que son nivel C: lo fusionas tú en GitHub. Revisa
+El PR del paso 1 toca archivos del harness: lo fusionas tú en GitHub. Revisa
 que traiga `tools/rockbuilt/`, `.claude/skills/rb-*`, `.claude/agents/rb-*`, `AGENTS.md`,
 `CLAUDE.md` y `.github/workflows/rockbuilt-ci.yml`.
 
@@ -183,24 +186,28 @@ Todo queda en GitHub, así que lo puedes revisar desde el celular.
 1. **El issue "Rockbuilt control".** Cada noche recibe un comentario con: PRs fusionados (cada
    uno con su comando para revertir), PRs que esperan por ti, preguntas abiertas, fallas, tiempo
    por tarea y lo que tomará la siguiente corrida.
-2. **Issues con `rb:needs-human`.** Son decisiones tuyas. El comentario trae la pregunta, las
+2. **Issues con `rb:approval-pending`.** Planes que piden tu aprobación (esquema, arquitectura,
+   modelo de auth, costo, irreversible). Lees el plan y escribes "aprobado" en el issue.
+3. **Issues con `rb:needs-human`.** Son preguntas para ti. El comentario trae la pregunta, las
    opciones, la recomendación y, si hay costo, el estimado.
-3. **Issues con `rb:needs-local`.** Necesitan tu computador (un navegador, credenciales locales).
+4. **Issues con `rb:needs-local`.** Necesitan tu computador (un navegador, credenciales locales).
    El comentario trae los comandos exactos.
-4. **PRs de nivel C.** Los revisas y los fusionas tú en GitHub, o en una sesión le dices
-   `/rb-merge 12`.
+5. **PRs del harness** (kickoff, spec, revert, actualizaciones). Los revisas y los fusionas tú en
+   GitHub, o en una sesión le dices `/rb-merge 12`.
 
 ### Cómo responder
 
-- Escribe tu respuesta como comentario en el issue (o simplemente "aprobado") y **quita** la
-  etiqueta `rb:needs-human`.
-- O agrega la etiqueta `rb:approved`.
+- Para aprobar un plan, escribe solo "aprobado" en el issue (desde el celular sirve). Ni una
+  etiqueta ni una bandera del agente reemplazan ese comentario.
+- Para una pregunta, responde con un comentario y **quita** la etiqueta `rb:needs-human`.
+- Si vas a estar fuera, delega en una sesión ("delego todo hasta el viernes"): queda registrado
+  con tus palabras en el issue de control.
 
 La siguiente corrida retoma desde ahí. La aprobación cubre el plan tal como quedó publicado; si
 el plan cambia después, te pregunta de nuevo. Para `rb:needs-local`, corre los comandos en tu
 máquina, comenta el resultado y quita la etiqueta.
 
-Solo cuentan los comentarios del dueño del repo y de sus colaboradores. Un comentario de un
+Solo cuentan los comentarios de quien tiene permiso de escritura en el repo. Un comentario de un
 desconocido nunca se toma como aprobación.
 
 ## Cómo detener todo
@@ -229,7 +236,8 @@ En el plan gratuito de GitHub, un repo privado **no puede** activar la protecci�
 verificamos con la API: la respuesta es "Upgrade to GitHub Pro or make this repository public".
 
 Sin protección, `rb merge-gate` aplica las reglas en código: solo fusiona si CI está en verde, las
-revisiones corresponden al último commit, el nivel es A o B y no hay interruptor de parada. Es
+revisiones que pide el nivel corresponden al último commit, el plan está aprobado (o delegado)
+cuando lo necesita y no hay interruptor de parada. Es
 el único camino de merge que usa el harness. `rb doctor` te muestra el modo: `rb-only` o
 `github`.
 
@@ -248,7 +256,7 @@ cuando hay E2E), sin la regla de "rama al día", que bloquearía la cola de merg
   a menos que hayas configurado un límite de gasto y un medio de pago. Sin CI no hay merges
   automáticos (el gate exige `rockbuilt-ci`); `rb doctor` te avisa.
 - **APIs y servicios pagos:** siempre te preguntan primero. Cualquier cambio que pueda costar
-  plata es nivel C y llega con un estimado; las pruebas usan mocks.
+  plata pide tu aprobación con un estimado; las pruebas usan mocks.
 
 ## Problemas comunes
 
@@ -278,5 +286,5 @@ cuando hay E2E), sin la regla de "rama al día", que bloquearía la cola de merg
   git checkout -B <rama-asignada> origin/main
   git branch --unset-upstream
   ```
-- **La corrida no fusionó nada.** Mira el resumen: lo normal es que falte CI en verde, que el PR
-  sea nivel C o que haya un `rb:stop` puesto.
+- **La corrida no fusionó nada.** Mira el resumen: lo normal es que falte CI en verde, que un plan
+  espere tu "aprobado" o que haya un `rb:stop` puesto.

@@ -81,8 +81,8 @@ Draft `tasks.md` yourself from `templates/tasks.md` (this skill's folder). Rules
   threshold. `[manual]` criteria need the reason copied from requirements.md.
 - `Files` lists the expected production and test files. Be concrete: it drives parallel
   batching, the planner's scope and the first `rb risk --files` estimate.
-- Keep tier C work in its own tasks when the design's Risk and cost section names it (a
-  migration, a new dependency, an auth change): a tier C task waits for the human, and mixing it
+- Keep work that needs the owner in its own tasks when the design's Risk and cost section names it (a
+  migration, a new dependency, an auth change): a task that needs the owner waits for the human, and mixing it
   into a B task would make the whole task wait.
 - `Status: todo`, `Issue:` empty, header `Status: draft`.
 
@@ -161,10 +161,10 @@ git checkout -b rb/spec-<NN-slug>
 git add docs/specs/<NN-slug>/ docs/adr/ docs/v2.md docs/progress.md AGENTS.md
 git commit -m "docs(spec): <feature>"
 git push -u origin rb/spec-<NN-slug>
-rb gh pr-create --head rb/spec-<NN-slug> --base <default> --title "<Spec: feature, in docs language>" --body-file <f> --label rb:tier-c
+rb gh pr-create --head rb/spec-<NN-slug> --base <default> --title "<Spec: feature, in docs language>" --body-file <f> --label rb:level-3
 ```
 
-Stage AGENTS.md only if the design approval added a `Paid services` budget. The PR is tier C
+Stage AGENTS.md only if the design approval added a `Paid services` budget. The PR needs the owner's approval
 (design.md and ADRs): the user already approved its content, so tell them merging it is the last
 step, or that they can say "merge it" in this conversation and `/rb-merge` will merge it as
 human-approved. Then `git checkout <default>`. The PR body carries the coverage matrix summary
@@ -176,11 +176,11 @@ Update `docs/progress.md` (Current objective, backlog summary, Next steps). Then
 in the docs language, in one message:
 
 1. The **coverage matrix**: one row per criterion: ID, short text, tasks (with issue numbers).
-2. The **backlog**: ID, title, size, depends on, expected tier (A/B/C from the Files and the
+2. The **backlog**: ID, title, size, depends on, expected level (1, 2 or 3 from the Files and the
    design's Risk and cost), issue.
 3. Convergence: rounds run, what changed per round in one line each, disagreements you resolved.
 4. The spec PR number and what happens next: once it is merged, the cycle (nightly routine or
-   `/rb-cycle`) builds the tasks; tier C tasks will appear as `rb:needs-human` issues.
+   `/rb-cycle`) builds the tasks; tasks that need the owner will appear as `rb:needs-human` issues.
 
 ## Rules
 

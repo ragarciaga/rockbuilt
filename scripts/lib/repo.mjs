@@ -6,7 +6,9 @@ import { git } from './util.mjs';
 // Contract "Default branch:" wins, then origin/HEAD, then an existing main/master, then the current branch.
 export function defaultBranch(root) {
   const fromDoc = headerField(readContractText(root), 'Default branch');
-  if (fromDoc && !fromDoc.includes('<')) return fromDoc;
+  // A branch name reaches git commands: anything that could read as an option or a refspec trick
+  // is ignored (adversarial review of 1.0).
+  if (fromDoc && !fromDoc.includes('<') && /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/.test(fromDoc) && !fromDoc.includes('..')) return fromDoc;
   const sym = git(root, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']);
   if (sym.ok) return sym.stdout.replace(/^refs\/remotes\/origin\//, '');
   for (const b of ['main', 'master']) {

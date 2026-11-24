@@ -56,7 +56,7 @@ piden un paso a mano. Desde la 0.4.0, por ejemplo, el prompt de cada rutina term
    sus pruebas en verde), y abre el PR de arranque. Ese PR lo fusionas tú.
 7. Crea la rutina nocturna (docs/CLOUD.md, paso 4). Esa noche construye el esqueleto.
 8. `/rb-spec` en una sesión para la primera funcionalidad. Desde ahí la rutina construye cada
-   noche y tú solo respondes lo que te pregunte.
+   noche y tú solo respondes lo que te pregunte, en un mensaje por corrida.
 
 **En tu computador.** Crea una carpeta vacía, abre Claude Code ahí, corre `/rockbuilt:install`,
 abre una sesión nueva y sigue desde el paso 4. Ahí Rockbuilt sí puede crear el repo con `gh`.
@@ -90,7 +90,9 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Cambio pequeño para el ciclo nocturno | Crea un issue con la etiqueta `rb:task`; el ciclo lo toma |
 | Avanzar el backlog ahora | `/rb-build` (o `/rb-cycle` para una pasada completa) |
 | Probar una funcionalidad completa (E2E, evals, seguridad) | `/rb-verify` |
-| Fusionar un PR de nivel C, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
+| Fusionar un PR del harness o en modo supervisado, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
+| Delegar aprobaciones por un tiempo | "delego todo hasta el viernes", "full auto del milestone MVP" (`/rb-delegate`) |
+| Ver qué espera por ti | `rb state` (o `/rb-status`) |
 | Deshacer un merge | `/rb-merge revierte el PR 12` |
 | Retomar al día siguiente | `/rb-status` |
 | Ver tus horas por proyecto, feature y tarea | "reporte de horas" (`/rb-status`) |
@@ -108,42 +110,71 @@ hace falta nombrar el comando.
 - Después de cada cambio corren las pruebas y el lint (juzgados por el código de salida) y
   `rb risk`.
 - Cuando termina lo que pediste, un verifier y un auditor ciego revisan el lote completo una sola
-  vez (más la revisión de seguridad si el diff la exige). Solo entonces te dice que está listo,
+  vez (más la revisión de seguridad si el diff la exige). Si solo cambia documentación, estilos o
+  textos (nivel 1), no corre ningún agente: basta la CI en verde. Solo entonces te dice que está listo,
   con el PR.
-- Si el cambio es nivel C (dependencias, auth, pagos, CI, costos) o el lote pasa de 400 líneas o
-  12 archivos, sale del modo rápido: lo planea `/rb-build` y tú apruebas. El merge-gate rechaza
+- Si el cambio es nivel 3 (rutas sensibles, auth, pagos, CI, borrado), pide tu aprobación
+  (esquema, arquitectura, costo, algo irreversible) o el lote pasa de 400 líneas o 12 archivos,
+  sale del modo rápido: lo planea `/rb-build`. El merge-gate rechaza
   un PR de lote que creció por encima del límite.
 
 En proyectos que ya tenían Rockbuilt, `rb doctor` avisa si a tu `CLAUDE.md` le falta la línea que
 manda estos pedidos por un skill, y te la muestra para que la copies.
 
-## Los tres niveles de autonomía
+## Los tres niveles de revisión
 
-Cada tarea recibe un nivel, calculado con código (`rb risk`) a partir de los archivos que cambia.
-El planner también declara uno, y gana el más alto. Un modelo puede subir el nivel, nunca bajarlo.
+Cada cambio recibe un nivel, calculado con código (`rb risk`) a partir del diff real. El planner
+también declara uno, y gana el más alto. Un modelo puede subir el nivel, nunca bajarlo. El nivel
+decide quién revisa; no decide si te preguntan.
 
-| Nivel | Qué entra | Qué hace Rockbuilt |
+| Nivel | Qué entra | Quién revisa |
 |---|---|---|
-| A | Pruebas, documentación, estilos, textos | Planea, construye, verifica y fusiona solo |
-| B | Código normal de un spec aprobado o de un issue `rb:task` / `rb:bug` | Igual que A, más el auditor ciego; fusiona solo con CI en verde |
-| C | Arquitectura, dependencias nuevas, base de datos, autenticación, pagos, CI, despliegue, archivos del harness, secretos, borrados grandes | Se detiene, te pregunta con opciones y recomendación, sigue con otra cosa; el PR lo fusionas tú |
+| 1 | Documentación, estilos, textos, pruebas que solo agregan | Nadie: basta la CI en verde |
+| 2 | Código normal | El verifier; el auditor ciego cuando cambia algo que ves, en cada bug y cada lote rápido, y en uno de cada cinco PRs por muestreo |
+| 3 | `Sensitive paths`, auth, pagos, datos personales, borrado, esquema, CI y despliegue, archivos del harness, diffs grandes | Verifier, auditor ciego y revisión de seguridad |
 
-**Todo lo que pueda costar plata te pregunta primero,** con un estimado: APIs pagas, servicios
-nuevos, infraestructura, planes pagos (incluido GitHub Pro) y pruebas contra servicios pagos. Las
-pruebas usan mocks.
+Todos se fusionan solos cuando pasan sus revisiones y la CI. Si prefieres revisar todo como antes,
+pon `Autonomy: supervised` en `AGENTS.md`: cada PR espera por ti.
 
-Si prefieres revisar todo como antes, pon `Autonomy: supervised` en `AGENTS.md`: cada PR espera
-por ti.
+## Cuándo te pregunta
+
+Solo por una lista cerrada, y siempre sobre el plan, nunca sobre el merge:
+
+- esquema y migraciones;
+- arquitectura: un ADR, un spec nuevo, una decisión de diseño que el spec no resolvió;
+- el modelo de auth (quién entra y qué puede hacer cada rol);
+- costo: un servicio pago que no está en `Paid services` o que pasa su tope;
+- algo irreversible: borrados grandes, datos de producción.
+
+Una dependencia nueva de producción pasa un chequeo automático (licencia, si está deprecada, si
+tiene mantenimiento) y solo te llega si falla; las de desarrollo y pruebas son libres, y las que
+están en el diseño aprobado ya cuentan como aprobadas. Lo demás toma el default seguro y te lo
+reporta. Las pruebas usan mocks para los servicios pagos.
+
+**Cómo apruebas.** Escribes "aprobado" en el issue de la tarea, después del plan (sirve desde el
+celular). Con eso el merge sale solo cuando pasen las revisiones y la CI. Si el plan cambia, te
+lo vuelve a pedir. Nadie más puede escribir esa aprobación por ti: ni una etiqueta ni una bandera
+del agente la reemplazan.
+
+**Un solo mensaje.** La corrida no se detiene a preguntar: aparta lo que necesita tu decisión
+(`rb:approval-pending`, `rb:needs-human`, `rb:needs-local`), sigue con otro trabajo y al final te
+manda un mensaje con todo lo pendiente (`rb state`).
+
+**Delegar.** Si vas a estar fuera, dilo en una sesión: "delego todo hasta el viernes", "full auto
+del milestone MVP", "full auto #12 #15". `/rb-delegate` guarda tus palabras en el issue de
+control, por 14 días si no dices fecha, y sin costos ni cosas irreversibles salvo que las nombres.
+Un "full auto" vale solo para esa corrida, nunca para la rutina nocturna. Cada merge que cubre dice
+"fusionado por delegación" y el resumen la muestra arriba mientras esté vigente. "Revoca la
+delegación" la termina.
 
 ## Dónde apruebas
 
 1. El brief (kickoff).
 2. Los requisitos y luego el diseño de cada funcionalidad (spec).
-3. Cada decisión de nivel C, cuando llega. Antes de que te llegue, el revisor de seguridad lee
-   el plan y coteja cada decisión con los requisitos (también en planes con datos personales).
-   Esa lectura ya no depende de que el agente la recuerde: `rb` no deja escalar un plan de nivel C
-   sin ella, y lo que encuentre viene en la misma pregunta.
-4. Los PRs de nivel C y los del harness.
+3. Los planes de la lista cerrada, cuando llegan. Antes de que te lleguen, el revisor de
+   seguridad lee el plan y coteja cada decisión con los requisitos (también en planes con datos
+   personales); `rb` no deja escalar un plan sin esa lectura.
+4. Los PRs del harness (kickoff, adopt, spec, revert, actualizaciones).
 
 Las tareas que salen de un spec aprobado no piden una segunda aprobación.
 
@@ -158,8 +189,9 @@ Todo queda en GitHub, en el issue **Rockbuilt control**:
 
 - Un comentario por corrida con lo fusionado (cada PR con su comando para revertir), lo que
   espera por ti, las preguntas abiertas, las fallas y lo que sigue.
-- Las preguntas para ti quedan en issues con `rb:needs-human`. Respondes con un comentario (o
-  "aprobado") y quitas la etiqueta, o agregas `rb:approved`.
+- Los planes que esperan tu aprobación quedan con `rb:approval-pending`: escribes "aprobado" en el
+  issue. Las preguntas quedan con `rb:needs-human`: respondes con un comentario y quitas la
+  etiqueta.
 - Lo que necesita tu computador (un navegador, credenciales locales) queda con `rb:needs-local`
   y los comandos exactos.
 
@@ -187,9 +219,11 @@ fusiona mientras la tenga; quítala cuando quieras que siga. Un comentario en el
 El CI corre con la versión de Node que fije el proyecto en `.nvmrc` o `.node-version` (si no hay
 ninguno, Node 22), la misma que usas en tu computador.
 
-Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el PR es nivel A o B, la CI
-(`rockbuilt-ci`, y `rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, el verifier y
-el auditor aprobaron el último commit, no hay interruptor de parada y la corrida tiene el candado.
+Solo hay un camino para fusionar: `rb merge-gate`. Fusiona si el nivel de la etiqueta no es menor al del diff
+real (con las reglas de `AGENTS.md` leídas desde la base del PR), la CI (`rockbuilt-ci`, y
+`rockbuilt-e2e` si el proyecto tiene pruebas E2E) está en verde, las revisiones que pide el nivel
+aprobaron el último commit, el plan tiene tu aprobación o una delegación vigente cuando la
+necesita, no hay interruptor de parada y la corrida tiene el candado.
 Cuando hay dos o más PRs listos, pasan por una **cola de merges**: el harness los apila sobre
 `main` uno tras otro y sube cada paso a su propia rama (`rb/queue-...`), así el CI prueba todos los
 pasos al mismo tiempo, y después cada PR se fusiona en orden sin actualizarse. El gate solo lo
@@ -235,7 +269,8 @@ solo revisa tu proyecto y sus worktrees. Además el guard exige nombrar la rama 
 refspec con comodín (`refs/heads/*`) podría tocar `main` sin nombrarla.
 Las claves de prueba se arman por partes en tiempo de ejecución.
 
-Los PRs de nivel C los fusionas tú en GitHub, o le dices a Claude "haz merge del PR 12". Cada
+Los PRs del harness (kickoff, spec, revert, actualizaciones) los fusionas tú en GitHub, o le dices
+a Claude "haz merge del PR 12". Cada
 merge deja en el PR el comando para revertirlo.
 
 En un repo privado con el plan gratuito de GitHub no se puede activar la protección de ramas, así
@@ -429,7 +464,7 @@ Antes de cotizar con estas cifras, calibra: lleva tus horas a mano una semana y 
   aparece en otro lado: `git config --global core.longpaths true`.
 - **Un E2E falla de repente.** Revisa primero si venció una credencial en `.env.local`.
 - **Nada se fusionó anoche.** Lee el resumen en el issue de control: casi siempre falta CI en
-  verde, el PR es nivel C o hay un `rb:stop` puesto.
+  verde, un plan espera tu "aprobado" o hay un `rb:stop` puesto.
 - **El diagnóstico general.** Pídele a Claude que corra `node tools/rockbuilt/rb.mjs doctor`.
 
 ## Mejorar el harness

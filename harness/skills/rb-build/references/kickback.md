@@ -10,7 +10,7 @@ All checkpoints keep the `wip:` prefix so branch classification stays a simple r
 
 - `wip: checkpoint <stage> (<id>)` after a stage (implement, kickback <k>, ci-fix);
 - `wip: <agent> died (<id>)`, `wip: context exhausted (<id>)`, `wip: interrupted run (<id>)`;
-- `wip: escalated: <reason> (<id>)` (tier rose to C, waiting for approval);
+- `wip: escalated: <reason> (<id>)` (an approval appeared, waiting for approval);
 - `wip: blocked: <reason> (<id>)` (the blocked path; always the newest commit of a blocked branch,
   added with `--allow-empty` when nothing changed, so it never misclassifies as resume).
 
@@ -26,7 +26,7 @@ For kickback k:
    report." The auditor's findings are behavior evidence; passing them to the implementer is fine.
    The reverse never happens: the auditor never sees implementer or verifier text.
 2. Checkpoint `wip: checkpoint kickback <k> (<id>)` (skip if nothing changed). `rb timing end`.
-3. Re-run the mechanical check, recompute the tier (`rb risk --base origin/<default>`), then
+3. Re-run the mechanical check, recompute the level (`rb risk --base origin/<default>`), then
    collapse as build step 8 (on a branch already on origin it squashes only the new local commits
    onto the pushed tip, as `fix: <what> (kickback <k>, <id>)`; nothing new: no commit). Push after
    the reviews. Record the new head.
@@ -139,7 +139,7 @@ check name.
    candidate: `rb flaky record <spec file:line or test id> --pr <n>`, no code change, never a
    skip; `rb-retro` reads `rb flaky list`. A secret-scan (gitleaks) failure is never auto-fixed: escalate `--kind human`
    (the secret must be rotated). The `Harness files` step only warns (the gate already makes
-   those PRs tier C); it never needs a CI fix. A check with the same name also failing on
+   those PRs owner approval); it never needs a CI fix. A check with the same name also failing on
    the default branch head (`rb gh checks <default sha>`) is unrelated: do not burn the attempt,
    escalate (`CI red, unrelated`) in the digest.
 3. **Fix.** Check out the PR branch (`git fetch origin`, `git checkout <branch>`,
@@ -150,8 +150,7 @@ check name.
 4. Mechanical check. Then `git reset --soft origin/<branch>` and `git commit -m "fix: <what> (CI,
    <id>)"`: only local commits are squashed, the pushed ones stay (a force push is denied). The
    merge squashes, so extra commits cost nothing.
-5. Reviews on the new head: verifier with `Previously reviewed commit: <old head>`; for tier B and
-   C the auditor and security as in section 1 step 4 (`rb review-delta` decides whether a
+5. Reviews on the new head: verifier with `Previously reviewed commit: <old head>`; for levels 2 and 3 the auditor and security as in section 1 step 4 (`rb review-delta` decides whether a
    test-only fix keeps the auditor's line; the security review runs again). A
    failure here takes the blocked path for the fix (the PR stays open, labelled `rb:blocked`).
 6. `git push`. Replace every machine line that names the old head, the timing line (from `rb timing

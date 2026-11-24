@@ -1,7 +1,7 @@
 // rb risk: mechanical autonomy tier from a diff (DESIGN.md section 6). A model may raise it, never lower it.
 import { isTestPath } from './delta.mjs';
 import path from 'node:path';
-import { contractInfo } from './contract.mjs';
+import { contractInfo, parseAutonomy } from './contract.mjs';
 import { matchAny, normalizePath } from './glob.mjs';
 import { ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
@@ -49,7 +49,7 @@ export const PAID_PY = [
   ['groq', 'groq'], ['together', 'together'], ['pinecone', 'pinecone'], ['litellm', 'ai-provider'],
 ];
 
-const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/i;
+const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro|sh|bash|ps1)$/i;
 // Base lookups ignore the harness and prose: a string in a README or in the vendored rb tables is not prior use.
 const BASE_EXCLUDES = [':(exclude)tools/rockbuilt', ':(exclude).claude', ':(exclude).agents', ':(exclude).codex', ':(exclude).cursor', ':(exclude)docs', ':(exclude)*.md'];
 // Hosts that name a standard or a code host, not a paid API (SVG xmlns, JSON schema, repo links).
@@ -125,10 +125,20 @@ function paidService(moduleId, table, py) {
 }
 
 // Exact service keys only: "Google Maps" in Paid services does not approve "google" (Gemini).
+// PLAN-1.0 A4: an entry names its service the way people write it ("Anthropic API (monthly cap USD
+// 20)", "Claude API con los créditos de Claude Max"): the name before "(" or ":", or the words
+// before "API" or "SDK", with Claude meaning Anthropic. "Google Maps" still does not approve google.
+const SERVICE_ALIASES = { claude: 'anthropic', gpt: 'openai', chatgpt: 'openai', gemini: 'google' };
 function approved(svc, paidServices) {
   const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const key = norm(svc);
-  return paidServices.some((s) => norm(s.split(/[(:]/)[0]) === key);
+  return paidServices.some((s) => {
+    const name = s.split(/[(:]/)[0];
+    const words = name.trim().split(/\s+/);
+    const cut = words.findIndex((w) => /^(api|sdk)$/i.test(w));
+    const names = [norm(name), cut > 0 ? norm(words.slice(0, cut).join('')) : null].filter(Boolean);
+    return names.some((n) => n === key || SERVICE_ALIASES[n] === key);
+  });
 }
 
 // Per-file added lines from a unified diff.
@@ -242,10 +252,92 @@ export function securityNeed(files, tier, autonomy = {}) {
 
 export function classify(input) {
   const r = classifyTier(input);
-  return { ...r, security: securityNeed(input.files, r, input.autonomy) };
+  return { ...r, security: securityNeed(input.files, r, input.autonomy), ...reviewLevel(r, input.files) };
 }
 
-function classifyTier({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+// PLAN-1.0 A1 (#75, evals/results/2026-11-24-replay-levels.md): the review level and the owner
+// approvals, derived from the same findings as the tier. Level 1 (batch): tier A work. Level 3
+// (sensitive): sensitive and auth paths, schema, CI and deploy, harness files, large deletions,
+// size, a new external host, an unreadable diff, a changed manifest script or engine, and an edit
+// to an existing spec. Level 2: everything else. Approvals come only from the closed list; auth
+// model is declared by the planner, never computed. A runtime dependency goes to the dependency
+// check (A7), not to the owner; dev and test dependencies are free.
+export const APPROVAL_REASONS = ['schema', 'architecture', 'auth-model', 'cost', 'irreversible', 'dependency'];
+const LEVEL3_RULES = new Set(['auth-permissions-payments', 'sensitive-path', 'data-schema', 'infra-deploy-ci', 'harness-secrets', 'deletions', 'size']);
+const HARNESS_GLOBS = FLOOR_PATHS.find((g) => g.rule === 'harness-secrets').globs;
+const RUNTIME_DEP_FIELDS = /\((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/;
+const SPEC_DOC = /^docs\/specs\/[^/]+\/(requirements|design)\.md$/;
+
+// PLAN-1.0 A9: on level 2 the blind auditor runs only when something the user sees changes.
+export const USER_VISIBLE = ['**/*.tsx', '**/*.jsx', '**/*.vue', '**/*.svelte', '**/*.astro', '**/*.html', '**/*.css', '**/*.scss', '**/components/**', '**/pages/**', '**/app/**', '**/views/**', '**/templates/**', '**/public/**', '**/locales/**', '**/i18n/**', '**/messages/**', '**/prompts/**'];
+
+export function reviewLevel(tier, files = []) {
+  const approvals = [];
+  const levelReasons = [];
+  const checks = new Set();
+  const ask = (reason, r) => { if (!approvals.some((a) => a.reason === reason && a.path === r.path)) approvals.push({ reason, path: r.path, detail: r.detail }); };
+  const status = (p) => (files.find((f) => normalizePath(f.path) === p) || {}).status;
+  for (const r of tier.reasons) {
+    if (r.rule === 'data-schema') ask('schema', r);
+    else if (r.rule === 'deletions') ask('irreversible', r);
+    else if (r.rule === 'architecture' || r.rule === 'spec') {
+      // Harness files (a skill's design.md template) are level 3 through harness-secrets.
+      if (matchAny(r.path, HARNESS_GLOBS)) continue;
+      if (SPEC_DOC.test(r.path) && status(r.path) !== 'added') {
+        levelReasons.push({ rule: 'spec-amendment', path: r.path, detail: 'edits an existing spec: reported, not asked' });
+      } else ask('architecture', r);
+      continue;
+    } else if (r.rule === 'cost') {
+      if (/imports paid SDK|secret-like env var/.test(r.detail)) ask('cost', r);
+      else levelReasons.push(r);
+      continue;
+    } else if (r.rule === 'dependency') {
+      const changes = r.changes || [r.detail];
+      // A lockfile mirrors package.json: on its own it adds nothing to check.
+      if (/(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(r.path)) continue;
+      if (!/package\.json$/.test(r.path)) { checks.add('dependency'); continue; }
+      // A manifest whose content was not read (rb risk --files, too large, invalid) may change a
+      // script: level 3.
+      if (/not inspected|could not read|not valid JSON/.test(r.detail)) { levelReasons.push(r); continue; }
+      for (const c of changes) {
+        if (RUNTIME_DEP_FIELDS.test(c)) { if (!/^removed /.test(c)) checks.add('dependency'); } else if (/\(devDependencies\)$/.test(c)) continue;
+        else if (/\(\w+\)$/.test(c)) levelReasons.push({ ...r, detail: c });
+        else checks.add('dependency');
+      }
+      continue;
+    }
+    if (LEVEL3_RULES.has(r.rule)) levelReasons.push(r);
+  }
+  let level = levelReasons.length ? 3 : tier.tier === 'A' ? 1 : 2;
+  // PLAN-1.0 B1: tests enter level 1 only when they add; a removed or changed line in a test file
+  // can weaken an assertion, so it gets the verifier (level 2).
+  if (level === 1 && files.some((f) => isTestPath(f.path) && (f.deletions || 0) > 0)) level = 2;
+  // A test file runs in CI with its secrets: one that spawns processes, calls the network or reads
+  // secret-like env vars is never merged unreviewed (adversarial review of 1.0).
+  if (level === 1) {
+    const runs = files.filter((f) => isTestPath(f.path) && (f.added || []).some((l) => !isComment(l) && (SECURITY_LINE[1][1].test(l) || NETWORK_CALL.test(l) || /process\.env|os\.environ|\$\{?[A-Z_]*(KEY|SECRET|TOKEN)/.test(l))));
+    if (runs.length) level = 2;
+  }
+  // A lesson binds every agent: committed by a task it does not raise the level to 3 (A3), but it
+  // is never merged without the verifier reading it.
+  if (level === 1 && files.some((f) => normalizePath(f.path) === '.claude/LESSONS.md')) level = 2;
+  const userVisible = files.some((f) => !isTestPath(f.path) && matchAny(normalizePath(f.path), USER_VISIBLE));
+  return { level, approvals, checks: [...checks], levelReasons, userVisible };
+}
+
+// PLAN-1.0 A3: task status, progress notes and lessons a task PR commits do not raise its tier or
+// level (the cycle writes them; the reviewers still see them in the diff).
+const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
+// PLAN-1.0 A2: the size limit does not count tests or fixtures (quick mode still counts them).
+export const FIXTURE_GLOBS = ['**/fixtures/**', '**/__fixtures__/**', '**/testdata/**', '**/__snapshots__/**', '**/*.snap'];
+export const SIZE_LIMIT = 800;
+// Fixtures count as tests only inside a test tree: src/lib/fixtures/handler.js is product code.
+const TEST_ROOTS = ['tests/**', 'test/**', 'e2e/**', '**/__tests__/**', '**/tests/**', '**/test/**', 'spec/**'];
+
+function classifyTier({ files: allFiles, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+  // Only a file that is and was a bookkeeping file: a rename into docs/progress.md still counts
+  // what it removed (adversarial review of 1.0).
+  const files = allFiles.filter((f) => !(BOOKKEEPING_RE.test(normalizePath(f.path)) && !f.previousPath && f.status !== 'renamed'));
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -269,7 +361,7 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
       if (!contentKnown) { add('dependency', p, 'dependency manifest in the file list (content not inspected)'); floor = true; } else {
         const pj = packageJson(p);
         const changes = pj ? packageDepChanges(pj.old, pj.new) : ['could not read package.json versions'];
-        if (changes.length) { add('dependency', p, changes.slice(0, 5).join('; ')); floor = true; }
+        if (changes.length) { reasons.push({ rule: 'dependency', path: p, detail: changes.slice(0, 5).join('; '), changes }); floor = true; }
       }
     } else if (matchAny(p, OTHER_MANIFESTS)) {
       add('dependency', p, 'dependency manifest or lockfile changed'); floor = true;
@@ -336,8 +428,9 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
   if (deleted.length > 10) { add('deletions', '', `${deleted.length} files deleted`); floor = true; }
   const srcDeleted = deleted.filter((f) => normalizePath(f.path).startsWith('src/')).reduce((s, f) => s + (f.deletions || 0), 0);
   if (srcDeleted > 300) { add('deletions', 'src/', `${srcDeleted} lines deleted with files under src/`); floor = true; }
-  const changed = files.reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
-  if (changed > 800) { add('size', '', `${changed} changed lines (> 800)`); floor = true; }
+  const changed = allFiles.reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
+  const sized = files.filter((f) => !isTestPath(f.path) && !(matchAny(normalizePath(f.path), FIXTURE_GLOBS) && matchAny(normalizePath(f.path), TEST_ROOTS))).reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
+  if (sized > SIZE_LIMIT) { add('size', '', `${sized} changed lines outside tests and fixtures (> ${SIZE_LIMIT})`); floor = true; }
 
   if (floor) return { tier: 'C', reasons, changedLines: changed };
   const notA = files.map((f) => normalizePath(f.path)).filter((p) => matchAny(p, NOT_TIER_A) || !matchAny(p, [...TIER_A_GLOBS, ...tierAExtra]));
@@ -347,8 +440,6 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
   for (const p of notA.slice(0, 20)) add('tier-b', p, 'outside the tier A list');
   return { tier: 'B', reasons, changedLines: changed };
 }
-
-const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
 
 const STATUS = { A: 'added', M: 'modified', D: 'deleted', R: 'renamed', C: 'copied', T: 'modified', U: 'modified' };
 
@@ -411,9 +502,10 @@ export const QUICK_LIMITS = { lines: 400, files: 12 };
 
 export function quickCheck(r) {
   const reasons = [];
-  if (r.tier === 'C') {
-    const why = (r.reasons || []).filter((x) => x.rule !== 'tier-b').slice(0, 3).map((x) => `${x.rule} ${x.path || ''}`.trim()).join('; ');
-    reasons.push(`tier C${why ? ` (${why})` : ''}: plan it with /rb-build, the owner approves`);
+  // PLAN-1.0: level 3 work and anything that asks the owner need a plan (/rb-build).
+  if (r.level === 3 || (r.approvals || []).length) {
+    const why = [...(r.approvals || []).map((a) => `${a.reason} ${a.path || ''}`.trim()), ...(r.levelReasons || []).map((x) => `${x.rule} ${x.path || ''}`.trim())].slice(0, 3).join('; ');
+    reasons.push(`${(r.approvals || []).length ? 'needs the owner' : 'level 3'}${why ? ` (${why})` : ''}: plan it with /rb-build`);
   }
   if ((r.changedLines || 0) > QUICK_LIMITS.lines) reasons.push(`${r.changedLines} changed lines (> ${QUICK_LIMITS.lines})`);
   const n = (r.files || []).length;
@@ -428,7 +520,7 @@ export function computeRisk(root, opts = {}) {
 }
 
 function computeTier(root, { files: fileList, pr, base, gh } = {}) {
-  const autonomy = contractInfo(root);
+  let autonomy = contractInfo(root);
   if (fileList && fileList.length) {
     const files = fileList.map((p) => ({ path: normalizePath(p), status: 'modified', additions: 0, deletions: 0, added: null }));
     return { source: 'files', ...classify({ files, contentKnown: false, autonomy }), files: files.map((f) => f.path) };
@@ -436,15 +528,32 @@ function computeTier(root, { files: fileList, pr, base, gh } = {}) {
   if (pr) {
     if (!gh) throw new CliError('rb risk --pr needs GitHub access');
     const view = ops.prView(gh, pr);
+    // PLAN-1.0 A5: the rules a PR is judged by come from AGENTS.md at its base, never its head,
+    // so a PR cannot loosen Sensitive paths or Paid services for itself.
+    const baseContract = view.base && view.base.sha ? ops.fileAt(gh, 'AGENTS.md', view.base.sha) : null;
+    if (baseContract != null) autonomy = { ...autonomy, sensitivePaths: [], tierAPaths: [], paidServices: [], ...parseAutonomy(baseContract) };
     const prFiles = ops.prFiles(gh, pr);
     const files = prFiles.map((f) => ({ path: f.path, previousPath: f.previous_path, status: f.status === 'removed' ? 'deleted' : f.status, additions: f.additions, deletions: f.deletions, added: f.patch == null ? null : patchAdded(f.patch) }));
     const local = view.base && git(root, ['cat-file', '-e', `${view.base.sha}^{commit}`]).ok ? view.base.sha : resolveBaseRef(root, view.base ? view.base.ref : defaultBranch(root));
     const packageJson = (p) => {
       const f = files.find((x) => x.path === p);
-      return { old: f && f.status === 'added' ? null : ops.fileAt(gh, p, view.base.sha), new: f && f.status === 'deleted' ? null : ops.fileAt(gh, p, view.head.sha) };
+      try {
+        return { old: f && f.status === 'added' ? null : ops.fileAt(gh, p, view.base.sha), new: f && f.status === 'deleted' ? null : ops.fileAt(gh, p, view.head.sha) };
+      } catch {
+        return null; // too large or unreadable: "could not read", level 3
+      }
     };
     const headText = (p) => { try { return ops.fileAt(gh, p, view.head.sha); } catch { return null; } };
     const r = classify({ files, packageJson, baseHas: baseGrepper(root, local), headText, autonomy });
+    // GitHub lists at most 3000 files (and paging may stop earlier): a list shorter than the PR's
+    // changed_files hides files, so nothing can be concluded from it (adversarial review of 1.0).
+    if (view.changed_files != null && files.length < view.changed_files) {
+      const hidden = { rule: 'files-not-listed', path: '', detail: `${files.length} of ${view.changed_files} changed files listed` };
+      r.reasons.push(hidden);
+      r.levelReasons.push(hidden);
+      r.level = 3;
+      r.tier = 'C';
+    }
     return { source: 'pr', pr: view.number, head: view.head ? view.head.sha : null, ...r, files: summary(files) };
   }
   const branch = base && base !== true ? base : defaultBranch(root);
@@ -467,6 +576,12 @@ export function riskText(r) {
   const lines = [`tier ${r.tier}  (${r.source}${r.pr ? ` #${r.pr}` : ''}${r.base ? ` vs ${r.base}` : ''}, ${r.files.length} file(s), ${r.changedLines} changed lines)`];
   for (const x of r.reasons) lines.push(`  ${x.rule.padEnd(26)} ${x.path || '-'}  ${x.detail}`);
   if (r.quick) lines.push(r.quick.eligible ? `quick mode: within limits (${r.changedLines}/${r.quick.limits.lines} lines, ${r.files.length}/${r.quick.limits.files} files)` : `quick mode: not eligible (${r.quick.reasons.join('; ')})`);
+  if (r.level) {
+    const why = (r.levelReasons || []).slice(0, 3).map((x) => `${x.rule} ${x.path || ''}`.trim()).join('; ');
+    lines.push(`level ${r.level}${why ? ` (${why})` : ''}`);
+    lines.push(r.approvals && r.approvals.length ? `owner approval: ${r.approvals.map((a) => `${a.reason} (${a.path || a.detail})`).join('; ')}` : 'owner approval: none');
+    if (r.checks && r.checks.length) lines.push(`automatic checks: ${r.checks.join(', ')}`);
+  }
   if (r.security) lines.push(r.security.required ? `security review: required (${r.security.reasons.slice(0, 4).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')})` : 'security review: not required by the diff');
   return lines.join('\n');
 }

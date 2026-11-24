@@ -16,27 +16,30 @@ Rules for every escalation:
 - The body file starts with exactly `<!-- rockbuilt:reason <slug> -->` and has no heading (rb adds
   the title). The cycle detects answers as a trusted comment without a `<!-- rockbuilt:` marker, newer than
   the escalation marker. Post every harness comment through `rb gh` (it adds the marker), never raw.
-- Reason slugs (closed list): `tier-c-plan`, `tier-c-diff`, `tier-rose-at-merge`,
+- Reason slugs (closed list): `approval-plan`, `approval-diff`, `level-rose-at-merge`,
   `blocking-question`, `cost`, `blocked-task`, `manual-repro`, `missing-info`, `needs-local-e2e`,
   `needs-local-step`, `ci-red-after-fix`, `ci-red-unrelated`, `secret-scan`, `no-ci`,
   `merge-conflict`, `branch-prior-work`, `red-baseline`, `red-after-merge`, `dirty-tree`.
 - One escalation per issue per run; skip it when the issue already carries the label.
-- Say what releases it: a reply, "aprobado", the label `rb:approved`, or removing the label.
+- Say what releases it: a reply, "aprobado" written by the owner on the issue, or removing the
+  label. Only the closed list (schema, architecture, auth-model, cost, irreversible) is escalated
+  as a decision; a gap with a safe default is reported in the digest, never asked.
 - Quote evidence (findings, command output) verbatim, at most 15 lines; never secrets.
 - Costs always carry a number: monthly and one-off, the source of the price and its date, and
   whether it was verified (`Fuente: <url>, consultada <fecha>`) or is an estimate.
 - Commands for the human are complete and copy-pasteable, for Windows (PowerShell) and for
   macOS/Linux, and start from a fresh terminal in the repo folder.
 
-## 1. Human decision (tier C plan, tier C diff, blocking question, cost)
+## 1. Human decision (plan or diff that needs the owner, blocking question, cost)
 
 Kind `human`. Title: `Decisión: <tema corto>`.
 
 ~~~~markdown
-<!-- rockbuilt:reason <tier-c-plan|tier-c-diff|blocking-question|cost|tier-rose-at-merge> -->
+<!-- rockbuilt:reason <approval-plan|approval-diff|blocking-question|cost|level-rose-at-merge> -->
 **Contexto.** <Tarea <id> (<título>). Qué se intenta lograr, en una o dos frases.>
 **Por qué te pregunto.** <Regla que lo exige: dependencia nueva, migración, costo, auth, decisión
-que el spec no resolvió, etc. Para nivel C: las razones de `rb risk` y del planner, una por línea.>
+que el spec no resolvió y no tiene un default seguro. Las aprobaciones de `rb risk` y del planner
+(esquema, arquitectura, modelo de auth, costo, irreversible), una por línea.>
 
 **Opciones**
 1. **<Opción A>**: <qué implica>. Costo: <USD/mes, USD único, o "ninguno">. Riesgo: <una línea>.
@@ -48,9 +51,10 @@ que el spec no resolvió, etc. Para nivel C: las razones de `rb risk` y del plan
 
 **Plan afectado:** <link al comentario del plan> (base `<sha corto>`).
 
-**Cómo responder:** comenta el número de la opción (o "aprobado" para la recomendación) y quita la
-etiqueta `rb:needs-human`, o agrega `rb:approved`. La próxima corrida lo toma. Si el plan cambia
-después de tu aprobación, te lo vuelvo a pedir.
+**Cómo responder:** comenta el número de la opción, o "aprobado" para la recomendación (lo
+escribes tú en este issue; el harness nunca lo escribe por ti). Una vez aprobado, el merge sale
+solo cuando pasen las revisiones y la CI. Si el plan cambia después de tu aprobación, te lo vuelvo
+a pedir.
 ~~~~
 
 ## 2. Local step (E2E without a browser, manual check, local credentials)
@@ -116,7 +120,7 @@ es tuyo. Cuando pase, abre una sesión y di "fusiona el PR <pr>" (`/rb-merge`).>
   commands, the revert PR already opened by `rb revert`; recommendation "fusiona el PR de revert
   #<n> (di 'fusiona el PR <n>') o corrige con `/rb-fix`".
 - **Dirty tree** (`dirty-tree`, human, control issue): the changed paths; nothing was touched.
-- **Tier rose at merge** (`tier-rose-at-merge`, human): "El PR #<pr> subió a nivel C al revisar
-  el diff vivo antes del merge: <razones de `rb risk`>. Lo etiqueté `rb:tier-c`; el merge es
-  tuyo. Opciones: 1. revisarlo y fusionarlo (di 'fusiona el PR <pr>'), 2. pedir que se divida la
-  parte C en otra tarea (recomendado si el resto es B)."
+- **Level rose at merge** (`level-rose-at-merge`, human): "El PR #<pr> pide tu aprobación al
+  revisar el diff vivo antes del merge: <aprobaciones de `rb risk`>. Lo etiqueté
+  `rb:approval-pending`. Opciones: 1. escribir 'aprobado' en el issue #<n> y el merge sale solo,
+  2. pedir que esa parte vaya en otra tarea."

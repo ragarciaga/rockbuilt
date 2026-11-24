@@ -89,7 +89,7 @@ Playwright MCP, evals runner and **budget**. Two v0.3 rules decide most cases:
   needs Docker, local credentials or an unreachable service, E2E is not run here: create or reuse
   the feature's verify issue and `rb escalate <n> --kind local --title <t> --body-file <f>` with
   the exact local commands. The gate is reported as NEEDS-LOCAL, never PASS.
-- **Paid evals are tier C** (DESIGN.md section 14). Code graders on mocked or recorded targets
+- **Paid evals need the owner's approval** (DESIGN.md section 14). Code graders on mocked or recorded targets
   run freely. Anything that calls a paid model (target or LLM judge) runs only when AGENTS.md
   `Paid services` lists that provider with a monthly cap and this run's estimate fits it; state
   the estimate first. Otherwise escalate `--kind human` with the estimate and report BLOCKED.

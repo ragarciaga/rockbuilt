@@ -19,6 +19,9 @@ import { findingsText, scanBranch } from './lib/secrets.mjs';
 import { identityLine, reviewDelta } from './lib/delta.mjs';
 import { e2ePlan, onlyCommands, parseShard, shardCommands } from './lib/e2e.mjs';
 import { mergeGate, prKind, revertPr } from './lib/merge.mjs';
+import { parseDelegations, recordDelegation, revokeDelegations } from './lib/approval.mjs';
+import { projectState, stateText } from './lib/state.mjs';
+import { dependencyCheck, depsText } from './lib/deps.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -58,6 +61,9 @@ export const COMMANDS = {
   lock: 'acquire --run <id> | release --run <id> | status',
   stop: 'status: exit 3 when the stop switch is on',
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
+  delegate: 'Delegated approval on the control issue: --words "<owner words>" [--scope all|milestone:<name>|issues:12,15] [--until YYYY-MM-DD] [--include cost,irreversible] [--run <id>] | revoke [--words t] | list',
+  deps: 'Runtime dependencies the branch adds outside the design: license, deprecation, maintenance  [--base <ref>] (exit 3 when one needs the owner)',
+  state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
   digest: 'post --file <md>: append the run digest to the control issue',
   flaky: 'record <test> [--pr <n>] [--note t] | list: flaky candidates on the control issue (a failure that passed on re-run)',
   protect: 'Require the rockbuilt-ci check on the default branch (exit 3 when the plan does not allow it)',
@@ -165,7 +171,7 @@ function flushSession(root, session, flags, io) {
 // Each handler returns { data, text, code }.
 const handlers = {
   help() {
-    return { data: { commands: COMMANDS, ghOps: GH_OPS }, text: helpText(), code: 0 };
+    return { data: { commands: COMMANDS, ops: GH_OPS }, text: helpText(), code: 0 };
   },
 
   doctor({ cwd, io }) {
@@ -668,20 +674,28 @@ const handlers = {
         try { risk = computeRisk(root, { base: `origin/${base}` }); } catch { risk = null; }
         const file = typeof flags['body-file'] === 'string' ? path.resolve(cwd, flags['body-file']) : null;
         const text = file ? readText(file) : typeof flags.body === 'string' ? flags.body : null;
-        const declared = text && (text.match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
-        const rank = (t) => 'ABC'.indexOf(String(t || 'A').toUpperCase());
-        if (risk && text !== null && rank(risk.tier) > rank(declared)) {
-          raised = { from: declared ? declared.toUpperCase() : null, to: risk.tier, reasons: risk.reasons.filter((r) => r.rule !== 'tier-b').slice(0, 5).map((r) => `${r.rule} ${r.path} ${r.detail || ''}`.trim()) };
-          const marker = `<!-- rockbuilt:tier ${risk.tier} -->`;
-          flags.body = declared ? text.replace(/<!--\s*rockbuilt:tier\s+[ABC]\s*-->/i, marker) : `${text.trimEnd()}\n${marker}\n`;
+        const lv = text && (text.match(/<!--\s*rockbuilt:level\s+([123])\s*-->/i) || [])[1];
+        const tv = text && (text.match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
+        const declared = lv ? Number(lv) : tv ? 'ABC'.indexOf(tv.toUpperCase()) + 1 : null;
+        if (risk && text !== null && risk.level > (declared || 1)) {
+          raised = { from: declared, to: risk.level, reasons: (risk.levelReasons || []).slice(0, 5).map((r) => `${r.rule} ${r.path || ''} ${r.detail || ''}`.trim()) };
+          const marker = `<!-- rockbuilt:level ${risk.level} -->`;
+          let body = text.replace(/<!--\s*rockbuilt:tier\s+[ABC]\s*-->\n?/i, '');
+          body = lv ? body.replace(/<!--\s*rockbuilt:level\s+[123]\s*-->/i, marker) : `${body.trimEnd()}\n${marker}\n`;
+          flags.body = body;
           delete flags['body-file'];
-          if (typeof flags.label === 'string') flags.label = flags.label.split(',').filter((l) => !/^rb:tier-[abc]$/i.test(l.trim())).join(',') || undefined;
+          if (typeof flags.label === 'string') flags.label = flags.label.split(',').filter((l) => !/^rb:(tier-[abc]|level-[123])$/i.test(l.trim())).join(',') || undefined;
           if (flags.label === undefined) delete flags.label;
+        }
+        // PLAN-1.0 A8: a PR whose plan waits for the owner says so on GitHub.
+        if (risk && risk.approvals && risk.approvals.length) {
+          const extra = 'rb:approval-pending';
+          flags.label = typeof flags.label === 'string' ? `${flags.label},${extra}` : extra;
         }
       }
     }
     const data = runGhOp(client(root, flags, io), op, rest, flags, { cwd, defaultBranch: () => defaultBranch(root) });
-    if (raised) data.tierRaised = raised;
+    if (raised) data.levelRaised = raised;
     if (op === 'pr-create') {
       const bodyText = typeof flags.body === 'string' ? flags.body : typeof flags['body-file'] === 'string' ? readText(path.resolve(cwd, flags['body-file'])) : null;
       const t = taskMarker(bodyText);
@@ -760,6 +774,36 @@ const handlers = {
     if (positionals[0] !== 'status') throw new CliError('usage: rb stop status', 2);
     const r = stopStatus(client(projectRoot(cwd), flags, io));
     return { data: r, text: r.stop ? `STOP: ${r.issues.map((i) => `#${i.number} ${i.title}`).join(', ')}` : 'stop switch off', code: r.stop ? 3 : 0 };
+  },
+
+  delegate({ cwd, positionals, flags, io }) {
+    const c = client(projectRoot(cwd), flags, io);
+    const [sub] = positionals;
+    const wrap = (fn) => { try { return fn(); } catch (e) { throw new CliError(e.message, 2); } };
+    if (sub === 'revoke') {
+      const r = wrap(() => revokeDelegations(c, ops, ensureControl, { words: stringFlag(flags, 'words') || '' }));
+      return { data: r, text: `every delegation revoked on #${r.control}`, code: 0 };
+    }
+    if (sub === 'list') {
+      const ctl = ensureControl(c, { create: false });
+      const list = ctl ? parseDelegations(ops.issueComments(c, ctl.number)) : [];
+      return { data: list, text: list.length ? list.map((d) => `${d.scope}${d.run ? ` (run ${d.run})` : ''} until ${d.until}: ${d.words}`).join('\n') : 'no delegation in force', code: 0 };
+    }
+    if (sub) throw new CliError('usage: rb delegate --words "<owner words>" [--scope ...] | revoke | list', 2);
+    const r = wrap(() => recordDelegation(c, ops, ensureControl, { scope: stringFlag(flags, 'scope') || 'all', until: stringFlag(flags, 'until') || null, include: listFlag(flags.include), run: stringFlag(flags, 'run') || null, words: stringFlag(flags, 'words') }));
+    return { data: r, text: `delegation recorded on #${r.control}: ${r.scope} until ${r.until}`, code: 0 };
+  },
+
+  deps({ cwd, flags }) {
+    const root = requireRepoRoot(cwd);
+    const risk = computeRisk(root, { base: stringFlag(flags, 'base') || undefined });
+    const r = dependencyCheck(root, risk);
+    return { data: r, text: depsText(r), code: r.ok ? 0 : 3 };
+  },
+
+  state({ cwd, flags, io }) {
+    const s = projectState(client(projectRoot(cwd), flags, io));
+    return { data: s, text: stateText(s), code: s.complete ? 0 : 3 };
   },
 
   escalate({ cwd, positionals, flags, io }) {
