@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 0.14.0. Fase en curso: **0 (preparación)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 0.14.0. Fase en curso: **1 (niveles y aprobación)**, pendiente de la decisión de la bitácora del 2026-11-24 sobre C1. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -127,7 +127,7 @@ y #52, PRs #26 y #46).
 
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
-| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | En curso |
+| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
 | 1. Niveles y aprobación | 1.0.0 | Bloques A y B | Pendiente |
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C y D | Pendiente |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
@@ -150,10 +150,12 @@ costo pesa más que las interrupciones, puede subir al segundo lugar sin romper 
       `evals/results/` como archivo fechado.
       Hecho: `evals/results/2026-11-24-field-baseline.md`, calculada con
       `evals/tools/field-baseline.mjs`.
-- [ ] 0.3 Script de reproducción (en `evals/tools/`) que clasifica los PRs fusionados de los 5
+- [x] 0.3 Script de reproducción (en `evals/tools/`) que clasifica los PRs fusionados de los 5
       repos con la regla nueva (nivel y motivo de aprobación) usando la lista real de archivos de
       cada PR. Resultado: qué porcentaje pediría aprobación y cuántos agentes se ahorran. La
       fase 1 solo se publica si cumple la meta de interrupciones.
+      Hecho: `evals/tools/replay-levels.mjs` y `evals/results/2026-11-24-replay-levels.md`. No
+      cumple la meta en Doorcas sin agrupar decisiones (ver bitácora).
 
 ### Fase 1. Niveles y aprobación (1.0.0)
 
@@ -338,3 +340,15 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   plan decía 55% a 76%: otra definición; la nueva queda en el script); 0 reversiones y 0 bugs
   escapados trazados; 3d_brain (0.9.0) sin veredictos de revisores. Definición de intervención:
   escalaciones más merges aprobados por humano más merges a mano, por día calendario. Sin evals.
+- 2026-11-24: 0.3 hecho. `evals/tools/replay-levels.mjs` usa el `classify` real de `rb risk` sobre
+  los archivos y parches de los 539 PRs; resultado en `evals/results/2026-11-24-replay-levels.md`.
+  Piden aprobación 17% a 24% de los PRs. Interrupciones por día solo por el diff: Doorcas 3,2,
+  signal-engine 1,9, 2brain 2,0, maysa 1,1, 3d_brain 0,8; sumando las escalaciones de hoy (huecos
+  del spec, hasta la fase 3): Doorcas 7,6 y signal-engine 4,4. Agrupando las decisiones en un
+  mensaje por día (C1) todos quedan en 1 o menos. Agentes ahorrados: 3% a 16%, mucho menos de lo
+  esperado, porque `Sensitive paths` cubre casi todo `src/` (Doorcas: 44 de 82 PRs en nivel 3).
+  Hallazgos para la fase 1: `rb risk` no aprueba `Anthropic API (...)` en `Paid services` por
+  comparar la clave exacta (A4); las ediciones del design.md o requirements.md de la propia
+  funcionalidad dentro de una tarea piden aprobación (16 de 26 en 2brain); `**/design.md` toca la
+  plantilla del harness. Decisión del dueño pendiente antes de publicar la fase 1: la regla sola no
+  cumple la meta; recomiendo adelantar C1 (agrupar decisiones) a la 1.0.0. Sin evals.
