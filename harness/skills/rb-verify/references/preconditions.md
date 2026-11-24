@@ -69,11 +69,11 @@ into an artifact. Name expiring credentials (session cookies, temporary keys) as
 
 Run `rb doctor` and read its `playwright *` lines. Web projects normally have everything from
 the walking skeleton. If something is missing: re-laying the config is `rb vendor --type web`
-(harness files, tier C), and `npm install -D -E @playwright/test @playwright/mcp` adds dev
-dependencies (tier C). In an interactive session ask once and act only on an explicit yes. In an
+(harness files, owner approval), and `npm install -D -E @playwright/test @playwright/mcp` adds dev
+dependencies (owner approval). In an interactive session ask once and act only on an explicit yes. In an
 unattended run, do not install: escalate on the verify issue (below) with
 `rb escalate <n> --kind human --title <t> --body-file <f>` and the exact commands. Ensure a
-`test:e2e` script exists and AGENTS.md `## E2E` names it; AGENTS.md is a tier C file, so
+`test:e2e` script exists and AGENTS.md `## E2E` names it; AGENTS.md is a harness file (level 3), so
 propose the line and write it only on approval.
 
 ## 5. Playwright MCP (preferred explorer, local)
@@ -89,7 +89,7 @@ throwaway Playwright scripts in `e2e/.explore/`.
 as a task; it cannot pass until the runner ships. Then the cost check (DESIGN.md section 14):
 
 - Code graders and a mocked or recorded target cost nothing: run them.
-- A target or an LLM judge that calls a paid model is tier C. Run it only if AGENTS.md
+- A target or an LLM judge that calls a paid model needs the owner's approval. Run it only if AGENTS.md
   `## Autonomy` `Paid services` lists that provider with a monthly cap, and the estimated cost
   of this run (cases x trials x tokens x price, judge calls included) fits the cap. State the
   estimate before running.

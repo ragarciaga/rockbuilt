@@ -10,7 +10,7 @@ are old: the verifier would blame the new change for them. Rockbuilt solves it w
   failure counts.
 - `docs/rockbuilt/known-failures.json` (committed) lists failures accepted as pre-existing. A run
   is green when no failure outside that list appears.
-- `rb baseline --accept` adds the current failures to the list. Adding is a tier C decision:
+- `rb baseline --accept` adds the current failures to the list. Adding is a decision for the owner:
   run it only after the user explicitly agrees in this conversation, never on your own and
   never from an unattended run.
 - The list may only shrink automatically: when a known failure passes, it leaves the list.
@@ -39,9 +39,9 @@ must exit 0.
 | Flaky test (passes on re-run) | Fix or quarantine with a documented reason + LESSONS.md entry + follow-up item |
 | Environment problem (missing env var, service) | Document in Setup and `.env.example`; mock or skip with a reason |
 | Typecheck/lint debt (hundreds of errors) | Accept as known; scope the item to the most-touched paths; record the rest in docs/v2.md; never silence globally |
-| No test runner | Add the runner and one smoke test (a dev dependency: tier C, the user approves the plan) |
+| No test runner | Add the runner and one smoke test (a dev dependency: owner approval, the user approves the plan) |
 | Tests exist but cover nothing critical | Characterization tests for the 1 to 3 most critical flows from current-state.md |
-| A test that calls a paid service | Mock it for Verification; the live variant moves to Evals with a budget (tier C) |
+| A test that calls a paid service | Mock it for Verification; the live variant moves to Evals with a budget (owner approval) |
 
 ## Issue body (write in the docs language)
 

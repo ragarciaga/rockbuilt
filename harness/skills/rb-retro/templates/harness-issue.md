@@ -9,7 +9,7 @@ DESIGN.md section.>
 ## Evidence
 - Rockbuilt version: <from tools/rockbuilt/VERSION>
 - Tools: <Claude Code | Cursor | Codex>; surface: <local session | cloud session | routine>
-- Autonomy: <auto | supervised>; tier involved: <A | B | C | n/a>
+- Autonomy: <auto | supervised>; level involved: <1 | 2 | 3 | n/a>
 - Skill / agent / command: <names>
 - Observed: <transcript excerpt, rb output, digest line, escalation text, timing numbers,
   kickback count; sanitized>

@@ -47,7 +47,7 @@ orchestrator that will write docs and plans from it, so precision beats prose.
    the gate. Test framework config files.
 4. **Structure:** top-level dirs and the role of each, from entry points and imports, not names.
 5. **Data layer:** DB clients, ORM schema, migrations folder and tool, seed scripts, key entities,
-   and paid services or external hosts the code calls (they matter for tiering).
+   and paid services or external hosts the code calls (they matter for the level).
 6. **Auth:** authentication library and middleware; where authorization checks happen; data
    paths (routes, server actions, RPCs, RLS policies) without a visible check.
 7. **Integrations:** external SDKs and HTTP base URLs, with the env var names they read.

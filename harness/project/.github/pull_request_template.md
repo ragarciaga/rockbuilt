@@ -17,7 +17,7 @@ Closes #
 ```
 
 ## Review
-<!-- Verifier verdict, blind auditor verdict (tier B and C) and security review when it applies,
+<!-- Verifier verdict, blind auditor verdict (level 3, and level 2 when visible or sampled) and security review when it applies,
 with anything they flagged. -->
 
 ## How to test locally
@@ -27,9 +27,9 @@ with anything they flagged. -->
 <!-- Auth, permissions, secrets, data access, migrations, new dependencies, costs. "None" if none. -->
 
 <!-- Machine lines read by `rb merge-gate` (DESIGN.md section 21). Keep each on its own line; the
-harness fills them in. <sha> must equal the PR head. Remove the auditor line for tier A and the
+harness fills them in. <sha> must equal the PR head. Remove the review lines for level 1, the auditor line for level 2 when it did not run, and the
 security lines when no security review applies. -->
-<!-- rockbuilt:tier <A|B|C> -->
+<!-- rockbuilt:level <1|2|3> -->
 <!-- rockbuilt:security required -->
 <!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
 <!-- rockbuilt:status stage=rb-auditor task=<id> outcome=pass head=<sha> -->

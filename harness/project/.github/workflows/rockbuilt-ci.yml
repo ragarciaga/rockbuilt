@@ -33,14 +33,14 @@ env:
       console.log('::endgroup::');
     }
   # Flags harness files changed by an rb/* branch (stdin: changed paths). A warning, not a failure:
-  # rb merge-gate already classifies these PRs as tier C, so only the human merges them.
+  # rb risk puts these PRs at level 3 (full review); the human-only kinds merge only when the owner asks.
   # .claude/LESSONS.md is bookkeeping (append-only, checked by the gate) and is not flagged.
   RB_HARNESS: |
     const files = require('node:fs').readFileSync(0, 'utf8').split(/\r?\n/).filter(Boolean);
     const re = /^(AGENTS\.md|CLAUDE\.md|\.mcp\.json|\.claude\/|\.cursor\/|\.codex\/|\.agents\/|\.github\/|tools\/rockbuilt\/|docs\/rockbuilt\/)/i;
     const hit = files.filter((f) => re.test(f) && f !== '.claude/LESSONS.md');
-    for (const f of hit) console.log('::warning file=' + f + '::harness file changed by an rb/* branch: tier C, the human reviews and merges');
-    console.log(hit.length ? hit.length + ' harness file(s) changed; this PR is tier C.' : 'No harness files changed.');
+    for (const f of hit) console.log('::warning file=' + f + '::harness file changed by an rb/* branch: level 3, the human reviews and merges');
+    console.log(hit.length ? hit.length + ' harness file(s) changed; this PR is level 3.' : 'No harness files changed.');
 
 jobs:
   rockbuilt-ci:

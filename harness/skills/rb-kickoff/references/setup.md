@@ -70,7 +70,7 @@ permission prompts, so a missing rule stalls them. With cursor, mirror the rule 
 
 ```markdown
 ## Autonomy
-Sensitive paths: <globs that always force tier C beyond the built-in floor, or none>
+Sensitive paths: <globs that always force owner approval beyond the built-in floor, or none>
 Tier A paths: <extra globs that may be tier A, or none>
 Paid services: <none | service (monthly cap USD n), ...>
 ```
@@ -140,7 +140,7 @@ real deployment came nine days and five features late and found three defects no
 
 ## 6. Commit path
 
-Kickoff touches AGENTS.md, `.claude/`, `.github/` and `tools/rockbuilt/`: tier C. The user
+Kickoff touches AGENTS.md, `.claude/`, `.github/` and `tools/rockbuilt/`: owner approval. The user
 merges it; you never push to the default branch (the guard denies it).
 
 **Remote has a default branch** (README created in the UI, or an existing repo):
@@ -149,7 +149,7 @@ merges it; you never push to the default branch (the guard denies it).
 git fetch origin && git checkout -b rb/kickoff origin/<default>
 git add -A && git commit -m "chore: kickoff harness and brief"
 git push -u origin rb/kickoff
-rb gh pr-create --head rb/kickoff --base <default> --title "<Kickoff title in docs language>" --body-file <file> --label rb:tier-c
+rb gh pr-create --head rb/kickoff --base <default> --title "<Kickoff title in docs language>" --body-file <file> --label rb:level-3
 ```
 
 If the local files were created before the fetch, commit them on `rb/kickoff` on top of the

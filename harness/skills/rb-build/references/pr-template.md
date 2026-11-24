@@ -32,7 +32,7 @@ Files:
 Known failures (pre-existing, from docs/rockbuilt/known-failures.json): <none | list>.
 
 ## Reviews
-Tier: <A|B|C>. Reasons: <rb risk reasons and the planner's Risk and cost, one line each>.
+Level: <1|2|3>. Approvals: <none | reasons, and the owner's approval or the delegation that covered them>. Reasons: <rb risk reasons and the planner's Risk and cost, one line each>.
 Verifier: pass after <k> kickbacks. Mutation probe: <k/n killed; survivors>.
 Auditor (B and C): <n> criteria pass, <m> not observable (<why>).
 Security review: <not triggered by rb risk | pass, minors under Risks>, <the rb risk security reasons, or the plan's>.
@@ -55,7 +55,7 @@ issues filed: #a, #b.>
 - <date>: <key decisions incl. RESOLVED ones>, because <reason>.
 
 <!-- rockbuilt:task <id> spec=<docs/specs/NN-slug | none> -->
-<!-- rockbuilt:tier <A|B|C> -->
+<!-- rockbuilt:level <1|2|3> -->
 <!-- rockbuilt:timing task=<id> plan=<min> implement=<min> ... -->
 <!-- rockbuilt:kickbacks task=<id> mechanical=<n> verifier=<n> auditor=<n> security=<n> ci=<n> -->
 <!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->
@@ -67,7 +67,7 @@ issues filed: #a, #b.>
 Rules:
 
 - Each machine line sits on its own line, at the end of the body. Paste the status lines verbatim
-  from the final passing verdicts. Tier A carries no auditor line. The two security lines appear
+  from the final passing verdicts. Level 1 carries no review line; level 2 carries the auditor line only when something visible changed or the PR was sampled. The two security lines appear
   only when the security review applies (then both are required). `rb merge-gate` compares every
   `head=` with the PR head.
 - The task line repeats the task issue's marker: `rb sync` uses it to mark the right task done

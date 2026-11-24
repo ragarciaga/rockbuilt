@@ -90,7 +90,7 @@ never fixed sleeps (`waitForTimeout`).
   `supabase/seed.sql`). Never point E2E at the hosted or production project.
 - Other databases: a seed script referenced from AGENTS.md `## Setup` or `globalSetup`.
 - Third-party calls that cost money or are flaky are stubbed with `page.route` when the criterion
-  is not about that integration; say so in the plan. Hitting a paid endpoint for real is tier C
+  is not about that integration; say so in the plan. Hitting a paid endpoint for real needs the owner's approval
   and needs an approved budget in AGENTS.md `Paid services`.
 
 ## Never weaken an assertion

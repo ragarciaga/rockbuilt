@@ -11,6 +11,7 @@ import { parseQueueRecord } from './queue.mjs';
 import { classify, isTestPath, normalizePatch, samePatches } from './delta.mjs';
 import { APPROVAL_REASONS, computeRisk, maxTier, tierRank } from './risk.mjs';
 import { approvalStatus } from './approval.mjs';
+import { dependencyCheck } from './deps.mjs';
 import { ensureControl } from './control.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
 
@@ -380,7 +381,12 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   }
   const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;
   const declared = planLine ? ((planLine.body.match(/^<!--\s*rockbuilt:plan\b[^>]*\bapprovals=([\w,-]+)/m) || [])[1] || '').split(',').filter((x) => APPROVAL_REASONS.includes(x)) : [];
-  const approvalReasons = [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared])];
+  // PLAN-1.0 A7: a runtime dependency outside the design that fails the check asks the owner.
+  let deps = null;
+  if (risk && (risk.checks || []).includes('dependency')) {
+    try { deps = dependencyCheck(root, risk); } catch (e) { deps = { ok: false, results: [], unsupported: [`check failed: ${e.message}`] }; }
+  }
+  const approvalReasons = [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared, ...(deps && !deps.ok ? ['dependency'] : [])])];
   let approval = { ok: true, how: null };
   if (approvalReasons.length) {
     if (!taskIssues.length) approval = { ok: false, detail: 'approval needed but the body names no task issue' };
@@ -448,7 +454,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, deps, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the

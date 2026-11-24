@@ -6,7 +6,7 @@ Loaded by rb-build steps 1 to 3, rb-fix and rb-cycle. `rb <cmd>` means
 ## Stale check
 
 Take the newest trusted comment whose first line starts `<!-- rockbuilt:plan `; parse `base=` and
-`tier=`. **Reuse it** only when all hold:
+`level=` and `approvals=` (or `tier=` before 1.0). **Reuse it** only when all hold:
 
 - `git cat-file -e <base>` succeeds;
 - `git diff --name-only <base> origin/<default> -- <its Affected files>` prints nothing;
@@ -36,7 +36,7 @@ spec folder and `.claude/skills/rb-verify/references/security.md` (1 to 2 minute
 each `RESOLVED` decision against requirements.md and the plan's data paths against the checklist.
 Post its verdict on the issue (`rb gh issue-comment <n> --body-file <f>`) with its status line
 `<!-- rockbuilt:status stage=rb-security-reviewer task=<id> outcome=<pass|fail> mode=plan -->`;
-`rb escalate --kind human` refuses a tier C plan without it. Degraded mode: run it all the same and
+`rb escalate --kind human` refuses a plan that needs the owner without it. Degraded mode: run it all the same and
 put the verdict in the report.
 
 A blocker or major: revise the plan (re-dispatch the planner with the finding) or make it part of

@@ -68,5 +68,5 @@ Para pausar: agrega la etiqueta `rb:stop` a #<ctl>.
 ~~~~
 
 English headings, for `Docs language: en`: Summary, Merged, Waiting for your decision,
-Escalations, Blocked, Failures and notices, Time per task, Next run. Columns: PR, Task, Tier,
+Escalations, Blocked, Failures and notices, Time per task, Next run. Columns: PR, Task, Level,
 Minutes, To revert.

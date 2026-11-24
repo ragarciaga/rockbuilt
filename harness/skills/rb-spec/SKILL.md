@@ -4,7 +4,7 @@ description: >
   Writes the spec for ONE feature in docs/specs/NN-slug/: closes ambiguous decisions one at a
   time, optionally benchmarks unknown libraries, then requirements.md (EARS, IDs, verification
   tags) for human approval, then design.md traced to requirements plus ADRs for human approval
-  (the tier C gate of the feature), then hands off to /rb-tasks, which runs autonomously. Short
+  (the owner approval gate of the feature), then hands off to /rb-tasks, which runs autonomously. Short
   mode for refactors and migrations. Use when the user says
   "spec this feature", "write the requirements", "design the feature", "new feature", "next
   feature", "especifica esta funcionalidad", "hagamos el spec", "escribe los requerimientos",
@@ -19,8 +19,8 @@ design approved, then tasks. Never write code here.
 
 **Why the human approves here.** Under `Autonomy: auto` the harness plans, builds, audits and
 merges on its own (DESIGN.md section 6). The spec is where the human decides: requirements and
-design are architecture and design decisions (tier C), and ADRs are part of the design the
-human approves. Once both are approved, tasks, plans and tier A/B merges for this feature need
+design are architecture and design decisions (owner approval), and ADRs are part of the design the
+human approves. Once both are approved, tasks, plans and merges for this feature need
 no further approval. So this skill must get the decisions right and explicit; everything
 downstream trusts it.
 
@@ -52,7 +52,7 @@ Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs 
    request is a bug, redirect to `/rb-fix`. If it is a small bounded change with no
    data/auth/money, propose skipping the spec (an `rb:task` issue the cycle takes) and let the
    user choose. A prototype or demo with a deadline may skip the spec with `Mode: prototype` in
-   the issue (tier rules still apply).
+   the issue (level and approval rules still apply).
 5. **State of the code:** only if the repo has application code, dispatch the scout in spec
    mode (Agent tool, `subagent_type: "rb-scout"`): "Mode: spec. Feature: <name>. Map only what
    it touches, with file:line, and list existing behavior to preserve." Greenfield: skip it.
@@ -118,22 +118,22 @@ before approval: how do you do this today, which quotas, plans or admin approval
 would you refuse; the answers go in the table, never assumed), Data model / schema impact, Interfaces and contracts, Error handling (per
 item vs fatal, retries with backoff, idempotency, cleanup of temporary resources, concurrency
 limits), Security considerations, Testing strategy (unit / integration / e2e / evals mapped to
-criteria tags), **Risk and cost** (which parts will be tier C at build time and why: new
+criteria tags), **Risk and cost** (which parts will be owner approval at build time and why: new
 dependencies, schema or migrations, auth, infra, paid services with a monthly estimate),
 Alternatives considered, Open questions.
 
 For each hard-to-reverse decision (stack addition, library chosen after a benchmark, workflow vs
 agent, auth model, data storage) write `docs/adr/NNNN-slug.md` from `templates/adr.md`,
-`Status: proposed`, next free number, one decision each. ADRs are tier C decisions: they are
+`Status: proposed`, next free number, one decision each. ADRs are architecture decisions the owner approves: they are
 approved together with the design, never added later by an unattended run.
 
 Check traceability before presenting: every criterion is addressed somewhere in the design; no
 design element lacks an `R`. Present the diagram, the decisions, the ADR list and the Risk and
 cost section. Ask explicitly about every cost (paid service, plan upgrade, paid eval runs) with
-its estimate; an approved budget goes into AGENTS.md `Paid services` (tier C file, it ships in
+its estimate; an approved budget goes into AGENTS.md `Paid services` (harness file (level 3), it ships in
 the spec PR). On approval set design `Status: approved` and ADRs `Status: accepted`.
 
-Approval covers what was shown. Dependencies, schema changes and other tier C items the design
+Approval covers what was shown. Dependencies, schema changes and other owner approval items the design
 names explicitly are still escalated as plans at build time (DESIGN.md section 6.4), but the
 user will be asking "does this plan match the design?", not deciding the architecture again.
 

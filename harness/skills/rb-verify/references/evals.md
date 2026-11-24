@@ -11,7 +11,7 @@ gives a score and a reason, and a threshold on the score becomes a regression ga
 - Not for deterministic code paths (use unit tests) and not for non-generative `ai-model` nodes
   with exact outputs (use unit or integration tests with fixtures).
 
-## Cost (tier C)
+## Cost (owner approval)
 
 Evals that call a paid model (the target, an LLM judge, or both) cost money on every run. Per
 DESIGN.md section 14 they run only after the user approved a budget, recorded in AGENTS.md

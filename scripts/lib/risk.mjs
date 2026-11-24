@@ -262,7 +262,7 @@ export function classify(input) {
 // to an existing spec. Level 2: everything else. Approvals come only from the closed list; auth
 // model is declared by the planner, never computed. A runtime dependency goes to the dependency
 // check (A7), not to the owner; dev and test dependencies are free.
-export const APPROVAL_REASONS = ['schema', 'architecture', 'auth-model', 'cost', 'irreversible'];
+export const APPROVAL_REASONS = ['schema', 'architecture', 'auth-model', 'cost', 'irreversible', 'dependency'];
 const LEVEL3_RULES = new Set(['auth-permissions-payments', 'sensitive-path', 'data-schema', 'infra-deploy-ci', 'harness-secrets', 'deletions', 'size']);
 const HARNESS_GLOBS = FLOOR_PATHS.find((g) => g.rule === 'harness-secrets').globs;
 const RUNTIME_DEP_FIELDS = /\((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/;
@@ -293,7 +293,9 @@ export function reviewLevel(tier, files = []) {
       continue;
     } else if (r.rule === 'dependency') {
       const changes = r.changes || [r.detail];
-      if (!/package\.json$/.test(r.path)) checks.add('dependency');
+      // A lockfile mirrors package.json: on its own it adds nothing to check.
+      if (/(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(r.path)) continue;
+      if (!/package\.json$/.test(r.path)) { checks.add('dependency'); continue; }
       // A manifest whose content was not read (rb risk --files) may change a script: level 3.
       if (/not inspected/.test(r.detail)) { levelReasons.push(r); continue; }
       for (const c of changes) {
