@@ -212,6 +212,10 @@ pass: report it as BLOCKED or NEEDS-LOCAL with the precondition that failed.
 
 ## Rules
 
+- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
+  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
+  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
+  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
 - The spec is the source of truth. Tests and graders derive from requirements, never from what
   the code currently does.
 - Subagents write only what their role allows (healer and security-reviewer write nothing).

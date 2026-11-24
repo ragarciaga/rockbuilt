@@ -60,4 +60,4 @@ round, plus tasks that depend on them. Unchanged tasks keep their previous verdi
 - M: several modules or one layer stack (schema plus API) with tests.
 - L: only when splitting would leave a slice with no verifiable outcome. Expect reviewers to
   challenge every L.
-- More than about 8 files, or schema plus API plus UI that could ship separately, is a split.
+- More than about 10 production files (tests not counted), or schema plus API plus UI that could ship separately, is a split.

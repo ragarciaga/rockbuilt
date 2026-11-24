@@ -1082,7 +1082,7 @@ which reviewers a diff needs (evidence 20.20).
    session's project and its worktrees (same git common dir) are scanned, never a repository a
    `git -C` names elsewhere. Commits already on a remote are not rescanned.
 4. **A minimum task size** (#41). `rb tasks` fails on two `S` tasks not started whose files share
-   a directory and that fit one task's limits (8 files, 4 criteria), unless one carries
+   a directory and that fit one task's limits (10 production files, 6 criteria since 1.1.0), unless one carries
    `Size: S (<why they stay apart>)`. Tasks on different sides of a tier floor (a dependency
    manifest, an auth path) are never paired. A lighter review for small tasks (no auditor) was
    proposed and declined: the F4 reviewers found real defects in small tasks; rb-retro measures
@@ -1278,3 +1278,36 @@ owner interventions up to 20.8 per day).
     commit); `## E2E` and `Default branch` read from the working tree or reaching git as an option.
     Kept as a known limit (section 13): reviewer verdicts are trusted by association, since the
     harness posts them with the owner's token.
+
+## 30. Not interrupting, and batches (1.1.0)
+
+Evidence: PLAN-1.0 section 1 (22% of approvals were formality; 0 PRs used quick mode; the "ci"
+phase held the human merge wait, p90 296 and 698 minutes; open phases and zero totals in two
+projects), issues #77 and #78.
+
+1. **Defaults, not questions (C2).** Every interactive skill takes the reasonable default for
+   "push?", "continue?", "open the PR?", names and order, and says what it did. It asks only for
+   the closed list of section 29 or a question nothing in the repo answers, grouped in one message.
+2. **Permission prompts (C3).** A `PermissionRequest` hook runs `rb permissions log --hook`, which
+   appends the tool and the command's first words (never file contents) to
+   `.rockbuilt/permissions.jsonl` and never decides. `rb permissions report` groups them and
+   proposes `Bash(<prefix> *)` allow rules, never for destructive, network, pipe or substitution
+   commands. In a routine a prompt is a denial: the cycle escalates it with the command and moves
+   on.
+3. **Human wait apart from CI (C4).** Timing has a `wait` phase: the gate opens it when it holds a
+   task PR for the owner (approval, human-only kind, `rb:needs-human`, `rb:hold`). `rb sync` closes
+   the open phases of every merged PR's task, so a PR merged by hand no longer leaves them open
+   with a total of 0.
+4. **Batches of existing issues (D1, D2, D3).** `/rb-quick #12 #15` batches open `rb:task` or
+   `rb:bug` issues that wait for nobody: the batch issue stays the PR's only `Closes`, the body
+   carries `<!-- rockbuilt:batch 12, 15 -->`, and the gate checks each batched issue (open, no
+   waiting label, an rb:task or rb:bug) and closes them after the merge. Only quick batches carry
+   that line. The cycle builds two or more level 1 issues as one such batch (the only quick path
+   an unattended run takes); `/rb-build` on a small standalone issue says in one line that the
+   batch is cheaper and continues.
+5. **Larger tasks (D4).** `rb tasks` allows 10 production files (tests not counted) and 6 criteria
+   per task, up from 8 files and 4 criteria; two size S tasks in one module still merge when they
+   fit.
+6. **Follow-ups parked (D5).** Follow-ups that reviews open are born `rb:unplanned`, outside every
+   queue until the owner adds `rb:task` and removes the label; `rb:parked` keeps one for later;
+   closing as not planned discards it. `rb state` lists them apart from what waits for the owner.

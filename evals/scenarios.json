@@ -165,6 +165,11 @@
         },
         {
           "type": "noEmDash"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)¿\\s*(quieres que\\s+)?(lo\\s+)?(subo|suba|fusiono|fusione|sigo|siga|continúo|abro el PR|lo publico)\\b",
+          "absent": true
         }
       ]
     },
@@ -625,6 +630,11 @@
         },
         {
           "type": "noEmDash"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)¿\\s*(quieres que\\s+)?(lo\\s+)?(subo|suba|fusiono|fusione|sigo|siga|continúo|abro el PR|lo publico)\\b",
+          "absent": true
         }
       ]
     },
@@ -873,6 +883,55 @@
         {
           "type": "bashExcludes",
           "pattern": "gh pr merge"
+        }
+      ]
+    },
+    {
+      "id": "quick-s4-batch-issues",
+      "source": "quick.md#S4",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "github": {
+        "seed": "two-docs-issues"
+      },
+      "prompt": "Haz en lote el 1 y el 2.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-quick"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-planner",
+            "rb-implementer",
+            "rb-verifier",
+            "rb-auditor",
+            "rb-security-reviewer"
+          ]
+        },
+        {
+          "type": "ghPrBody",
+          "pattern": "rockbuilt:batch\\s+#?\\d+"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "gh pr merge"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)¿\\s*(quieres que\\s+)?(lo\\s+)?(subo|fusiono|sigo|abro el PR)\\b",
+          "absent": true
+        },
+        {
+          "type": "noEmDash"
         }
       ]
     }

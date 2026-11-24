@@ -184,6 +184,10 @@ in the docs language, in one message:
 
 ## Rules
 
+- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
+  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
+  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
+  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
 - Reviewers never write; you never let two writers touch tasks.md.
 - No task without a binary `Verify`. A task whose only check is "looks right" is rewritten.
 - Do not invent scope. Something the spec misses goes to the user as a spec question, not a task.

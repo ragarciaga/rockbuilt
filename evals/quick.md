@@ -68,3 +68,13 @@ Headless: `quick-s3-level1-docs`. GitHub simulator, seed `empty`.
   PR body carries `<!-- rockbuilt:level 1 -->`; the merge goes through `rb merge-gate` (it may land
   on `main`, level 1 merges on CI); no em dash.
 - Expected failure before 1.0: the verifier runs on a README change.
+
+## S4: Existing issues batched in one PR (1.1.0, D1)
+
+Headless: `quick-s4-batch-issues`. GitHub simulator, seed `two-docs-issues` (#1 and #2, both docs).
+
+- Prompt (es):
+  > Haz en lote el 1 y el 2.
+- Pass: rb-quick loads; one batch issue, one PR whose body carries `<!-- rockbuilt:batch ... -->`
+  for the other issue; level 1, so no review agent runs; the final message does not ask whether to
+  push or merge; no em dash.

@@ -64,7 +64,11 @@ export function parseBody(body) {
   const quick = /<!--\s*rockbuilt:quick\s*-->/i.test(body || '');
   const lv = (String(body || '').match(/<!--\s*rockbuilt:level\s+([123])\s*-->/i) || [])[1];
   const level = lv ? Number(lv) : tier ? LEVEL_OF_TIER[tier.toUpperCase()] : null;
-  return { status, tier: tier ? tier.toUpperCase() : null, level, security, quick, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
+  // PLAN-1.0 D1: a quick batch of existing issues names them on one line; the batch issue stays the
+  // single task issue and the gate closes the others after the merge.
+  const bm = String(body || '').match(/<!--\s*rockbuilt:batch\s+([\d,\s#]+?)\s*-->/);
+  const batch = bm ? [...new Set(bm[1].split(/[,\s]+/).map((x) => Number(x.replace('#', ''))).filter((n) => Number.isInteger(n) && n > 0))] : [];
+  return { status, tier: tier ? tier.toUpperCase() : null, level, security, quick, batch, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
 }
 
 function shaMatches(given, head) {
@@ -408,6 +412,19 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     const issueTask = (String(issueView.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
     if (prTask && issueTask && !sameTask(prTask, issueTask)) no('task-issue', `the PR is task ${prTask} but #${taskIssues[0]} is task ${issueTask}`);
   }
+  // PLAN-1.0 D1: issues batched into a quick PR are open work items that wait for nobody.
+  if (body.batch.length) {
+    if (!body.quick) no('batch', 'a batch line (rockbuilt:batch) is only for quick batches');
+    for (const n of body.batch) {
+      if (allIssues.includes(n)) continue;
+      let bi = null;
+      try { bi = ops.issueView(c, n); } catch (e) { no('batch', `could not read #${n}: ${e.message}`); continue; }
+      const held = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:hold', 'rb:blocked'].filter((l) => bi.labels.includes(l));
+      if (bi.state !== 'open') no('batch', `batched #${n} is ${bi.state}`);
+      else if (held.length) no('batch', `batched #${n} carries ${held.join(', ')}`);
+      else if (!bi.labels.some((l) => ['rb:task', 'rb:bug'].includes(l))) no('batch', `batched #${n} is not an rb:task or rb:bug issue`);
+    }
+  }
   const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;
   const declared = planLine ? ((planLine.body.match(/^<!--\s*rockbuilt:plan\b[^>]*\bapprovals=([\w,-]+)/m) || [])[1] || '').split(',').filter((x) => APPROVAL_REASONS.includes(x)) : [];
   // PLAN-1.0 A7: a runtime dependency outside the design that fails the check asks the owner.
@@ -484,7 +501,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, deps, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, deps, batch: body.batch, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
@@ -578,7 +595,7 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
   };
   step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (${g.level ? `level ${g.level}` : `tier ${g.tier}`}${g.approval && g.approval.how === 'delegation' ? `, merged by delegation: ${g.approval.delegation.words}` : ''}${g.approval && g.approval.how === 'owner' ? `, plan approved by ${g.approval.approval.by || 'the owner'} on ${String(g.approval.approval.at).slice(0, 10)}` : ''}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
   step('pr-labels', () => { ops.labelRemove(c, g.pr, 'rb:pr-open'); ops.labelRemove(c, g.pr, 'rb:approval-pending'); });
-  for (const n of g.closes) {
+  for (const n of [...g.closes, ...(g.batch || []).filter((x) => !g.closes.includes(x))]) {
     step(`issue-${n}`, () => {
       ops.labelRemove(c, n, 'rb:in-progress');
       ops.labelRemove(c, n, 'rb:pr-open');

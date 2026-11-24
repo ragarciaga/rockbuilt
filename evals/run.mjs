@@ -274,8 +274,9 @@ export function runCheck(check, ctx) {
     case 'fileExists':
       return { ok: existsSync(path.join(ws, check.path)), detail: check.path };
     case 'finalMatches': {
-      const ok = toRegExp(check.pattern).test(d.final);
-      return { ok, detail: ok ? 'matched' : `no match for /${check.pattern}/` };
+      const hit = toRegExp(check.pattern).test(d.final);
+      const ok = check.absent ? !hit : hit;
+      return { ok, detail: check.absent ? (ok ? 'absent' : `matched /${check.pattern}/`) : (ok ? 'matched' : `no match for /${check.pattern}/`) };
     }
     case 'textMatches': {
       // The final message or any file the run produced (see producedTexts) matches.

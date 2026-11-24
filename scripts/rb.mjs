@@ -22,6 +22,7 @@ import { mergeGate, prKind, revertPr } from './lib/merge.mjs';
 import { parseDelegations, recordDelegation, revokeDelegations } from './lib/approval.mjs';
 import { projectState, stateText } from './lib/state.mjs';
 import { dependencyCheck, depsText } from './lib/deps.mjs';
+import { logPermission, permissionReport, permissionText } from './lib/permissions.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -63,6 +64,7 @@ export const COMMANDS = {
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
   delegate: 'Delegated approval on the control issue: --words "<owner words>" [--scope all|milestone:<name>|issues:12,15] [--until YYYY-MM-DD] [--include cost,irreversible] [--run <id>] | revoke [--words t] | list',
   deps: 'Runtime dependencies the branch adds outside the design: license, deprecation, maintenance  [--base <ref>] (exit 3 when one needs the owner)',
+  permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
   state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
   digest: 'post --file <md>: append the run digest to the control issue',
   flaky: 'record <test> [--pr <n>] [--note t] | list: flaky candidates on the control issue (a failure that passed on re-run)',
@@ -709,6 +711,8 @@ const handlers = {
     const pr = positionals[0];
     if (!pr) throw new CliError('usage: rb merge-gate <pr> --run <id> | --human-approved [--dry-run]', 2);
     const r = mergeGate(root, client(root, flags, io), pr, { dryRun: Boolean(flags['dry-run']), run: stringFlag(flags, 'run') || null, humanApproved: Boolean(flags['human-approved']) });
+    // PLAN-1.0 C4: a PR held for the owner starts the human-wait phase; CI minutes stop counting.
+    if (!r.merged && r.task && (r.reasons || []).some((x) => ['approval', 'human-only'].includes(x.rule) || (x.rule === 'blocking-label' && /needs-human|hold/.test(x.detail)))) autoPhase(mainCheckoutRoot(root), r.task, 'wait');
     if (r.merged && r.task) {
       // Close the task's phases and publish its minutes on the merged PR, so the numbers live on
       // GitHub even when the orchestrator never ran `rb timing line` (rockbuilt #49).
@@ -799,6 +803,24 @@ const handlers = {
     const risk = computeRisk(root, { base: stringFlag(flags, 'base') || undefined });
     const r = dependencyCheck(root, risk);
     return { data: r, text: depsText(r), code: r.ok ? 0 : 3 };
+  },
+
+  permissions({ cwd, positionals, flags, io }) {
+    const [sub = 'report'] = positionals;
+    if (sub === 'log') {
+      if (!flags.hook) throw new CliError('usage: rb permissions log --hook (reads the Claude Code hook JSON on stdin)', 2);
+      // A hook never fails the session and never decides: it only records.
+      try {
+        let input = {};
+        try { input = JSON.parse(io.stdin() || '{}') || {}; } catch { input = {}; }
+        const root = mainCheckoutRoot(projectRoot(process.env.CLAUDE_PROJECT_DIR || input.cwd || cwd));
+        if (existsSync(path.join(root, 'tools', 'rockbuilt', 'rb.mjs'))) logPermission(root, input);
+      } catch { /* never block */ }
+      return { data: { logged: true }, text: null, code: 0 };
+    }
+    if (sub !== 'report') throw new CliError('usage: rb permissions log --hook | report', 2);
+    const r = permissionReport(mainCheckoutRoot(requireRepoRoot(cwd)));
+    return { data: r, text: permissionText(r), code: 0 };
   },
 
   state({ cwd, flags, io }) {

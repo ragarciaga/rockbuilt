@@ -172,8 +172,10 @@ export function coverage(criteria, tasks) {
   };
 }
 
-export const MAX_TASK_FILES = 8;
-export const MAX_TASK_CRITERIA = 4;
+// PLAN-1.0 D4: larger tasks, fewer PRs. Test files do not count (the size limit ignores them too).
+export const MAX_TASK_FILES = 10;
+export const MAX_TASK_CRITERIA = 6;
+const isTestFile = (f) => /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[^/]+$/.test(String(f).replace(/\\/g, '/'));
 
 export function taskProblems(tasks, errors = []) {
   const ids = new Set(tasks.map((t) => t.id));
@@ -187,7 +189,8 @@ export function taskProblems(tasks, errors = []) {
     // 30k to 44k characters). L needs the reason it cannot be split on the Size line.
     if (t.status !== 'todo') continue; // limits apply to work not started; done tasks stay as they are
     if (t.size === 'L' && !t.sizeNote) problems.push(`${t.id} is size L without a reason: split it, or write "Size: L (<why it cannot be split>)"`);
-    if (t.files.length > MAX_TASK_FILES) problems.push(`${t.id} lists ${t.files.length} files (max ${MAX_TASK_FILES}): split it`);
+    const prodFiles = t.files.filter((f) => !isTestFile(f));
+    if (prodFiles.length > MAX_TASK_FILES) problems.push(`${t.id} lists ${prodFiles.length} production files (max ${MAX_TASK_FILES}, tests not counted): split it`);
     if (t.covers.length > MAX_TASK_CRITERIA) problems.push(`${t.id} covers ${t.covers.length} criteria (max ${MAX_TASK_CRITERIA}): split it`);
   }
   // A minimum size (rockbuilt #41): every task pays the same review (planner, implementer,
@@ -216,7 +219,7 @@ export function taskProblems(tasks, errors = []) {
       if (paired.has(a.id) || paired.has(b.id)) continue;
       const shared = modules(a).find((d) => modules(b).includes(d));
       if (shared === undefined || tierFloor(a) !== tierFloor(b)) continue; // never merge across a tier boundary
-      const files = new Set([...a.files, ...b.files]);
+      const files = new Set([...a.files, ...b.files].filter((f) => !isTestFile(f)));
       const covers = new Set([...a.covers, ...b.covers]);
       if (files.size > MAX_TASK_FILES || covers.size > MAX_TASK_CRITERIA) continue;
       paired.add(a.id); paired.add(b.id);

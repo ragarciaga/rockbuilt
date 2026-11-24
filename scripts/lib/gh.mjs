@@ -15,6 +15,8 @@ export const LABELS = [
   { name: 'rb:level-1', color: 'c2e0c6', description: 'Level 1: docs, styles, copy, added tests; merges on CI' },
   { name: 'rb:level-2', color: 'fef2c0', description: 'Level 2: product code; verifier, auditor when visible' },
   { name: 'rb:level-3', color: 'f9d0c4', description: 'Level 3: sensitive; verifier, auditor and security' },
+  { name: 'rb:unplanned', color: 'ededed', description: 'Follow-up from a review: out of every queue until the owner promotes it (rb:task)' },
+  { name: 'rb:parked', color: 'd4c5f9', description: 'Follow-up kept for later: out of every queue' },
   { name: 'rb:approval-pending', color: 'e99695', description: 'The plan waits for the owner (schema, architecture, cost, irreversible)' },
   // Before 1.0 (PLAN-1.0 A8): still read by the gate as levels 1, 2 and 3.
   { name: 'rb:tier-a', color: 'c2e0c6', description: 'Before 1.0: read as level 1' },

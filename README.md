@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.0.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.1.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -99,7 +99,8 @@ A small change asked in a session goes through `/rb-quick` and skips the planner
 implementer. The session writes it, the tests and lint run after every change, and one verifier
 and one blind auditor review the whole batch once before the session tells me it is done. A batch
 that grows past 400 lines or 12 files, or reaches level 3 or anything I must approve, goes back to
-the full path. A docs-only change is level 1: CI checks it and nothing else runs.
+the full path. A docs-only change is level 1: CI checks it and nothing else runs. `/rb-quick #12 #15` builds
+existing small issues as one batch, and the nightly cycle batches docs-only issues on its own.
 
 At night the routine picks up the backlog and my answers, builds, reviews and merges. The first
 real night it took a bug from an issue, reproduced it with a test, fixed it, had it verified and
@@ -382,7 +383,8 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 1.0.0. It changed what asks me and who reviews what, after measuring 539 merged PRs of
+Version 1.1.0. 1.1 stops the obvious questions, batches small issues in one PR and keeps the
+time a PR waits for me apart from CI. 1.0 changed what asks me and who reviews what, after measuring 539 merged PRs of
 five projects: the old rule put 52% to 87% of PRs in the tier that waits for me, and one project
 reached about 21 interruptions a day. Before releasing it I asked two separate agents, with no
 context on how it was built, to break the new merge gate. They found real holes (an "ok" that

@@ -3,7 +3,9 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path';
 import { CliError, readText } from './util.mjs';
 
-export const PHASES = ['plan', 'implement', 'check', 'verify', 'audit', 'fix', 'e2e', 'evals', 'security', 'pr', 'ci', 'merge'];
+// `wait` (PLAN-1.0 C4): time a PR spends waiting for the owner (an approval, a question, a hold),
+// kept apart from `ci` so the CI minutes are machine minutes only.
+export const PHASES = ['plan', 'implement', 'check', 'verify', 'audit', 'fix', 'e2e', 'evals', 'security', 'pr', 'ci', 'wait', 'merge'];
 export const START_MARK = '<!-- rb:timing:start -->';
 export const END_MARK = '<!-- rb:timing:end -->';
 
