@@ -1390,3 +1390,17 @@ projects; full agent reports filled the orchestrator's context), issue #80.
     applies it in one round that does not spend the kickback budget, once per task.
 13. **No waiting loops (F14).** Agents run long commands in the foreground and leave nothing
     running when they return.
+14. **Independent review of 1.3.0.** Fixed, each with a test: report writers could create a file
+    and run it (`node --test .rockbuilt/reports/x.md`): nothing under `.rockbuilt/` runs, and a
+    writer may only create a new file named for its own role (`<task>-<verifier|security|plan|
+    tasks|audit>-<n>.md`), never overwrite one, never in a subfolder; the auditor may not read
+    plans or other reports; the project-script rule resolves the file inside the session's
+    project (a `cd ..` does not count), normalizes `./` and `//`, compares harness paths without
+    case and refuses `NODE_OPTIONS`, `PYTHON*`, `DENO_*`, `BUN_*` and `LD_PRELOAD`; `rb tree-check`
+    reads `status -z` (tabs and quotes in names), restores both sides of a rename, never deletes a
+    staged new file, checks each restore and treats a failed status as not clean; `rb
+    safety-check` requires the case, matches each evidence segment to its own step and test
+    (";" splits a line), reads nested and numbered bullets and a "|" inside a step; `rb criteria`
+    reads the shapes the requirements parser reads, continuation lines included; the outdated
+    harness check finds an installed plugin under `~/.claude/plugins`; quoted pinned actions are
+    not warned; rb-fix and rb-quick run `safety-check` and `tree-check` too.

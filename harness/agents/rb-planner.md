@@ -2,10 +2,10 @@
 name: rb-planner
 description: >
   Turns ONE task or issue into a concrete implementation plan grounded in the live code, with a
-  declared review level, approvals and any cost spelled out. Read-only: no Bash, no writes. Dispatched by
-  /rb-build, /rb-cycle and /rb-fix with the task block, spec paths and relevant LESSONS entries.
-  Returns the plan as its final message (under about 12,000 characters); the orchestrator saves
-  it to a file and posts it on the issue.
+  declared review level, approvals and any cost spelled out. Read-only: no Bash; its only write is
+  the plan itself, to `.rockbuilt/reports/<task>-plan-<n>.md`. Dispatched by /rb-build, /rb-cycle
+  and /rb-fix with the task block, spec paths and relevant LESSONS entries. Returns the plan
+  marker, the Summary and the file path; the orchestrator posts the file on the issue.
 tools: Read, Grep, Glob, Write
 model: opus
 readonly: true

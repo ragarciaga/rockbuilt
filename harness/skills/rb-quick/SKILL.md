@@ -108,7 +108,8 @@ anything is done. Requests that arrive while the reviews run go to the next batc
 3. `rb risk --base origin/<default> --json`: level, `userVisible`, `security.required`,
    `quick.eligible`. Not eligible any more: build step 7 or split as in step 2.4. Level 1: no
    review (the gate merges it on CI); go to step 6.
-4. Reviews, serially, each once for the whole batch:
+4. Reviews, serially, each once for the whole batch; after each, `rb tree-check --restore` (a
+   mutant left behind is restored, new files are listed and never committed, F4):
    - `rb-verifier`: `Mode: quick`, task id `Q<n>`, `Reviewed head: <sha>`, the issue's criteria as
      the plan (with "Plan written by the orchestrator, who also implemented; there is no planner
      and no implementer report"), `git diff origin/<default>...HEAD --stat`, the default branch,

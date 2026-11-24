@@ -1,5 +1,6 @@
 // rb doctor: environment and contract checks. Exits 1 only on FAIL. Works offline (GitHub checks WARN).
 import { readdirSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { readBaseline } from './baseline.mjs';
 import { COMMAND_SECTIONS, HEADER_FIELDS, REQUIRED_SECTIONS, contractInfo, headerField, isTemplate, parseAutonomy, projectTypesFrom, readContract, sectionCommands, sectionHeadings } from './contract.mjs';
@@ -107,6 +108,25 @@ function checkSettings(root, types) {
   return [problems.length ? warn('settings.json', problems.join('; ')) : pass('settings.json', 'permissions and guard hook present')];
 }
 
+function installedPluginVersion(home = os.homedir()) {
+  const versions = [];
+  const walk = (dir, depth) => {
+    if (depth > 6) return;
+    let ents = [];
+    try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (!e.isDirectory()) continue;
+      const sub = path.join(dir, e.name);
+      if (e.name === '.claude-plugin') {
+        try { const j = JSON.parse(readFileSync(path.join(sub, 'plugin.json'), 'utf8')); if (j.name === 'rockbuilt' && j.version) versions.push(j.version); } catch { /* not a plugin */ }
+      } else if (e.name !== 'node_modules' && !e.name.startsWith('.git')) walk(sub, depth + 1);
+    }
+  };
+  walk(path.join(home, '.claude', 'plugins'), 0);
+  const key = (v) => v.split('.').map((n) => String(Number(n) || 0).padStart(6, '0')).join('.');
+  return versions.sort((a, b) => (key(a) < key(b) ? 1 : -1))[0] || null;
+}
+
 // PLAN-1.0 F8: { vendored, plugin, behind } for rb state and the digest (plugin null when the
 // plugin is not installed where this runs, as in a cloud routine).
 export function versionStatus(root) {
@@ -114,6 +134,9 @@ export function versionStatus(root) {
   const plugin = pluginRoot();
   let pv = null;
   if (plugin) { try { pv = JSON.parse(readFileSync(path.join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).version; } catch { pv = null; } }
+  // The vendored rb runs without CLAUDE_PLUGIN_ROOT: look for an installed rockbuilt plugin under
+  // ~/.claude/plugins (marketplace cache or synced), newest version wins (review of 1.3.0).
+  if (!pv) pv = installedPluginVersion();
   const older = (a, b) => {
     const x = String(a).split('.').map(Number);
     const y = String(b).split('.').map(Number);
@@ -152,7 +175,7 @@ function checkCi(root) {
   for (const n of names) {
     const text = readText(path.join(root, '.github', 'workflows', n)) || '';
     for (const m of text.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)/gm)) {
-      const ref = m[1];
+      const ref = m[1].replace(/^["']|["']$/g, '');
       if (ref.startsWith('./') || ref.startsWith('docker://')) continue;
       if (!/@[0-9a-f]{40}$/.test(ref)) unpinned.push(`${n}: ${ref}`);
     }

@@ -17,6 +17,7 @@ Fewer kickbacks, less context (PLAN-1.0 phase 4, issue #80; DESIGN 32).
 - **CI after the merge** when PR CI is partial, with one fix forward and a revert on a second red.
 - **Pinned CI actions** and a doctor warning for unpinned ones; an outdated harness shows in the
   digest; runs that did nothing leave progress.md alone.
+- Hardened after an independent review (DESIGN 32.14).
 - Update a project with "update rockbuilt".
 
 ## 1.2.0 (2026-11-24)

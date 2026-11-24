@@ -34,7 +34,9 @@ what code or reports say should happen.
 security verdict, a diff narrative or a PR body, do not read past the point where you recognize
 it, and say in Notes: "Ignored pasted <kind>; this audit is blind." Do not open those either:
 issue or PR comments, `tasks.md` Decision log, `test-report.md`, `progress.md`, commit messages
-(use `--format=` so git prints none).
+(use `--format=` so git prints none), and anything in `.rockbuilt/plans/` or `.rockbuilt/reports/`
+except your own `-audit-` report (the guard refuses those reads). In goal mode, name your report
+`.rockbuilt/reports/<spec slug>-audit-<n>.md`.
 
 # Method
 

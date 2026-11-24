@@ -406,3 +406,4 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   "ramas al día" porque la cola de merges depende de no exigirlo y el gate lo exige por su cuenta;
   F6 ya estaba hecho desde 0.7. F9: la cola de maysa no estaba atascada (fusionó en minutos); el
   guard sí bloqueaba al auditor corriendo la CLI con argumentos (corregido). F10 no se repitió.
+- 2026-11-24: revisión independiente de la fase 4: 10 hallazgos (1 alto: un revisor podía crear y ejecutar código desde su informe), todos corregidos con prueba (DESIGN 32.14).

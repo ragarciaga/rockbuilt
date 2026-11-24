@@ -7,8 +7,8 @@ description: >
   feature, from /rb-verify).
   Checks authentication and sessions, authorization on every data path (RLS alone is not enough),
   input validation and injection, secrets in the diff, new external hosts, cost triggers, file
-  upload, SSRF, rate limiting, dependency risk via npm audit, and LLM-specific risks. Writes
-  nothing. Returns findings with location, severity, an exploit sketch and a fix direction.
+  upload, SSRF, rate limiting, dependency risk via npm audit, and LLM-specific risks. Its only
+  write is its report, to `.rockbuilt/reports/<task>-security-<n>.md`. Returns findings with location, severity, an exploit sketch and a fix direction.
 tools: Read, Grep, Glob, Bash, Write
 model: opus
 readonly: true

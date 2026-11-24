@@ -55,20 +55,49 @@ test('F4: rb tree-check finds a mutant left behind and restores it; probe files 
   assert.deepEqual(r.json.restored, ['src/a.js']);
   assert.equal(readFileSync(path.join(root, 'src/a.js'), 'utf8'), 'export const a = 1;\n');
   assert.ok(existsSync(path.join(root, 'probe.test.js')), 'never deleted');
+  // Review of 1.3.0: tabs in names, renames, staged new files.
+  const { sh } = await import('./rb-helpers.mjs');
+  const r2 = repoWith({ 'src/tab\tx.js': 'a\n', 'src/old.js': 'o\n' });
+  w(r2, 'src/tab\tx.js', 'mutant\n');
+  sh(r2, 'git', ['mv', 'src/old.js', 'src/new.js']);
+  w(r2, 'src/staged.js', 's\n');
+  sh(r2, 'git', ['add', 'src/staged.js']);
+  const t = await rbJson(r2, ['tree-check', '--restore']);
+  assert.equal(t.code, 3);
+  assert.deepEqual(t.json.failed, []);
+  assert.equal(readFileSync(path.join(r2, 'src/tab\tx.js'), 'utf8'), 'a\n');
+  assert.ok(existsSync(path.join(r2, 'src/old.js')), 'the renamed-away file is back');
+  assert.ok(existsSync(path.join(r2, 'src/staged.js')), 'a staged new file is never deleted');
+  assert.ok(t.json.added.includes('src/staged.js'));
 });
 
-test('F1: reviewers and the planner may Write their report under .rockbuilt/reports/ only', async () => {
+test('F1: reviewers and the planner may Write only their own new report under .rockbuilt/reports/', async () => {
   const { decide } = await import('../hooks/guard.mjs');
+  const { mkdirSync, writeFileSync } = await import('node:fs');
   const root = repoWith({ 'src/a.js': 'x\n' });
-  const w = (file, role, name = 'Write') => decide({ hook_event_name: 'PreToolUse', tool_name: name, tool_input: { file_path: path.join(root, file), content: 'r' }, agent_type: role, cwd: root }).deny;
+  const d = (tool, input, role) => decide({ hook_event_name: 'PreToolUse', tool_name: tool, tool_input: input, agent_type: role, cwd: root }).deny;
+  const w = (file, role, name = 'Write') => d(name, { file_path: path.join(root, file), content: 'r' }, role);
   assert.equal(w('.rockbuilt/reports/T1-verifier-1.md', 'rb-verifier'), false);
-  assert.equal(w('.rockbuilt/reports/T1-plan.md', 'rb-planner'), false);
-  assert.equal(w('.rockbuilt/reports/T1-security.md', 'rb-security-reviewer'), false);
-  assert.equal(w('.rockbuilt/reports/T1-audit.md', 'rb-auditor'), false);
+  assert.equal(w('.rockbuilt/reports/T1-plan-1.md', 'rb-planner'), false);
+  assert.equal(w('.rockbuilt/reports/T1-security-2.md', 'rb-security-reviewer'), false);
+  assert.equal(w('.rockbuilt/reports/T1-audit-1.md', 'rb-auditor'), false);
+  assert.equal(w('.rockbuilt/reports/T1-audit-1.md', 'rb-verifier'), true, 'never another role\'s report');
+  assert.equal(w('.rockbuilt/reports/sub/T1-verifier-1.md', 'rb-verifier'), true, 'no subfolder');
+  assert.equal(w('.rockbuilt/reports/T1-audit-1.js', 'rb-auditor'), true, 'markdown only');
   assert.equal(w('src/new.js', 'rb-verifier'), true);
   assert.equal(w('.rockbuilt/reports/../../src/x.md', 'rb-planner'), true);
-  assert.equal(w('.rockbuilt/reports/run.sh', 'rb-security-reviewer'), true, 'markdown reports only');
   assert.equal(w('src/a.js', 'rb-planner', 'Edit'), true, 'the planner never edits code');
+  mkdirSync(path.join(root, '.rockbuilt', 'reports'), { recursive: true });
+  writeFileSync(path.join(root, '.rockbuilt', 'reports', 'T1-plan-1.md'), 'approved plan');
+  assert.equal(w('.rockbuilt/reports/T1-plan-1.md', 'rb-planner'), true, 'never overwrites');
+  // Reports are never run, and the auditor never reads the plan or other reports.
+  assert.equal(d('Bash', { command: 'node --test .rockbuilt/reports/T1-plan-1.md' }, 'rb-security-reviewer'), true);
+  assert.equal(d('Read', { file_path: path.join(root, '.rockbuilt/reports/T1-plan-1.md') }, 'rb-auditor'), true);
+  assert.equal(d('Read', { file_path: path.join(root, '.rockbuilt/reports/T1-audit-1.md') }, 'rb-auditor'), false);
+  // A project script only: not after a cd out of the project, not with code-loading env vars.
+  assert.equal(d('Bash', { command: 'node src/a.js 1' }, 'rb-auditor'), false);
+  assert.equal(d('Bash', { command: 'NODE_OPTIONS=--require=./x.js node src/a.js' }, 'rb-auditor'), true);
+  assert.equal(d('Bash', { command: 'node ./.rockbuilt/reports/T1-plan-1.md' }, 'rb-auditor'), true);
 });
 
 test('F2: rb criteria prints the covered criteria verbatim with their Decisions', async () => {
@@ -95,6 +124,26 @@ test('F3: rb safety-check wants a test per Safety step and proof it fails withou
   assert.ok(!r.json.problems.some((p) => /Refuse a path/.test(p)));
   const none = repoWith({ 'plan.md': '## Safety steps\nNone\n', 'report.md': '' });
   assert.equal((await rbJson(none, ['safety-check', '--plan', 'plan.md', '--report', 'report.md'])).code, 0);
+  // Review of 1.3.0: nested evidence, one line for two steps, numbered steps, a "|" in a step.
+  const plan2 = '## Safety steps\n1. Refuse a | pipe in names (src/n.js) | tests/n.test.js: refuses pipes\n2. Skip links (src/n.js) | tests/n.test.js: skips links\n';
+  const two = repoWith({ 'tests/n.test.js': "test('refuses pipes', () => {});\ntest('skips links', () => {});\n", 'plan.md': plan2,
+    'report.md': '- Safety steps:\n  - Refuse a | pipe in names | tests/n.test.js: refuses pipes: deleted, failed: yes\n  - Skip links | tests/n.test.js: skips links: deleted, failed: no; Refuse a | pipe: failed: yes\n' });
+  r = await rbJson(two, ['safety-check', '--plan', 'plan.md', '--report', 'report.md']);
+  assert.equal(r.json.steps.length, 2, 'numbered steps count');
+  assert.deepEqual(r.json.problems.map((p) => p.slice(0, 12)), ['"Skip links ('.slice(0, 12)], JSON.stringify(r.json.problems));
   const missing = repoWith({ 'plan.md': '## Risks\nx\n', 'report.md': '' });
   assert.equal((await rbJson(missing, ['safety-check', '--plan', 'plan.md', '--report', 'report.md'])).code, 3);
+});
+
+test('review of 1.3.0: rb criteria reads bold and numbered criteria whole; quoted pinned actions are fine', async () => {
+  const { rbJson } = await import('./rb-helpers.mjs');
+  const req = '# R\n\n## R1: x\n- **R1.1** When asked, the system shall write\n  the CSV in one pass. `[unit]`\n1. R1.2 The system shall y. `[unit]`\n';
+  const tasks = '# Tasks: x\n\n## T1: x\n- Purpose: p\n- Covers: R1.1, R1.2\n- Size: S\n- Depends on: none\n- Files: src/a.js\n- Verify: `npm test`\n- Status: todo\n';
+  const root = repoWith({ 'docs/specs/01-x/requirements.md': req, 'docs/specs/01-x/tasks.md': tasks });
+  const r = await rbJson(root, ['criteria', 'docs/specs/01-x', 'T1']);
+  assert.equal(r.code, 0, JSON.stringify(r.json));
+  assert.equal(r.json.criteria[0], '- **R1.1** When asked, the system shall write the CSV in one pass. `[unit]`');
+  const wf = `name: ci\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' # v4.4.0\n`;
+  const ok = repoWith({ 'AGENTS.md': '# App\n', '.github/workflows/rockbuilt-ci.yml': wf });
+  assert.doesNotMatch(JSON.stringify((await rbJson(ok, ['doctor'])).json), /not pinned/);
 });

@@ -243,8 +243,14 @@ export function taskCriteria(specDir, taskId) {
   const out = [];
   const missing = [];
   for (const id of task.covers) {
-    const line = lines.find((l) => new RegExp(`^\\s*[-*]\\s*${id.replace('.', '\\.')}\\b`).test(l));
-    if (line) out.push(line.trim()); else missing.push(id);
+    // The same shape parseRequirements accepts ("- R1.1", "- **R1.1**", "1. R1.1"), plus the
+    // indented lines that continue it, so the criterion is printed whole.
+    const re = new RegExp(`^\\s*(?:[-*]|\\d+\\.)?\\s*(?:\\*\\*)?${id.replace('.', '\\.')}\\b`);
+    const at = lines.findIndex((l) => re.test(l));
+    if (at === -1) { missing.push(id); continue; }
+    const parts = [lines[at].trim()];
+    for (let k = at + 1; k < lines.length && /^\s{2,}\S/.test(lines[k]) && !/^\s*(?:[-*]|\d+\.)\s*(?:\*\*)?R\d+\.\d+\b/.test(lines[k]); k++) parts.push(lines[k].trim());
+    out.push(parts.join(' '));
   }
   const reqs = [...new Set(task.covers.map((c) => c.split('.')[0]))];
   const decisions = [];
