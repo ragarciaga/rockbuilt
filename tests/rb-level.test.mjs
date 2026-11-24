@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { APPROVAL_REASONS, classify, riskText } from '../scripts/lib/risk.mjs';
+import { contractInfo } from '../scripts/lib/contract.mjs';
 import { cleanup, commitAll, rbJson, repoWith, sh, write } from './rb-helpers.mjs';
 
 after(cleanup);
@@ -136,4 +137,27 @@ test('A4: Paid services entries approve their SDK the way people write them; Goo
   assert.deepEqual(sdk("import OpenAI from 'openai';", ['OpenAI (production intake only)']), []);
   assert.deepEqual(sdk("import { GoogleGenerativeAI } from '@google/generative-ai';", ['Google Maps (USD 5)']), ['cost']);
   assert.deepEqual(sdk("import OpenAI from 'openai';", ['Anthropic API (cap USD 20)']), ['cost']);
+});
+
+test('A10: doctor asks for the 1.0 contract text, Kickback budget and a Sensitive paths review', async () => {
+  const old = '# App\n\nDocs language: es\nProject type: web\nDefault branch: main\nAutonomy: auto\n\n## Autonomy\nSensitive paths: src/**\n\nHow the harness decides (computed by `rb risk` from the real diff; the highest tier wins):\n';
+  const files = { 'AGENTS.md': old };
+  for (let i = 0; i < 10; i++) files[`src/m${i}.ts`] = 'export const x = 1;\n';
+  const root = repoWith(files);
+  const r = await rbJson(root, ['doctor']);
+  const text = JSON.stringify(r.json);
+  assert.match(text, /still describes tiers/);
+  assert.match(text, /no `Kickback budget:` header/);
+  assert.match(text, /Sensitive paths covers 10 of 10 source files/);
+  write(root, 'AGENTS.md', old.replace('Autonomy: auto\n', 'Autonomy: auto\nKickback budget: 1\nSensitive paths reviewed: 2026-11-30\n').replace('the highest tier wins', 'the highest level wins'));
+  const again = JSON.stringify((await rbJson(root, ['doctor'])).json);
+  assert.doesNotMatch(again, /contract 1.0|sensitive paths/);
+});
+
+test('A12: Kickback budget from the header, 0 to 3, default 2', () => {
+  const at = (line) => contractInfo(repoWith({ 'AGENTS.md': `# App\n\nDefault branch: main\n${line}\n` })).kickbackBudget;
+  assert.equal(at(''), 2);
+  assert.equal(at('Kickback budget: 0'), 0);
+  assert.equal(at('Kickback budget: 3'), 3);
+  assert.equal(at('Kickback budget: 7'), 2);
 });

@@ -2,7 +2,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readBaseline } from './baseline.mjs';
-import { COMMAND_SECTIONS, HEADER_FIELDS, REQUIRED_SECTIONS, contractInfo, headerField, isTemplate, projectTypesFrom, readContract, sectionCommands, sectionHeadings } from './contract.mjs';
+import { COMMAND_SECTIONS, HEADER_FIELDS, REQUIRED_SECTIONS, contractInfo, headerField, isTemplate, parseAutonomy, projectTypesFrom, readContract, sectionCommands, sectionHeadings } from './contract.mjs';
+import { isTestPath } from './delta.mjs';
+import { matchAny } from './glob.mjs';
 import { CONTROL_TITLE } from './control.mjs';
 import { ghStatus, makeGh, ops } from './gh.mjs';
 import { defaultBranch, originSlug } from './repo.mjs';
@@ -25,6 +27,24 @@ function checkNode() {
 function checkGit() {
   const r = run('git', ['--version']);
   return r.ok ? pass('git', r.stdout.replace(/^git version\s*/, '')) : fail('git', 'git not found on PATH');
+}
+
+// PLAN-1.0 A10: what "update rockbuilt" owes a project from before 1.0. The contract text that
+// agents read must describe levels, not tiers; Kickback budget is explicit; and Sensitive paths is
+// reviewed once by the owner, because a glob over most of the code makes nearly every PR level 3
+// (Doorcas: 44 of 82 PRs, evals/results/2026-11-24-replay-levels.md).
+export const SENSITIVE_SHARE = 0.4;
+function levelsChecks(root, text) {
+  const out = [];
+  if (/highest tier wins|Tier C pull requests are merged by the human/.test(text)) out.push(warn('contract 1.0', 'AGENTS.md ## Autonomy still describes tiers A, B and C: replace the "How the harness decides" paragraphs with the level text from the template (tools/rockbuilt/project/AGENTS.md)'));
+  if (headerField(text, 'Kickback budget') === null) out.push(warn('contract 1.0', 'no `Kickback budget:` header line (0 to 3, default 2): add `Kickback budget: 2` under `Max tasks per run`'));
+  if (headerField(text, 'Sensitive paths reviewed') === null) {
+    const globs = parseAutonomy(text).sensitivePaths;
+    const tracked = run('git', ['-C', root, 'ls-files']).stdout.split(/\r?\n/).filter((p) => /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/.test(p) && !isTestPath(p) && !p.startsWith('tools/rockbuilt/'));
+    const hit = tracked.filter((p) => matchAny(p, globs)).length;
+    if (tracked.length >= 10 && hit / tracked.length > SENSITIVE_SHARE) out.push(warn('sensitive paths', `Sensitive paths covers ${hit} of ${tracked.length} source files (${Math.round((hit / tracked.length) * 100)}%): nearly every PR gets the full review. Review it once with the owner (narrow it to what is truly sensitive), then add \`Sensitive paths reviewed: <date>\` to the header`));
+  }
+  return out;
 }
 
 function checkContract(root) {
@@ -61,6 +81,7 @@ function checkContract(root) {
   }
   const lines = text.split(/\r?\n/).length;
   if (lines > 200) out.push(warn('contract length', `${lines} lines, keep under 200`));
+  out.push(...levelsChecks(root, text));
   return out;
 }
 

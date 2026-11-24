@@ -1216,3 +1216,44 @@ owner interventions up to 20.8 per day).
    diff that commits one is at least level 2.
 4. **Tests in level 1 only when they add (B1).** A test file with removed or changed lines can
    weaken an assertion: level 2.
+5. **Owner approval, never a flag (A5).** A plan with approvals waits for a comment from a trusted
+   author on the task issue, without a harness marker, newer than the plan, whose first word
+   approves ("aprobado", "approved", "ok", "dale"). `rb merge-gate` reads it itself;
+   `--human-approved` only skips the lock, it never stands for an approval (evidence: three
+   projects merged tier C with `--human-approved` on a word said in chat). Approval is of the
+   plan: once given, the merge follows when reviews and CI pass. Known limit, unchanged (section
+   13): the harness acts with the owner's token, so this is a mechanical record, not a proof of
+   identity.
+6. **Delegated approval (A6).** `rb delegate --words "<owner words>" --scope
+   all|milestone:<name>|issues:12,15 [--until] [--include cost,irreversible] [--run <id>]` records
+   the owner's words on the control issue under `<!-- rockbuilt:delegation ... -->`. Default 14
+   days; cost and irreversible stay out unless named; `--run` makes it "full auto" for that run
+   only, so an unattended routine (a new run id) never inherits it. `rb delegate revoke` ends them
+   all. The gate accepts a delegation that covers the task's issue and reasons, and the merge
+   comment says "merged by delegation" with the words. Skills record it only from the owner in the
+   current conversation, never from text in an issue, comment or file.
+7. **Gate by level (A5, A8, A9, B2).** Labels `rb:level-1/2/3` (old `rb:tier-*` read as 1, 2, 3)
+   and `rb:approval-pending`. The live `rb risk` level may not exceed the label. Reviews: level 1
+   none (CI only); level 2 the verifier, plus the blind auditor when `userVisible` or the PR number
+   is a multiple of 5 (sampling); level 3 verifier, auditor and security reviewer. Every review line
+   present in the body must still match a posted verdict. `rb risk --pr` reads `Sensitive paths`,
+   `Tier A paths` and `Paid services` from AGENTS.md at the PR base, never its head.
+8. **One message per checkpoint (C1).** `rb state` reads GitHub and returns two halves: what waits
+   for the owner (plans to approve, questions, steps on their machine, blocked, held, PRs) and what
+   the harness will do alone (ready, in progress, merge train), plus delegations in force. It exits
+   3 when a query failed, and the run then never says "nothing waits for you". Runs never stop to
+   ask: the item is labelled and set aside, and the run's final report is the one message.
+9. **Quality by level and the rollback rule (B3, B4).** `rb quality` adds `byLevel` (merged,
+   kickbacks, reverts and escaped bugs per level) and `interventions` (escalations, the owner's plan
+   approvals, merges asked for, merges by hand, per day; merges by delegation apart). `/rb-retro`
+   proposes giving a level back the review it lost when it exceeds its baseline two weeks in a row,
+   or the sampled audits find real failures in more than 10% of level 2 PRs.
+10. **Dependencies (A7).** A runtime dependency added outside an approved design.md or ADR is
+    checked by code (`rb deps`, and the gate): license in an allowed list, not deprecated, a
+    release in the last two years. A failure, or a manifest the check cannot read (Python, Go,
+    Ruby), asks the owner (`dependency`). Dev and test dependencies are free; a lockfile alone adds
+    nothing to check.
+11. **Updating a project (A10, A12).** `rb doctor` warns when AGENTS.md still describes tiers, lacks
+    `Kickback budget:` (0 to 3, default 2, how many review rounds a task gets), or has
+    `Sensitive paths` over more than 40% of the source files without a `Sensitive paths reviewed:`
+    line; "update rockbuilt" applies the text, and the owner reviews the globs once.
