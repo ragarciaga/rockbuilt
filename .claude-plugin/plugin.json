@@ -1,7 +1,7 @@
 {
   "name": "rockbuilt",
-  "version": "0.14.0",
-  "description": "Installs and updates the Rockbuilt harness in a project repo (vendored, so cloud routines, Cursor and Codex see it too): EARS specs, verifiable tasks, planner, implementer, verifier and blind auditor separation, autonomy tiers with a mechanical floor, a code-enforced merge gate, and a nightly cycle that escalates to the human only for design, cost and sensitive changes.",
+  "version": "1.0.0",
+  "description": "Installs and updates the Rockbuilt harness in a project repo (vendored, so cloud routines, Cursor and Codex see it too): EARS specs, verifiable tasks, planner, implementer, verifier and blind auditor separation, three review levels computed from the diff, a code-enforced merge gate, owner approval only for schema, architecture, auth model, cost and irreversible changes (or a recorded delegation), and a nightly cycle that sends one message per run.",
   "author": {
     "name": "Rafael Andrés García"
   },

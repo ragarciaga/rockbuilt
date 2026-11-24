@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.0.0 (2026-11-24)
+
+Help instead of block: fewer agents on trivial work, fewer interruptions, the full cycle only where
+the serious defects are. Evidence: 539 merged PRs of five projects (`evals/results/2026-11-24-field-baseline.md`
+and `2026-11-24-replay-levels.md`), PLAN-1.0, issues #75 to #82.
+
+- **Review levels instead of tiers A, B, C.** `rb risk` computes level 1 (docs, styles, copy,
+  tests that only add: CI only), 2 (product code: verifier; the blind auditor when something
+  visible changes, on every bug fix and quick batch, and on one PR in five by sampling) or 3
+  (sensitive paths, auth, payments, personal data, deletion, schema, CI, harness files, large
+  diffs: all three reviews). The size limit no longer counts tests and fixtures; bookkeeping files
+  in a task PR do not raise it.
+- **The owner approves only a closed list:** schema, architecture, auth model, cost and
+  irreversible. Approval is of the plan, written by the owner on the issue ("aprobado"); then the
+  merge is automatic. `--human-approved` no longer stands for an approval.
+- **Delegation.** `/rb-delegate` and `rb delegate` record the owner's words: approvals of a scope
+  until a date (14 days by default, at most 90), or "full auto" for one run. Merges it covers say
+  "merged by delegation".
+- **Dependencies.** A runtime dependency outside the approved design is checked by code (license,
+  deprecation, maintenance) and reaches the owner only if it fails; dev dependencies are free.
+- **One message per run.** `rb state` lists what waits for the owner and what the harness will do
+  alone; runs set decisions aside instead of stopping.
+- **Quality by level.** `rb quality` reports kickbacks, reverts and escaped bugs per level and the
+  owner's interventions per day; `/rb-retro` applies the rollback rule.
+- **Rules from the PR base.** `Sensitive paths`, `Paid services` and `## E2E` are read from
+  AGENTS.md at the PR base, never its head. `Paid services` entries now match the way people write
+  them ("Anthropic API (monthly cap USD 20)" approves the Anthropic SDK).
+- **`Kickback budget`** (0 to 3, default 2) in the AGENTS.md header.
+- Hardened after two adversarial reviews (DESIGN 29.12).
+- **Updating a project (format change, hence 1.0):** "update rockbuilt" replaces the tier text in
+  AGENTS.md, adds `Kickback budget: 2`, creates the level labels, and asks you once to review
+  `Sensitive paths` when it covers most of the code. Open PRs keep their old tier labels: the gate
+  reads them as levels.
+
 ## 0.14.0 (2026-11-11)
 
 What happens after the merge and before the design approval (#56, #57, #59, #65, #66, #67).

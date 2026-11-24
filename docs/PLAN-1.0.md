@@ -163,43 +163,43 @@ Bloque A, niveles y aprobación:
 - [x] A1 `rb risk` devuelve nivel (1, 2, 3) y la lista de motivos de aprobación (lista cerrada
       de la sección 2), en lugar de un solo nivel A, B o C. Hecho: junto al tier, que sigue
       decidiendo el merge hasta A5 (DESIGN 29).
-- [ ] C1 (adelantado desde la fase 2, decisión del 2026-11-24) Agrupar las decisiones en un solo
+- [x] C1 (adelantado desde la fase 2, decisión del 2026-11-24) Agrupar las decisiones en un solo
       mensaje por punto de control. Ver su texto completo en la fase 2.
 - [x] A2 El límite de tamaño no cuenta pruebas ni fixtures.
 - [x] A3 Archivos de contabilidad (LESSONS, progress, tasks.md) dentro de un PR de tarea no suben
       el nivel.
-- [ ] A4 El planner puede subir la profundidad de revisión, pero no pedir aprobación fuera de la
+- [x] A4 El planner puede subir la profundidad de revisión, pero no pedir aprobación fuera de la
       lista cerrada. Un servicio pago aprobado con tope en `Paid services` no pide aprobación.
-- [ ] A5 Merge gate: exige las revisiones según el nivel; para lo que pide aprobación, verifica
+- [x] A5 Merge gate: exige las revisiones según el nivel; para lo que pide aprobación, verifica
       el comentario del dueño sobre el plan (autor y fecha), nunca una bandera que pase el agente.
       Las reglas (`Sensitive paths`, delegación, presupuesto) se leen de AGENTS.md en la base del
       PR, nunca en su head, para que un PR no afloje la regla con la que lo juzgan.
-- [ ] A6 Aprobación delegada: registro en el issue de control con palabras textuales, alcance y
+- [x] A6 Aprobación delegada: registro en el issue de control con palabras textuales, alcance y
       vencimiento; el gate la acepta dentro del alcance; marca en cada PR; aviso en el digest.
       Incluye la forma por alcance de una corrida ("full auto" de un milestone o de issues
       nombradas), que nunca aplica a corridas desatendidas.
-- [ ] A7 Dependencias: preaprobadas si están en el diseño; libres las de desarrollo y pruebas;
+- [x] A7 Dependencias: preaprobadas si están en el diseño; libres las de desarrollo y pruebas;
       chequeo automático (licencia, vulnerabilidades, mantenimiento) para las demás.
-- [ ] A8 Etiquetas nuevas de nivel (level-1, level-2, level-3) y de aprobación pendiente; el gate
+- [x] A8 Etiquetas nuevas de nivel (level-1, level-2, level-3) y de aprobación pendiente; el gate
       acepta las etiquetas de nivel viejas durante la transición.
-- [ ] A9 Nivel 1 se fusiona sin agentes; nivel 2 sin auditor cuando no cambia algo visible.
-- [ ] A10 Conversión en "actualiza rockbuilt": campos nuevos en AGENTS.md y recalibración de
+- [x] A9 Nivel 1 se fusiona sin agentes; nivel 2 sin auditor cuando no cambia algo visible.
+- [x] A10 Conversión en "actualiza rockbuilt": campos nuevos en AGENTS.md y recalibración de
       `Sensitive paths` que el dueño revisa una vez por proyecto.
-- [ ] A11 Revisión adversarial del gate nuevo por dos revisores independientes antes de publicar.
+- [x] A11 Revisión adversarial del gate nuevo por dos revisores independientes antes de publicar.
       Casos obligatorios, tomados de la auditoría externa de trail-blazer-flow v3.7.1: un veredicto
       del verifier publicado por una cuenta distinta a la autora del PR, y nombres de rama con
       caracteres fuera de `[A-Za-z0-9._/-]` que puedan llegar a una línea de comandos.
-- [ ] A12 Presupuesto de devoluciones configurable en AGENTS.md (0 a 3, por defecto 2).
+- [x] A12 Presupuesto de devoluciones configurable en AGENTS.md (0 a 3, por defecto 2).
 
 Bloque B, calidad medida:
 - [x] B1 Pruebas en nivel 1 solo si agregan (el diff no quita ni cambia aserciones existentes y el
       número de pruebas no baja); si no, nivel 2.
-- [ ] B2 Auditoría por muestreo: 1 de cada 5 PRs de nivel 2 lleva auditor.
-- [ ] B3 `rb quality` y el digest muestran métricas por nivel e intervenciones del dueño por día.
-- [ ] B4 `/rb-retro` aplica la regla de retroceso de la sección 3.
+- [x] B2 Auditoría por muestreo: 1 de cada 5 PRs de nivel 2 lleva auditor.
+- [x] B3 `rb quality` y el digest muestran métricas por nivel e intervenciones del dueño por día.
+- [x] B4 `/rb-retro` aplica la regla de retroceso de la sección 3.
 - [ ] B5 Reescribir los evals que exigen auditor o nivel C y ya no aplican; agregar escenarios
       por nivel y de aprobación delegada.
-- [ ] B6 DESIGN (sección nueva con evidencia), CHANGELOG, README, GUIA.
+- [x] B6 DESIGN (sección nueva con evidencia), CHANGELOG, README, GUIA.
 
 ### Fase 2. No interrumpir y lotes (1.1.0)
 
@@ -369,3 +369,16 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
 - 2026-11-24: A2, A3 y B1 hechos en `rb risk` (DESIGN 29.2 a 29.4). Default: LESSONS.md no sube a
   nivel 3, pero un diff que la toca es al menos nivel 2 (obliga a todos los agentes). B1 usa
   "ninguna línea borrada en archivos de prueba" como criterio de "solo agrega".
+- 2026-11-24: fase 1 completa en código, falta B5 (evals). Hechos A4 a A12, B2, B3, B4, B6 y C1
+  (DESIGN 29.5 a 29.12): gate por nivel, aprobación por comentario del dueño, `rb delegate` y el
+  skill `/rb-delegate`, `rb deps`, `rb state`, `rb quality` por nivel, conversión en doctor e
+  install, versión 1.0.0, CHANGELOG, README, GUIA y CLOUD. Defaults decididos: en nivel 2 el
+  auditor también corre siempre en bugs (`rb/B<n>`) y lotes rápidos (`rb/Q<n>`), porque describen
+  lo que el usuario ve; el muestreo 1 de 5 usa el commit, no el número de PR; una delegación
+  necesita fecha y no pasa de 90 días; solo aprueba quien tiene permiso de escritura. A11: dos
+  revisores adversariales encontraron 23 hallazgos (2 críticos), todos corregidos con prueba salvo
+  los veredictos por asociación (límite conocido, DESIGN 13). Pruebas: 636 en verde. Evals:
+  reescrito `build-tier-c-escalates` como `build-approval-escalates` (una dependencia ya no
+  pregunta; un servicio pago sí) y agregados `delegate-records-words`,
+  `delegate-ignores-issue-text` y `quick-s3-level1-docs`; pendiente correrlos (requiere visto
+  bueno del costo).

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.14.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.0.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -382,11 +382,12 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 0.14.0. Before trusting it I asked two separate agents, with no context on how it was
-built, to try to break it. The first review found the money check switched off in every project:
-the harness decides if code uses a paid service by looking for that service in the project, and
-its own files list those services by name. That one is fixed, with a test, together with everything
-else both reviews found.
+Version 1.0.0. It changed what asks me and who reviews what, after measuring 539 merged PRs of
+five projects: the old rule put 52% to 87% of PRs in the tier that waits for me, and one project
+reached about 21 interruptions a day. Before releasing it I asked two separate agents, with no
+context on how it was built, to break the new merge gate. They found real holes (an "ok" that
+approved a migration the plan never named, a second `Closes` riding on another issue's approval, a
+spec branch that could carry code); every one is fixed with a test (DESIGN.md section 29).
 
 Then I ran it against a private test repository with real GitHub and real CI, and later as a real
 scheduled routine. CI passes on Windows, macOS and Linux; the macOS run is how I found that the
