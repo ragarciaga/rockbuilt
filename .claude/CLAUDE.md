@@ -13,6 +13,13 @@ Docs language: es (talk to the maintainer in Spanish, tú, never vos). Plugin fi
 English; human-facing guides (docs/GUIA.md, docs/MEJORAR.md) in Spanish. Never use the em dash
 character anywhere; the selfcheck test fails on it.
 
+## Active plan
+
+`docs/PLAN-1.0.md` holds the agreed work toward 1.0 (review levels, owner approval, batching,
+spec decision inventory, complex-work modes, pre-launch attack cycle), with its evidence and a
+progress checklist. Read it first, take the next open item of the current phase, and update its
+checkboxes and log when a PR merges.
+
 ## How a change is made
 
 1. **Start from evidence.** A harness-feedback issue (from `/rb-retro`), a failing eval,
