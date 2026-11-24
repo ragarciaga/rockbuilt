@@ -10,6 +10,31 @@ están los defectos graves. Si algo queda mal, se ajusta con la regla de retroce
 
 **Estado.** Versión en `main`: 0.14.0. Fase en curso: **0 (preparación)**. Ver la tabla de fases.
 
+## Cómo arrancar una sesión nueva
+
+Abrir una sesión en claude.ai/code con `ragarciaga/rockbuilt` adjunto y pegar:
+
+```text
+Sigue con el plan de Rockbuilt.
+
+Lee primero .claude/CLAUDE.md y luego docs/PLAN-1.0.md completo: ahí están la evidencia, las
+decisiones que ya tomé y las fases con casillas. No vuelvas a discutir lo que ya está decidido
+en la sección 2.
+
+Toma la fase en curso (dice "Fase en curso" arriba) y su primera casilla sin marcar. Sigue el
+proceso del repo: evidencia, eval que falla, cambio mínimo, pruebas, suite de evals, PR.
+
+Para leer otros repos usa el conector de GitHub de Composio con la cuenta "rag"
+(github_pave-oxbow); la cuenta "bfa-ag" no ve los repos privados de ragarciaga. La receta está
+en mi cerebro: "Encontrar qué repos usan Rockbuilt y sacar sus métricas desde Composio".
+
+Al terminar cada punto, marca su casilla en docs/PLAN-1.0.md y agrega una línea en la bitácora.
+Antes de correr evals pagados, dime el costo estimado y espera mi visto bueno. No me preguntes lo
+que tenga un default razonable: decide, regístralo y sigue.
+```
+
+Para las sesiones siguientes basta con "Sigue con el plan de Rockbuilt".
+
 ## Cómo trabajar con este plan
 
 1. Leer `.claude/CLAUDE.md` (proceso del repo) y `DESIGN.md`.
@@ -39,6 +64,13 @@ Revisión de 5 repos que usan Rockbuilt (2026-11-24): `agarcia-bfa/Doorcas-Afric
 | Revisores pisándose | En 3 repos el auditor o seguridad vio mutantes del verifier; archivos de sondas terminaron en commits |
 | Lo que sí funcionó | Las fallas graves de Doorcas (servicio congelado, admin bloqueado, borrado no cancelado, texto prohibido con caracteres invisibles) salieron de revisiones independientes en rutas sensibles; 2brain: 55 PRs del ciclo con 0 reversiones y 0 bugs escapados |
 
+Ideas tomadas de `msummer/trail-blazer-flow` (v3.8.0, revisado el 2026-11-24): full auto con
+alcance nombrado, reglas leídas desde la base del PR, los hallazgos de su auditoría externa
+(v3.7.1), la clase de hallazgo `wording`, triage de seguimientos con etiquetas, estado en JSON,
+CI después del merge con arreglo hacia adelante, decision record con chequeo mecánico,
+presupuesto de devoluciones configurable, corridas sin avisos de permiso y el tracker en vivo. Se
+toman las ideas, no el código; la atribución pública sigue siendo solo a trail-blazer-flow.
+
 Fuentes adicionales: el feedback de la sesión de Doorcas (archivo `Feedback_Rockbuilt.md` que
 compartió Andrés) y el ciclo de seguridad de Maysa Chart (`ragarciaga/tradetutor-ai`, issues #27
 y #52, PRs #26 y #46).
@@ -59,7 +91,10 @@ y #52, PRs #26 y #46).
   gate fusiona solo lo que entre en el alcance que nombró, hasta una fecha. Por defecto 14 días y
   fuera de alcance los costos sobre el tope y lo irreversible, salvo que el dueño los incluya.
   Queda registrada con sus palabras, cada PR dice "fusionado por delegación" y el digest la
-  muestra arriba mientras esté vigente.
+  muestra arriba mientras esté vigente. Dos formas: por fecha ("delego todo hasta el viernes") y
+  por alcance, a la manera del full auto de trail-blazer-flow ("full auto del milestone X" o
+  "full auto #12 #15"): vale para esa corrida y esas issues, nunca para corridas desatendidas ni
+  por texto que venga de un issue o comentario.
 - **Dependencias:** las del diseño aprobado quedan aprobadas; las de desarrollo y pruebas, libres;
   las demás pasan un chequeo automático (licencia, vulnerabilidades, mantenimiento).
 - **Evals:** una vez por funcionalidad y solo si el cambio toca comportamiento de IA.
@@ -100,6 +135,7 @@ y #52, PRs #26 y #46).
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
 | 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Pendiente |
 | 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | Pendiente |
+| 8. Tracker en vivo | 1.6.0 | Bloque I (después de medir 1.0 a 1.5) | Pendiente |
 
 Nota de orden: la fase 4 (informes en archivo) es la que más tokens ahorra por sesión. Si el
 costo pesa más que las interrupciones, puede subir al segundo lugar sin romper nada.
@@ -128,8 +164,12 @@ Bloque A, niveles y aprobación:
       lista cerrada. Un servicio pago aprobado con tope en `Paid services` no pide aprobación.
 - [ ] A5 Merge gate: exige las revisiones según el nivel; para lo que pide aprobación, verifica
       el comentario del dueño sobre el plan (autor y fecha), nunca una bandera que pase el agente.
+      Las reglas (`Sensitive paths`, delegación, presupuesto) se leen de AGENTS.md en la base del
+      PR, nunca en su head, para que un PR no afloje la regla con la que lo juzgan.
 - [ ] A6 Aprobación delegada: registro en el issue de control con palabras textuales, alcance y
       vencimiento; el gate la acepta dentro del alcance; marca en cada PR; aviso en el digest.
+      Incluye la forma por alcance de una corrida ("full auto" de un milestone o de issues
+      nombradas), que nunca aplica a corridas desatendidas.
 - [ ] A7 Dependencias: preaprobadas si están en el diseño; libres las de desarrollo y pruebas;
       chequeo automático (licencia, vulnerabilidades, mantenimiento) para las demás.
 - [ ] A8 Etiquetas nuevas de nivel (level-1, level-2, level-3) y de aprobación pendiente; el gate
@@ -138,6 +178,10 @@ Bloque A, niveles y aprobación:
 - [ ] A10 Conversión en "actualiza rockbuilt": campos nuevos en AGENTS.md y recalibración de
       `Sensitive paths` que el dueño revisa una vez por proyecto.
 - [ ] A11 Revisión adversarial del gate nuevo por dos revisores independientes antes de publicar.
+      Casos obligatorios, tomados de la auditoría externa de trail-blazer-flow v3.7.1: un veredicto
+      del verifier publicado por una cuenta distinta a la autora del PR, y nombres de rama con
+      caracteres fuera de `[A-Za-z0-9._/-]` que puedan llegar a una línea de comandos.
+- [ ] A12 Presupuesto de devoluciones configurable en AGENTS.md (0 a 3, por defecto 2).
 
 Bloque B, calidad medida:
 - [ ] B1 Pruebas en nivel 1 solo si agregan (el diff no quita ni cambia aserciones existentes y el
@@ -153,11 +197,16 @@ Bloque B, calidad medida:
 
 Bloque C, interrupciones:
 - [ ] C1 Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
-      mensaje con todo lo pendiente por punto de control o al final de la corrida.
+      mensaje con todo lo pendiente por punto de control o al final de la corrida. Base mecánica:
+      estado en JSON con dos mitades, lo que el harness hará solo y lo que espera al dueño (planes
+      por aprobar, PRs, bloqueados, seguimientos, escalaciones), marcado como incompleto si falla
+      una consulta a GitHub. La misma salida alimenta la métrica de interrupciones (B3).
 - [ ] C2 Regla en los skills: no preguntar lo que tiene un default razonable ("¿lo subo?",
       "¿sigo?").
 - [ ] C3 Hook que registra cada aviso de permiso de Claude Code en el proyecto; reporte para
-      ampliar la lista de comandos permitidos.
+      ampliar la lista de comandos permitidos. En corridas sin supervisión, documentar en CLOUD
+      el modo en que un aviso de permiso se vuelve una negación reportada como escalación, en vez
+      de congelar la corrida.
 - [ ] C4 Fase de "espera humana" separada en los tiempos; arreglo de fases abiertas y totales en 0.
 
 Bloque D, lotes:
@@ -166,14 +215,18 @@ Bloque D, lotes:
 - [ ] D3 `/rb-build` avisa cuando recibe algo de nivel 1 o 2 pequeño y sugiere el lote.
 - [ ] D4 Tareas de spec más grandes (revisar límites de `rb tasks`).
 - [ ] D5 Seguimientos que abren las revisiones: fuera del objetivo actual hasta que el dueño los
-      promueva; `rb-status` los lista aparte.
+      promueva; `rb-status` los lista aparte. Diseño de trail-blazer-flow: nacen con una etiqueta
+      de "sin plan" que los saca de toda cola, otra etiqueta los estaciona, y cerrarlos como no
+      planeados los descarta.
 
 ### Fase 3. Spec (1.2.0)
 
 Bloque E:
 - [ ] E1 Inventario de decisiones obligatorio por requisito: números y umbrales, tiempos, qué pasa
       si (fallas, cancelaciones, duplicados, topes), quién puede, datos (retención, borrado,
-      redacción) y definiciones (métricas). `rb` verifica que no quede vacío antes de aprobar.
+      redacción) y definiciones (métricas). `rb` verifica que no quede vacío antes de aprobar,
+      con el mismo patrón del decision record de trail-blazer-flow (secciones obligatorias y
+      con contenido, revisadas por código).
 - [ ] E2 Una sola ronda de preguntas con defaults propuestos ("acepto todo salvo 3 y 7").
 - [ ] E3 Huecos durante la construcción: default seguro, registrado como decisión por defecto,
       reportado en el digest; detenerse solo si es irreversible o estructural.
@@ -197,6 +250,16 @@ Bloque F:
 - [ ] F9 Investigar: cola de merge atascada en `queue-pending` (maysa) y si el guard sigue
       bloqueando scripts con argumentos a verifier y auditor (visto en 3d_brain con 0.9.0).
 - [ ] F10 Vigilar: `rb-fix` dejó una corrección como segundo commit en un eval (2026-11-11).
+- [ ] F11 CI después del merge y arreglo hacia adelante: si las pruebas del PR no corren toda la
+      suite, cada merge espera la CI de la rama principal; si queda en rojo por un merge de la
+      corrida, se abre un issue de arreglo que se construye y fusiona una vez bajo los mismos
+      gates; un segundo rojo detiene la corrida y se revierte.
+- [ ] F12 El doctor avisa cuando las acciones de la CI no están fijadas a un commit (SHA) y cuando
+      la protección de rama no exige ramas al día.
+- [ ] F13 Clase de hallazgo `wording` en el verifier: si todo lo que falla es texto, trae el
+      reemplazo exacto y tiene una ronda de corrección que no gasta presupuesto de devoluciones.
+- [ ] F14 Agentes sin esperas en bucle: comandos largos en primer plano o esperando la
+      notificación, nada queda corriendo al terminar.
 
 ### Fase 5. Trabajo complejo (1.4.0)
 
@@ -230,6 +293,24 @@ Bloque H, `/rb-attack` (modelo: lo que se hizo en Maysa Chart):
 - [ ] 7.3 Medir dos semanas contra la línea base de la fase 0.
 - [ ] 7.4 `/rb-retro` y ajustes con la regla de retroceso.
 
+### Fase 8. Tracker en vivo (1.6.0)
+
+Bloque I, página privada en claude.ai para seguir el proyecto desde el celular (modelo: el tracker
+de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta del estado en JSON
+(C1) y de las métricas por nivel (B3).
+- [ ] I1 Página con resumen primero: avance por milestone, qué puede moverse ya y qué espera al
+      dueño.
+- [ ] I2 Bloques "Esperando por ti" (planes, PRs, decisiones, seguimientos) y "Publicado en los
+      últimos 14 días", marcando los merges que no tuvieron segunda revisión.
+- [ ] I3 Franja de salud: CI de la rama principal, baseline (fecha, commit y si va detrás) y
+      aprobación delegada vigente.
+- [ ] I4 El ciclo refresca la página como último paso; también a pedido ("actualiza el tracker").
+- [ ] I5 Secciones escritas a mano (pasos, tarjetas, matriz de estado) y tablas proyectadas desde
+      archivos del repo.
+- [ ] I6 Resumen escrito por el modelo, opcional y apagado por defecto (cuesta tokens en cada
+      ciclo y es una opinión, no el estado).
+- [ ] I7 La página solo muestra el estado de GitHub; nada en ella cambia un issue o un PR.
+
 ## 5. Pendientes del dueño (fuera del harness)
 
 - [ ] Crear los releases `v0.12.0`, `v0.13.0`, `v0.13.1` y `v0.14.0` en GitHub (opcional).
@@ -241,3 +322,7 @@ Bloque H, `/rb-attack` (modelo: lo que se hizo en Maysa Chart):
 
 - 2026-11-24: plan acordado. Base: 0.14.0 en `main` (PR #72 con el README al día). Siguiente paso:
   fase 0.
+- 2026-11-24: revisado `msummer/trail-blazer-flow` v3.8.0; se agregan A5 (reglas desde la base),
+  A6 (full auto por alcance), A11 (casos de su auditoría externa), A12, C1 (estado en JSON), C3
+  (corridas sin avisos de permiso), D5 (etiquetas de seguimientos), E1 (patrón decision record),
+  F11 a F14 y la fase 8 (tracker en vivo). Agregado el prompt para arrancar una sesión.
