@@ -128,3 +128,12 @@ test('B1: a test that removes or changes lines is level 2, an added test level 1
   assert.equal(run([file('tests/a.test.ts', ['x'])]).level, 1);
   assert.equal(run([file('tests/a.test.ts', ['x'], { deletions: 1 })]).level, 2);
 });
+
+test('A4: Paid services entries approve their SDK the way people write them; Google Maps is not Gemini', () => {
+  const sdk = (line, paidServices) => run([file('src/ai.ts', [line])], { paidServices }).approvals.map((a) => a.reason);
+  assert.deepEqual(sdk("import Anthropic from '@anthropic-ai/sdk';", ['Anthropic API (monthly cap USD 20)']), []);
+  assert.deepEqual(sdk("import Anthropic from '@anthropic-ai/sdk';", ['Claude API con los créditos de Claude Max (tope USD 10 al mes)']), []);
+  assert.deepEqual(sdk("import OpenAI from 'openai';", ['OpenAI (production intake only)']), []);
+  assert.deepEqual(sdk("import { GoogleGenerativeAI } from '@google/generative-ai';", ['Google Maps (USD 5)']), ['cost']);
+  assert.deepEqual(sdk("import OpenAI from 'openai';", ['Anthropic API (cap USD 20)']), ['cost']);
+});

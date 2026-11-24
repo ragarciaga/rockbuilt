@@ -267,25 +267,27 @@ test('rb protect: required checks without strict, rockbuilt-e2e when the project
   assert.deepEqual(gh.state.protection, { mode: 'on', contexts: ['rockbuilt-ci', 'rockbuilt-e2e'] }, 'strict would block the merge queue');
 });
 
-test('rb gh pr-create raises the tier marker and label to rb risk on the real diff (#29)', async () => {
-  const root = repoWith({ 'AGENTS.md': AGENTS(), 'package.json': '{"name":"app","dependencies":{}}\n' });
+test('rb gh pr-create raises the level marker and label to rb risk on the real diff (#29, PLAN-1.0 A8)', async () => {
+  const root = repoWith({ 'AGENTS.md': AGENTS(), 'package.json': '{"name":"app","scripts":{"test":"node --test"}}\n' });
   const bare = tmp();
   sh(bare, 'git', ['init', '-q', '--bare', '-b', 'main']);
   sh(root, 'git', ['remote', 'add', 'origin', bare]);
   sh(root, 'git', ['push', '-q', 'origin', 'main']);
   sh(root, 'git', ['fetch', '-q', 'origin']);
   sh(root, 'git', ['checkout', '-q', '-b', 'rb/T1-dep']);
-  write(root, 'package.json', '{"name":"app","dependencies":{"left-pad":"1.3.0"}}\n');
-  commitAll(root, 'add a dependency');
+  write(root, 'package.json', '{"name":"app","scripts":{"test":"true"}}\n');
+  write(root, 'supabase/migrations/1.sql', 'create table t (id int);\n');
+  commitAll(root, 'a test script that always passes, and a migration');
   const dir = tmp();
   write(dir, 'body.md', 'Closes #3\n<!-- rockbuilt:tier B -->\n');
   const gh = fakeGh();
   const r = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-dep', '--base', 'main', '--title', 'T1', '--body-file', path.join(dir, 'body.md'), '--label', 'rb:tier-b', ...repo], io(gh));
   assert.equal(r.code, 0, r.err);
-  assert.deepEqual([r.json.tierRaised.from, r.json.tierRaised.to], ['B', 'C']);
+  assert.deepEqual([r.json.levelRaised.from, r.json.levelRaised.to], [2, 3]);
   const pr = gh.state.issues[r.json.number];
-  assert.match(pr.body, /<!-- rockbuilt:tier C -->/);
-  assert.deepEqual(pr.labels, ['rb:tier-c']);
+  assert.match(pr.body, /<!-- rockbuilt:level 3 -->/);
+  assert.doesNotMatch(pr.body, /rockbuilt:tier/);
+  assert.deepEqual(pr.labels.sort(), ['rb:approval-pending', 'rb:level-3']);
 });
 
 test('rb vendor keeps the template smoke spec out of a project with its own E2E suite (#22)', async () => {

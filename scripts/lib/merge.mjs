@@ -9,10 +9,15 @@ import { readContract } from './contract.mjs';
 import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
 import { parseQueueRecord } from './queue.mjs';
 import { classify, isTestPath, normalizePatch, samePatches } from './delta.mjs';
-import { computeRisk, maxTier, tierRank } from './risk.mjs';
+import { APPROVAL_REASONS, computeRisk, maxTier, tierRank } from './risk.mjs';
+import { approvalStatus } from './approval.mjs';
+import { ensureControl } from './control.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
 
-const BLOCKING_LABELS = ['rb:needs-human', 'rb:blocked', 'rb:tier-c', 'rb:hold'];
+const BLOCKING_LABELS = ['rb:needs-human', 'rb:blocked', 'rb:hold'];
+const LEVEL_OF_TIER = { A: 1, B: 2, C: 3 };
+// PLAN-1.0 B2: one in five level 2 PRs without a visible change still gets the blind auditor.
+export const AUDIT_SAMPLE = 5;
 const OK_CONCLUSIONS = ['success', 'neutral', 'skipped'];
 export const CI_CHECK = 'rockbuilt-ci';
 
@@ -55,7 +60,9 @@ export function parseBody(body) {
   const closes = [...String(body || '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map((m) => Number(m[1]));
   const partOf = [...String(body || '').matchAll(/\bpart of\s+#(\d+)/gi)].map((m) => Number(m[1]));
   const quick = /<!--\s*rockbuilt:quick\s*-->/i.test(body || '');
-  return { status, tier: tier ? tier.toUpperCase() : null, security, quick, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
+  const lv = (String(body || '').match(/<!--\s*rockbuilt:level\s+([123])\s*-->/i) || [])[1];
+  const level = lv ? Number(lv) : tier ? LEVEL_OF_TIER[tier.toUpperCase()] : null;
+  return { status, tier: tier ? tier.toUpperCase() : null, level, security, quick, closes: [...new Set(closes)], partOf: [...new Set(partOf)] };
 }
 
 function shaMatches(given, head) {
@@ -211,6 +218,13 @@ export function bookkeepingOnly(files) {
   return true;
 }
 
+// PLAN-1.0 A8: rb:level-1/2/3; the old tier labels still count during the transition.
+export function labelLevel(labels) {
+  for (const n of [3, 2, 1]) if (labels.includes(`rb:level-${n}`)) return n;
+  const t = labelTier(labels);
+  return t ? LEVEL_OF_TIER[t] : null;
+}
+
 function labelTier(labels) {
   if (labels.includes('rb:tier-c')) return 'C';
   if (labels.includes('rb:tier-b')) return 'B';
@@ -267,17 +281,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   const kind = prKind(view.head && view.head.ref);
   if (kind !== 'task') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head, dryRun });
 
-  // 2. Labels.
+  // 2. Labels (PLAN-1.0 A8). Approval waits on the owner's comment, not on a label.
   const lt = labelTier(view.labels);
-  const allowC = humanApproved;
-  if (!lt) no('tier-label', 'no rb:tier-a / rb:tier-b label');
-  for (const l of BLOCKING_LABELS) {
-    if (!view.labels.includes(l)) continue;
-    if (allowC && (l === 'rb:tier-c' || l === 'rb:needs-human')) continue;
-    no('blocking-label', `carries ${l}`);
-  }
+  const ll = labelLevel(view.labels);
+  if (!ll) no('level-label', 'no rb:level-1 / rb:level-2 / rb:level-3 label');
+  for (const l of BLOCKING_LABELS) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
 
-  // 3. Live risk no higher than the label (and the declared tier line).
+  // 3. Live level no higher than the label (and the declared level line).
   let risk = null;
   try {
     risk = computeRisk(root, { pr: view.number, gh: c });
@@ -285,23 +295,29 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     no('risk', `rb risk failed: ${e.message}`);
   }
   const body = parseBody(view.body);
-  if (risk && lt && tierRank(risk.tier) > tierRank(lt)) {
-    if (!(allowC && lt === 'C')) no('risk', `rb risk says tier ${risk.tier} but the label is tier ${lt}: ${risk.reasons.filter((r) => r.rule !== 'tier-b').slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ')}`);
-  }
-  if (body.tier && lt && tierRank(body.tier) > tierRank(lt)) no('declared-tier', `body declares tier ${body.tier} but the label is tier ${lt}`);
+  if (risk && ll && risk.level > ll) no('risk', `rb risk says level ${risk.level} but the label is level ${ll}: ${(risk.levelReasons || []).slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ') || 'not tests, docs, styles or copy'}`);
+  if (body.level && ll && body.level > ll) no('declared-level', `body declares level ${body.level} but the label is level ${ll}`);
   // DESIGN 26: a quick batch (no planner) merges only while the live diff is within the quick
   // limits; a batch that grew needs a plan (/rb-build) or a split, even with the owner's word.
   if (body.quick && risk && risk.quick && !risk.quick.eligible) no('quick', `quick batch outside quick mode: ${risk.quick.reasons.join('; ')}. Split it, or plan the rest with /rb-build and drop <!-- rockbuilt:quick --> once rb-planner's plan is on the issue`);
+  const level = Math.max(ll || 1, risk ? risk.level : 1, body.level || 1);
   const tier = maxTier(lt || 'A', risk ? risk.tier : 'A', body.tier || 'A');
-  if (tier === 'C' && !allowC) no('tier-c', 'tier C merges are human: the user merges or asks for it (--human-approved)');
 
   // 4. Reviewer lines with head equal to the PR head.
-  const need = ['rb-verifier'];
-  if (tierRank(tier) >= 1) need.push('rb-auditor');
+  // PLAN-1.0 A9 and B2: level 1 merges on CI alone; level 2 gets the verifier, and the auditor
+  // when something visible changes or the PR is sampled; level 3 gets all three.
+  const need = [];
+  const sampled = view.number % AUDIT_SAMPLE === 0;
+  if (level >= 2) need.push('rb-verifier');
+  if (level === 3 || (level === 2 && ((risk && risk.userVisible) || sampled))) need.push('rb-auditor');
+  if (level === 3) need.push('rb-security-reviewer');
   // rockbuilt #42: the diff decides too. A PR that rb risk says needs the security review gets it
   // whatever its body says; the plan can only add the review, never drop it.
   const secByDiff = Boolean(risk && risk.security && risk.security.required);
-  if (body.security || secByDiff) need.push('rb-security-reviewer');
+  if ((body.security || secByDiff) && !need.includes('rb-security-reviewer')) {
+    if (!need.includes('rb-verifier')) need.push('rb-verifier');
+    need.push('rb-security-reviewer');
+  }
   if (secByDiff && !body.security) no('security', `rb risk requires the security review (${risk.security.reasons.slice(0, 3).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')}): run rb-security-reviewer and add <!-- rockbuilt:security required --> with its line`);
   // A verifier pass on the current head may name the head the other reviewers saw:
   // `identical-to=<sha>` (no touched file changed since; the verifier ran its identity check) or
@@ -356,6 +372,28 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // rb wrote itself (a `by=rb-review-delta` verifier line with `identical-to`) are re-checked
   // above, not posted. A task PR names its issue (`Closes #n`, or `Part of #n` for a partial PR).
   const taskIssues = body.closes.length ? body.closes : body.partOf;
+  // PLAN-1.0 A5 and A6: the closed-list approvals (rb risk, plus auth-model when the plan declares
+  // it) need the owner's comment on the plan or a delegation that covers the task. Never a flag.
+  let issueView = null;
+  if (taskIssues.length) {
+    try { issueView = ops.issueView(c, taskIssues[0]); } catch (e) { no('approval', `could not read #${taskIssues[0]}: ${e.message}`); }
+  }
+  const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;
+  const declared = planLine ? ((planLine.body.match(/^<!--\s*rockbuilt:plan\b[^>]*\bapprovals=([\w,-]+)/m) || [])[1] || '').split(',').filter((x) => APPROVAL_REASONS.includes(x)) : [];
+  const approvalReasons = [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared])];
+  let approval = { ok: true, how: null };
+  if (approvalReasons.length) {
+    if (!taskIssues.length) approval = { ok: false, detail: 'approval needed but the body names no task issue' };
+    else if (issueView) {
+      let controlComments = [];
+      try {
+        const ctl = ensureControl(c, { create: false });
+        if (ctl) controlComments = ops.issueComments(c, ctl.number);
+      } catch { controlComments = []; }
+      approval = approvalStatus({ reasons: approvalReasons, issueComments: issueView.comments, controlComments, issue: taskIssues[0], milestone: issueView.milestone, run, at: now().toISOString() });
+    }
+    if (!approval.ok && approval.detail) no('approval', approval.detail);
+  }
   // `F5-T14` (a run's own prefix) names the spec task `T14` (rockbuilt #47).
   const sameTask = (a, b) => {
     if (!a || !b) return true;
@@ -367,12 +405,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   else {
     let posted = null;
     try {
-      posted = taskIssues.flatMap((n) => ops.issueComments(c, n)).filter((cm) => TRUSTED_ASSOC.has(cm.author_association)).flatMap((cm) => Object.values(parseStatusLines(cm.body)));
+      posted = taskIssues.flatMap((n) => (issueView && n === taskIssues[0] ? issueView.comments : ops.issueComments(c, n))).filter((cm) => TRUSTED_ASSOC.has(cm.author_association)).flatMap((cm) => Object.values(parseStatusLines(cm.body)));
     } catch (e) {
       no('verdicts', `could not read the task issue: ${e.message}`);
     }
     if (posted) {
-      for (const stage of need) {
+      // Every review line in the body is checked, required or not: a line is a claim.
+      for (const stage of [...new Set([...need, ...['rb-verifier', 'rb-auditor', 'rb-security-reviewer'].filter((st) => body.status[st])])]) {
         const line = body.status[stage];
         if (!line) continue;
         if (line.by === 'rb-review-delta' && stage === 'rb-verifier' && line['identical-to'] && (identity.get(line['identical-to']) || {}).class === 'identical') continue;
@@ -409,7 +448,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
@@ -490,7 +529,7 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
   const step = (what, fn) => {
     try { fn(); after.push({ step: what, ok: true }); } catch (e) { after.push({ step: what, ok: false, error: e.message }); }
   };
-  step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (tier ${g.tier}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
+  step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (${g.level ? `level ${g.level}` : `tier ${g.tier}`}${g.approval && g.approval.how === 'delegation' ? `, merged by delegation: ${g.approval.delegation.words}` : ''}${g.approval && g.approval.how === 'owner' ? `, plan approved by ${g.approval.approval.by || 'the owner'} on ${String(g.approval.approval.at).slice(0, 10)}` : ''}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
   step('pr-labels', () => ops.labelRemove(c, g.pr, 'rb:pr-open'));
   for (const n of g.closes) {
     step(`issue-${n}`, () => {

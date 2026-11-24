@@ -1,7 +1,7 @@
 // rb risk: mechanical autonomy tier from a diff (DESIGN.md section 6). A model may raise it, never lower it.
 import { isTestPath } from './delta.mjs';
 import path from 'node:path';
-import { contractInfo } from './contract.mjs';
+import { contractInfo, parseAutonomy } from './contract.mjs';
 import { matchAny, normalizePath } from './glob.mjs';
 import { ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
@@ -125,10 +125,20 @@ function paidService(moduleId, table, py) {
 }
 
 // Exact service keys only: "Google Maps" in Paid services does not approve "google" (Gemini).
+// PLAN-1.0 A4: an entry names its service the way people write it ("Anthropic API (monthly cap USD
+// 20)", "Claude API con los créditos de Claude Max"): the name before "(" or ":", or the words
+// before "API" or "SDK", with Claude meaning Anthropic. "Google Maps" still does not approve google.
+const SERVICE_ALIASES = { claude: 'anthropic', gpt: 'openai', chatgpt: 'openai', gemini: 'google' };
 function approved(svc, paidServices) {
   const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const key = norm(svc);
-  return paidServices.some((s) => norm(s.split(/[(:]/)[0]) === key);
+  return paidServices.some((s) => {
+    const name = s.split(/[(:]/)[0];
+    const words = name.trim().split(/\s+/);
+    const cut = words.findIndex((w) => /^(api|sdk)$/i.test(w));
+    const names = [norm(name), cut > 0 ? norm(words.slice(0, cut).join('')) : null].filter(Boolean);
+    return names.some((n) => n === key || SERVICE_ALIASES[n] === key);
+  });
 }
 
 // Per-file added lines from a unified diff.
@@ -258,6 +268,9 @@ const HARNESS_GLOBS = FLOOR_PATHS.find((g) => g.rule === 'harness-secrets').glob
 const RUNTIME_DEP_FIELDS = /\((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/;
 const SPEC_DOC = /^docs\/specs\/[^/]+\/(requirements|design)\.md$/;
 
+// PLAN-1.0 A9: on level 2 the blind auditor runs only when something the user sees changes.
+export const USER_VISIBLE = ['**/*.tsx', '**/*.jsx', '**/*.vue', '**/*.svelte', '**/*.astro', '**/*.html', '**/*.css', '**/*.scss', '**/components/**', '**/pages/**', '**/app/**', '**/views/**', '**/templates/**', '**/public/**', '**/locales/**', '**/i18n/**', '**/messages/**', '**/prompts/**'];
+
 export function reviewLevel(tier, files = []) {
   const approvals = [];
   const levelReasons = [];
@@ -297,7 +310,8 @@ export function reviewLevel(tier, files = []) {
   // A lesson binds every agent: committed by a task it does not raise the level to 3 (A3), but it
   // is never merged without the verifier reading it.
   if (level === 1 && files.some((f) => normalizePath(f.path) === '.claude/LESSONS.md')) level = 2;
-  return { level, approvals, checks: [...checks], levelReasons };
+  const userVisible = files.some((f) => !isTestPath(f.path) && matchAny(normalizePath(f.path), USER_VISIBLE));
+  return { level, approvals, checks: [...checks], levelReasons, userVisible };
 }
 
 // PLAN-1.0 A3: task status, progress notes and lessons a task PR commits do not raise its tier or
@@ -490,7 +504,7 @@ export function computeRisk(root, opts = {}) {
 }
 
 function computeTier(root, { files: fileList, pr, base, gh } = {}) {
-  const autonomy = contractInfo(root);
+  let autonomy = contractInfo(root);
   if (fileList && fileList.length) {
     const files = fileList.map((p) => ({ path: normalizePath(p), status: 'modified', additions: 0, deletions: 0, added: null }));
     return { source: 'files', ...classify({ files, contentKnown: false, autonomy }), files: files.map((f) => f.path) };
@@ -498,6 +512,10 @@ function computeTier(root, { files: fileList, pr, base, gh } = {}) {
   if (pr) {
     if (!gh) throw new CliError('rb risk --pr needs GitHub access');
     const view = ops.prView(gh, pr);
+    // PLAN-1.0 A5: the rules a PR is judged by come from AGENTS.md at its base, never its head,
+    // so a PR cannot loosen Sensitive paths or Paid services for itself.
+    const baseContract = view.base && view.base.sha ? ops.fileAt(gh, 'AGENTS.md', view.base.sha) : null;
+    if (baseContract != null) autonomy = { ...autonomy, sensitivePaths: [], tierAPaths: [], paidServices: [], ...parseAutonomy(baseContract) };
     const prFiles = ops.prFiles(gh, pr);
     const files = prFiles.map((f) => ({ path: f.path, previousPath: f.previous_path, status: f.status === 'removed' ? 'deleted' : f.status, additions: f.additions, deletions: f.deletions, added: f.patch == null ? null : patchAdded(f.patch) }));
     const local = view.base && git(root, ['cat-file', '-e', `${view.base.sha}^{commit}`]).ok ? view.base.sha : resolveBaseRef(root, view.base ? view.base.ref : defaultBranch(root));

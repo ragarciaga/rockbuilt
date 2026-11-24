@@ -106,10 +106,12 @@ test('rb gh: issue-edit --add-label works, unknown flags fail loudly, pr-create 
   write(root, 'body.md', 'Closes #3\n<!-- rockbuilt:tier B -->\n');
   r = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-x', '--base', 'main', '--title', 't', '--body-file', 'body.md'], { ghRunner: gh.runner });
   assert.equal(r.code, 0, r.err);
-  assert.ok(gh.state.issues[r.json.number].labels.includes('rb:tier-b'));
-  assert.deepEqual(prLabels('<!-- rockbuilt:tier C -->', ['rb:hold']), ['rb:hold', 'rb:tier-c']);
+  assert.ok(gh.state.issues[r.json.number].labels.includes('rb:level-2'));
+  assert.deepEqual(prLabels('<!-- rockbuilt:tier C -->', ['rb:hold']), ['rb:hold', 'rb:level-3']);
+  assert.deepEqual(prLabels('<!-- rockbuilt:level 1 -->', ['rb:hold']), ['rb:hold', 'rb:level-1']);
   assert.deepEqual(prLabels('no marker', ['rb:hold']), ['rb:hold']);
-  assert.throws(() => prLabels('<!-- rockbuilt:tier C -->', ['rb:tier-b']), /declares tier C/);
+  assert.throws(() => prLabels('<!-- rockbuilt:tier C -->', ['rb:tier-b']), /declares level 3/);
+  assert.throws(() => prLabels('<!-- rockbuilt:level 3 -->', ['rb:level-2']), /declares level 3/);
 });
 
 test('review-delta: a binary file changed after review is not identical', async () => {

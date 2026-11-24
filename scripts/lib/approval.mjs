@@ -1,0 +1,80 @@
+// Owner approval and delegated approval (DESIGN 29.5 and 29.6, PLAN-1.0 A5 and A6).
+//
+// Approval: the closed list in rb risk (schema, architecture, cost, irreversible, auth-model) asks
+// the owner to approve the plan, never the merge. The proof is a comment on the task issue from a
+// trusted author, without a harness marker (every harness comment carries one), newer than the
+// newest plan comment, whose first word approves. Never a flag the agent passes.
+//
+// Delegation: the owner hands the approvals of a scope to the harness for a while. The skill that
+// hears it records the owner's words on the control issue under
+//   <!-- rockbuilt:delegation scope=<all|milestone:NAME|issues:12,15> until=YYYY-MM-DD [include=cost,irreversible] [run=<id>] -->
+// A scope with run= is "full auto" for that run only (an unattended routine starts a new run id, so
+// it never inherits it). Cost and irreversible stay out unless include= names them. A newer
+// `<!-- rockbuilt:delegation-revoke -->` ends every delegation before it.
+
+const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+const MARKER = /<!--\s*rockbuilt:/;
+export const APPROVE_WORD = /^\s*(aprobado|aprobada|apruebo|approved?|ok|okay|dale|s[ií]|yes|lgtm|go|adelante|listo)\b/i;
+export const DELEGATION_DAYS = 14;
+const ALWAYS_OUT = ['cost', 'irreversible'];
+
+const trusted = (cm) => TRUSTED.has(cm.author_association);
+const time = (iso) => Date.parse(iso || '');
+
+// The owner's approval of the newest plan, or null.
+export function planApproval(comments) {
+  const plans = comments.filter((cm) => trusted(cm) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || ''));
+  if (!plans.length) return null;
+  const plan = plans[plans.length - 1];
+  const ok = comments.filter((cm) => trusted(cm) && !MARKER.test(cm.body || '') && time(cm.created_at) > time(plan.created_at) && APPROVE_WORD.test(cm.body || ''));
+  if (!ok.length) return null;
+  const a = ok[ok.length - 1];
+  return { by: a.author || null, at: a.created_at, words: String(a.body).trim().split('\n')[0].slice(0, 200), planAt: plan.created_at };
+}
+
+function addDays(iso, days) {
+  return new Date(time(iso) + days * 86400000).toISOString().slice(0, 10);
+}
+
+// Delegations in force at `at`, newest first.
+export function parseDelegations(comments, at = new Date().toISOString()) {
+  const out = [];
+  let revokedAt = -Infinity;
+  for (const cm of comments) {
+    if (!trusted(cm)) continue;
+    if (/<!--\s*rockbuilt:delegation-revoke\s*-->/.test(cm.body || '')) revokedAt = Math.max(revokedAt, time(cm.created_at));
+  }
+  for (const cm of comments) {
+    if (!trusted(cm)) continue;
+    const m = String(cm.body || '').match(/<!--\s*rockbuilt:delegation\s+([^>]*?)\s*-->/);
+    if (!m || time(cm.created_at) <= revokedAt) continue;
+    const kv = Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\S+)/g)].map((x) => [x[1], x[2]]));
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(kv.until || '') ? kv.until : addDays(cm.created_at, DELEGATION_DAYS);
+    if (`${until}T23:59:59Z` < at) continue;
+    const scope = kv.scope || 'all';
+    const words = String(cm.body).replace(m[0], '').trim().split('\n').find((l) => l.trim()) || '';
+    out.push({ scope, until, include: (kv.include || '').split(',').filter(Boolean), run: kv.run || null, at: cm.created_at, by: cm.author || null, words: words.slice(0, 200) });
+  }
+  return out.sort((a, b) => time(b.at) - time(a.at));
+}
+
+export function delegationCovers(d, { issue, milestone = null, reasons = [], run = null }) {
+  if (d.run && d.run !== run) return false;
+  const [kind, value = ''] = d.scope.split(':');
+  if (kind === 'issues') {
+    if (!value.split(',').map((x) => Number(x.replace('#', ''))).includes(Number(issue))) return false;
+  } else if (kind === 'milestone') {
+    if (!milestone || milestone.toLowerCase() !== value.toLowerCase().replace(/_/g, ' ')) return false;
+  } else if (kind !== 'all') return false;
+  return reasons.every((r) => !ALWAYS_OUT.includes(r) || d.include.includes(r));
+}
+
+// { ok, how: 'owner' | 'delegation' | null, detail }
+export function approvalStatus({ reasons, issueComments = [], controlComments = [], issue, milestone = null, run = null, at = new Date().toISOString() }) {
+  if (!reasons.length) return { ok: true, how: null };
+  const a = planApproval(issueComments);
+  if (a) return { ok: true, how: 'owner', approval: a };
+  const d = parseDelegations(controlComments, at).find((x) => delegationCovers(x, { issue, milestone, reasons, run }));
+  if (d) return { ok: true, how: 'delegation', delegation: d };
+  return { ok: false, how: null, detail: `needs the owner's approval of the plan on #${issue} (${reasons.join(', ')}): a comment from the owner starting with "aprobado" or "approved", newer than the plan, or a delegation that covers it` };
+}

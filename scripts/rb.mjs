@@ -668,20 +668,28 @@ const handlers = {
         try { risk = computeRisk(root, { base: `origin/${base}` }); } catch { risk = null; }
         const file = typeof flags['body-file'] === 'string' ? path.resolve(cwd, flags['body-file']) : null;
         const text = file ? readText(file) : typeof flags.body === 'string' ? flags.body : null;
-        const declared = text && (text.match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
-        const rank = (t) => 'ABC'.indexOf(String(t || 'A').toUpperCase());
-        if (risk && text !== null && rank(risk.tier) > rank(declared)) {
-          raised = { from: declared ? declared.toUpperCase() : null, to: risk.tier, reasons: risk.reasons.filter((r) => r.rule !== 'tier-b').slice(0, 5).map((r) => `${r.rule} ${r.path} ${r.detail || ''}`.trim()) };
-          const marker = `<!-- rockbuilt:tier ${risk.tier} -->`;
-          flags.body = declared ? text.replace(/<!--\s*rockbuilt:tier\s+[ABC]\s*-->/i, marker) : `${text.trimEnd()}\n${marker}\n`;
+        const lv = text && (text.match(/<!--\s*rockbuilt:level\s+([123])\s*-->/i) || [])[1];
+        const tv = text && (text.match(/<!--\s*rockbuilt:tier\s+([ABC])\s*-->/i) || [])[1];
+        const declared = lv ? Number(lv) : tv ? 'ABC'.indexOf(tv.toUpperCase()) + 1 : null;
+        if (risk && text !== null && risk.level > (declared || 1)) {
+          raised = { from: declared, to: risk.level, reasons: (risk.levelReasons || []).slice(0, 5).map((r) => `${r.rule} ${r.path || ''} ${r.detail || ''}`.trim()) };
+          const marker = `<!-- rockbuilt:level ${risk.level} -->`;
+          let body = text.replace(/<!--\s*rockbuilt:tier\s+[ABC]\s*-->\n?/i, '');
+          body = lv ? body.replace(/<!--\s*rockbuilt:level\s+[123]\s*-->/i, marker) : `${body.trimEnd()}\n${marker}\n`;
+          flags.body = body;
           delete flags['body-file'];
-          if (typeof flags.label === 'string') flags.label = flags.label.split(',').filter((l) => !/^rb:tier-[abc]$/i.test(l.trim())).join(',') || undefined;
+          if (typeof flags.label === 'string') flags.label = flags.label.split(',').filter((l) => !/^rb:(tier-[abc]|level-[123])$/i.test(l.trim())).join(',') || undefined;
           if (flags.label === undefined) delete flags.label;
+        }
+        // PLAN-1.0 A8: a PR whose plan waits for the owner says so on GitHub.
+        if (risk && risk.approvals && risk.approvals.length) {
+          const extra = 'rb:approval-pending';
+          flags.label = typeof flags.label === 'string' ? `${flags.label},${extra}` : extra;
         }
       }
     }
     const data = runGhOp(client(root, flags, io), op, rest, flags, { cwd, defaultBranch: () => defaultBranch(root) });
-    if (raised) data.tierRaised = raised;
+    if (raised) data.levelRaised = raised;
     if (op === 'pr-create') {
       const bodyText = typeof flags.body === 'string' ? flags.body : typeof flags['body-file'] === 'string' ? readText(path.resolve(cwd, flags['body-file'])) : null;
       const t = taskMarker(bodyText);

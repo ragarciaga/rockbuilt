@@ -75,7 +75,7 @@ test('merge-gate: eligible tier A merges with squash at the head sha, then comme
   assert.ok(gh.calls.every((c) => !/graphql/.test(c.path)));
 });
 
-test('merge-gate: tier B needs the auditor line; stale verifier head is refused', async () => {
+test('merge-gate: a sampled level 2 PR needs the auditor line; stale verifier head is refused', async () => {
   const root = project();
   let gh = fakeGh();
   seed(gh, { tier: 'B', body: `${statusLine('rb-verifier')}\n` });
@@ -86,11 +86,18 @@ test('merge-gate: tier B needs the auditor line; stale verifier head is refused'
   assert.equal(gh.state.merges.length, 0);
 
   gh = fakeGh();
+  seed(gh, { tier: 'B', number: 11, body: `${statusLine('rb-verifier', '0000000aaaa')}\n` });
+  await locked(root, gh);
+  r = await rbJson(root, ['merge-gate', '11', '--run', 'run-1'], { ghRunner: gh.runner });
+  assert.equal(r.code, 3);
+  assert.deepEqual(reasonRules(r), ['stale-head'], 'level 2, not visible, not sampled: no auditor needed');
+
+  // Level 1 merges on CI alone (PLAN-1.0 A9): a stale verifier line does not matter.
+  gh = fakeGh();
   seed(gh, { body: `${statusLine('rb-verifier', '0000000aaaa')}\n` });
   await locked(root, gh);
-  r = await gate(root, gh, ['--run', 'run-1']);
-  assert.equal(r.code, 3);
-  assert.deepEqual(reasonRules(r), ['stale-head']);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 
   gh = fakeGh();
   seed(gh, { body: `${statusLine('rb-verifier')}\n<!-- rockbuilt:security required -->\n` });
@@ -122,27 +129,47 @@ test('merge-gate: failing check, pending check and missing CI', async () => {
   assert.deepEqual(reasonRules(r), ['ci']);
 });
 
-test('merge-gate: label tier lower than the live risk, and declared tier above the label', async () => {
+test('merge-gate: label level lower than the live risk, declared level above the label, approval from the owner', async () => {
   const root = project();
   let gh = fakeGh();
   seed(gh, { tier: 'A', files: [{ filename: 'src/feature.js', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }] });
   await locked(root, gh);
   let r = await gate(root, gh, ['--run', 'run-1']);
   assert.equal(r.code, 3);
-  assert.ok(r.json.reasons.some((x) => x.rule === 'risk' && /tier B but the label is tier A/.test(x.detail)));
+  assert.ok(r.json.reasons.some((x) => x.rule === 'risk' && /level 2 but the label is level 1/.test(x.detail)));
 
   gh = fakeGh();
   seed(gh, { tier: 'B', files: [{ filename: 'supabase/migrations/1.sql', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }] });
   await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1']);
-  assert.ok(r.json.reasons.some((x) => x.rule === 'risk' && /tier C/.test(x.detail)));
-  assert.ok(r.json.reasons.some((x) => x.rule === 'tier-c'));
+  assert.ok(r.json.reasons.some((x) => x.rule === 'risk' && /level 3/.test(x.detail)));
+  assert.ok(r.json.reasons.some((x) => x.rule === 'approval' && /schema/.test(x.detail)));
 
   gh = fakeGh();
   seed(gh, { body: `${statusLine('rb-verifier')}\n<!-- rockbuilt:tier B -->\n` });
   await locked(root, gh);
   r = await gate(root, gh, ['--run', 'run-1']);
-  assert.ok(r.json.reasons.some((x) => x.rule === 'declared-tier'));
+  assert.ok(r.json.reasons.some((x) => x.rule === 'declared-level'));
+
+  // Schema needs the owner's own comment on the plan, newer than it; then the merge is automatic.
+  const migration = [{ filename: 'supabase/migrations/1.sql', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }];
+  const full = `Closes #3\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor')}\n<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  gh = fakeGh();
+  seed(gh, { labels: ['rb:level-3', 'rb:pr-open'], files: migration, body: full });
+  await locked(root, gh);
+  gh.state.comments[3].push({ id: 5000, body: '<!-- rockbuilt:plan base=abc tier=C -->\nPlan', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T01:00:00Z' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual(reasonRules(r), ['approval']);
+  r = await gate(root, gh, ['--run', 'run-1', '--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('approval'), 'never a flag');
+  gh.state.comments[3].push({ id: 5001, body: '<!-- rockbuilt:note -->\naprobado', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T02:00:00Z' });
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual(reasonRules(r), ['approval'], 'a harness comment is not the owner');
+  gh.state.comments[3].push({ id: 5002, body: 'aprobado, adelante', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T03:00:00Z' });
+  r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.equal(r.json.approval.how, 'owner');
+  assert.ok(gh.state.comments[10].some((cm) => /level 3, plan approved by owner/.test(cm.body)));
 });
 
 test('merge-gate: a quick batch merges within the quick limits and is refused once it outgrew them (#63)', async () => {
@@ -174,12 +201,12 @@ test('merge-gate: a quick batch merges within the quick limits and is refused on
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
 });
 
-test('merge-gate: blocking labels, draft, wrong base, not mergeable, no tier label', async () => {
+test('merge-gate: blocking labels, draft, wrong base, not mergeable, no level label', async () => {
   const root = project();
   const cases = [
     [{ labels: ['rb:tier-a', 'rb:hold'] }, 'blocking-label'],
     [{ labels: ['rb:tier-a', 'rb:needs-human'] }, 'blocking-label'],
-    [{ labels: ['rb:pr-open'] }, 'tier-label'],
+    [{ labels: ['rb:pr-open'] }, 'level-label'],
     [{ draft: true }, 'draft'],
     [{ base: 'develop' }, 'base'],
     [{ mergeable: false }, 'mergeable'],
@@ -216,32 +243,45 @@ test('merge-gate: stop switch on, and lock not held by this run', async () => {
   assert.deepEqual(reasonRules(r), ['lock']);
 });
 
-test('merge-gate --human-approved: tier C allowed without the lock; still needs CI and the verifier', async () => {
+test('merge-gate: level 3 needs all three reviews; --human-approved only skips the lock; a delegation covers approvals', async () => {
   const root = project();
   const gh = fakeGh();
   seed(gh, {
-    tier: 'C',
-    labels: ['rb:tier-c', 'rb:needs-human'],
+    labels: ['rb:tier-c'],
     files: [{ filename: 'src/auth/login.js', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }],
     body: `Closes #3\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor')}\n`,
   });
-  let r = await gate(root, gh, ['--run', 'run-1']);
-  assert.equal(r.code, 3);
-  assert.ok(reasonRules(r).includes('tier-c'));
-  // An auth path needs the security review whatever the body says (rockbuilt #42).
-  r = await gate(root, gh, ['--human-approved', '--dry-run']);
-  assert.ok(reasonRules(r).includes('security'), JSON.stringify(r.json.reasons));
+  let r = await gate(root, gh, ['--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('status-line'), JSON.stringify(r.json.reasons));
+  assert.ok(reasonRules(r).includes('security'), 'an auth path needs the security review whatever the body says (#42)');
   gh.state.issues[10].body += `<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
   gh.state.comments[3].push({ id: 4000, body: statusLine('rb-security-reviewer'), user: { login: 'rb-bot' }, author_association: 'OWNER' });
   r = await gate(root, gh, ['--human-approved']);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
   assert.equal(r.json.merged, true);
-  assert.equal(r.json.tier, 'C');
+  assert.equal(r.json.level, 3);
   gh.state.issues[10].state = 'open';
   gh.state.pulls[10].merged_at = null;
   gh.state.checkRuns[HEAD] = [];
   r = await gate(root, gh, ['--human-approved']);
   assert.ok(reasonRules(r).includes('ci'));
+});
+
+test('merge-gate: a delegation on the control issue covers schema approvals in its scope, and says so', async () => {
+  const root = project();
+  const gh = fakeGh();
+  const full = `Closes #3\n${statusLine('rb-verifier')}\n${statusLine('rb-auditor')}\n<!-- rockbuilt:security required -->\n${statusLine('rb-security-reviewer')}\n`;
+  seed(gh, { labels: ['rb:level-3'], files: [{ filename: 'supabase/migrations/1.sql', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }], body: full });
+  await locked(root, gh);
+  const ctl = Object.values(gh.state.issues).find((i) => (i.labels || []).includes('rb:control'));
+  const until = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  gh.state.comments[ctl.number].push({ id: 6000, body: `<!-- rockbuilt:delegation scope=issues:4 until=${until} -->\n> "delego la 4"`, user: { login: 'owner' }, author_association: 'OWNER', created_at: new Date().toISOString() });
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.deepEqual(reasonRules(r), ['approval'], 'out of scope');
+  gh.state.comments[ctl.number].push({ id: 6001, body: `<!-- rockbuilt:delegation scope=issues:3 until=${until} -->\n> "delego la 3"`, user: { login: 'owner' }, author_association: 'OWNER', created_at: new Date().toISOString() });
+  r = await gate(root, gh, ['--run', 'run-1']);
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.ok(gh.state.comments[10].some((cm) => /merged by delegation: > "delego la 3"/.test(cm.body)));
 });
 
 test('lock: acquire, refuse while held, take over after 3 hours, release', async () => {
@@ -253,7 +293,7 @@ test('lock: acquire, refuse while held, take over after 3 hours, release', async
     assert.equal(a.code, 0);
     assert.equal(a.json.control, 1);
     assert.deepEqual(gh.state.issues[1].labels.sort(), ['rb:control', 'rb:running']);
-    assert.equal(Object.keys(gh.state.labels).length, 17, 'labels ensured with the control issue');
+    assert.equal(Object.keys(gh.state.labels).length, 21, 'labels ensured with the control issue');
   });
   await withEnv({ RB_NOW: '2026-10-09T03:59:00.000Z' }, async () => {
     const b = await rbJson(root, ['lock', 'acquire', '--run', 'n2'], io);
@@ -375,12 +415,12 @@ test('rb gh ops: issue-view with comments and association, checks merge, labels-
   assert.deepEqual(checks.json.map((c) => [c.name, c.status, c.conclusion]), [['rockbuilt-ci', 'completed', 'success'], ['ci/legacy', 'completed', 'failure']]);
 
   const labels = await rbJson(root, ['labels'], io);
-  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 17);
+  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 21);
   assert.ok((await rbJson(root, ['gh', 'labels-ensure'], io)).json.every((l) => l.action === 'ok'));
 
   const pr = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-x', '--title', 'T1', '--body-file', path.join(dir, 'b.md'), '--label', 'rb:tier-a'], io);
   assert.equal(pr.code, 0, pr.err);
-  assert.deepEqual(pr.json.labels, ['rb:tier-a']);
+  assert.deepEqual(pr.json.labels, ['rb:level-1'], 'an old tier label becomes its level (PLAN-1.0 A8)');
   const prCall = gh.calls.find((c) => c.method === 'POST' && /pulls$/.test(c.path));
   assert.equal(prCall.body.base, 'main', 'base defaults to the contract default branch');
   assert.equal((await rbJson(root, ['gh', 'pr-list', '--head-prefix', 'rb/'], io)).json.length, 1);

@@ -12,9 +12,14 @@ export const LABELS = [
   { name: 'rb:blocked', color: 'b60205', description: 'Failed after the kickback budget or cannot proceed' },
   { name: 'rb:in-progress', color: 'fbca04', description: 'Being planned or implemented' },
   { name: 'rb:pr-open', color: '0e8a16', description: 'Pull request open' },
-  { name: 'rb:tier-a', color: 'c2e0c6', description: 'Risk tier A: tests, docs, styles; automatic merge' },
-  { name: 'rb:tier-b', color: 'fef2c0', description: 'Risk tier B: production code; automatic merge after audit' },
-  { name: 'rb:tier-c', color: 'f9d0c4', description: 'Risk tier C: human approval and human merge' },
+  { name: 'rb:level-1', color: 'c2e0c6', description: 'Level 1: docs, styles, copy, added tests; merges on CI' },
+  { name: 'rb:level-2', color: 'fef2c0', description: 'Level 2: product code; verifier, auditor when visible' },
+  { name: 'rb:level-3', color: 'f9d0c4', description: 'Level 3: sensitive; verifier, auditor and security' },
+  { name: 'rb:approval-pending', color: 'e99695', description: 'The plan waits for the owner (schema, architecture, cost, irreversible)' },
+  // Before 1.0 (PLAN-1.0 A8): still read by the gate as levels 1, 2 and 3.
+  { name: 'rb:tier-a', color: 'c2e0c6', description: 'Before 1.0: read as level 1' },
+  { name: 'rb:tier-b', color: 'fef2c0', description: 'Before 1.0: read as level 2' },
+  { name: 'rb:tier-c', color: 'f9d0c4', description: 'Before 1.0: read as level 3' },
   { name: 'rb:needs-human', color: 'e99695', description: 'Waiting for a human decision' },
   { name: 'rb:needs-local', color: 'd4c5f9', description: 'Needs a step on the user machine' },
   { name: 'rb:approved', color: '0e8a16', description: 'Human approved the plan as posted' },
@@ -130,6 +135,7 @@ export function shapeIssue(i) {
     closed_at: i.closed_at || null,
     url: i.html_url || null,
     comment_count: typeof i.comments === 'number' ? i.comments : null,
+    milestone: i.milestone && i.milestone.title ? i.milestone.title : null,
   };
 }
 
@@ -555,17 +561,20 @@ export function replaceMachineLine(body, line) {
   return lines.join('\n');
 }
 
-// pr-create labels: the body's `<!-- rockbuilt:tier X -->` adds rb:tier-x when no tier label was
-// given; a given tier label below the declared tier is refused (the gate would refuse it later).
+// pr-create labels (PLAN-1.0 A8): the body's `<!-- rockbuilt:level N -->` (or, before 1.0, its
+// tier line) adds rb:level-N when no level label was given; a given level label below the declared
+// level is refused (the gate would refuse it later). Old tier labels given by hand become levels.
+const LEVEL_MARKER = /<!--\s*rockbuilt:level\s+([123])\s*-->/i;
 export function prLabels(body, labels) {
-  const m = String(body || '').match(TIER_MARKER);
-  if (!m) return labels;
-  const declared = m[1].toUpperCase();
-  const given = labels.filter((l) => /^rb:tier-[abc]$/i.test(l)).map((l) => l.slice(-1).toUpperCase());
-  if (!given.length) return [...labels, `rb:tier-${declared.toLowerCase()}`];
-  const rank = (t) => 'ABC'.indexOf(t);
-  if (given.some((t) => rank(t) < rank(declared))) throw new CliError(`the body declares tier ${declared} but --label gives rb:tier-${given.map((t) => t.toLowerCase()).join(',rb:tier-')}`, 2);
-  return labels;
+  const lv = String(body || '').match(LEVEL_MARKER);
+  const tm = String(body || '').match(TIER_MARKER);
+  const declared = lv ? Number(lv[1]) : tm ? 'ABC'.indexOf(tm[1].toUpperCase()) + 1 : null;
+  const out = labels.map((l) => (/^rb:tier-[abc]$/i.test(l) ? `rb:level-${'abc'.indexOf(l.slice(-1).toLowerCase()) + 1}` : l));
+  const given = out.filter((l) => /^rb:level-[123]$/.test(l)).map((l) => Number(l.slice(-1)));
+  if (declared == null) return [...new Set(out)];
+  if (!given.length) return [...new Set([...out, `rb:level-${declared}`])];
+  if (given.some((n) => n < declared)) throw new CliError(`the body declares level ${declared} but --label gives rb:level-${given.join(',rb:level-')}`, 2);
+  return [...new Set(out)];
 }
 
 export function runGhOp(c, op, positionals, flags, { cwd, defaultBranch }) {
