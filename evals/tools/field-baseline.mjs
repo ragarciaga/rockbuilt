@@ -23,6 +23,7 @@
 //   `rb merge-gate --human-approved`, and merges with no merge-gate comment (done by hand).
 //   Per day = total over the calendar days from the first to the last merge, both included.
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const REVIEWERS = { 'rb-verifier': 'verifier', 'rb-auditor': 'auditor', 'rb-security-reviewer': 'security' };
 const SOURCES = ['verifier', 'auditor', 'security', 'mechanical', 'ci'];
@@ -144,7 +145,7 @@ export function toMarkdown(b) {
   return out.join('\n');
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('field-baseline.mjs')) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.argv[2];
   if (!file || file === '--help') {
     console.log('Usage: node evals/tools/field-baseline.mjs <dump.json> [--md]');
