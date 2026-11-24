@@ -38,8 +38,8 @@ moment; work that needs the owner still ends with an approval request for them.
 - Update the task Decision log and progress.md after every task.
 - Hard limits are yours, not the evaluator's. When one trips, print why, write it to progress.md,
   and state that the goal cannot be met.
-- Never use goal mode to skip a human gate: owner approval and ungroundable BLOCKING questions still go to
-  `rb escalate`.
+- Never use goal mode to skip a human gate: plans on the closed list (schema, architecture, auth model,
+  cost, irreversible) still go to `rb escalate`; other gaps take the safe default and are reported.
 
 ## After the goal clears
 

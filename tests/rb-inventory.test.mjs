@@ -17,7 +17,7 @@ As a vet, I want alerts.
 - What if: a send fails 10 times, the case shows "not delivered" (default)
 - Who can: any logged-in vet sees the case list (owner)
 - Data: n/a: alerts store no personal data
-- Definitions: "on duty" means inside the working hours in Settings${extra}
+- Definitions: "on duty" means inside the working hours in Settings (default)${extra}
 `;
 
 test('E1: a complete inventory passes; missing, empty or reasonless n/a lines fail', () => {
@@ -39,4 +39,15 @@ test('E1: rb spec check exits 3 with the problems, 0 when complete', async () =>
   const bad = await rbJson(root, ['spec', 'check', 'docs/specs/02-y']);
   assert.equal(bad.code, 3);
   assert.ok(bad.json.problems.some((p) => /no "### Decisions" block/.test(p)));
+});
+
+test('independent review of 1.2.0: the shipped template fails; marks are required; odd headings and sub-bullets', async () => {
+  const { readFileSync } = await import('node:fs');
+  const tpl = readFileSync(new URL('../harness/skills/rb-spec/templates/requirements.md', import.meta.url), 'utf8');
+  assert.ok(inventoryProblems(tpl).length > 0, 'the unedited template never passes');
+  assert.ok(inventoryProblems(full('R1').replace('up to 10 retries per vet per case (default)', 'up to 10 retries')).some((p) => /does not end with \(default\) or \(owner\)/.test(p)));
+  assert.ok(inventoryProblems(full('R1').replace('up to 10 retries per vet per case (default)', 'TBD (default)')).some((p) => /placeholder/.test(p)));
+  assert.ok(inventoryProblems(`${full('R1')}\n## R2 - Other\n- R2.1 The system shall y. \`[unit]\`\n`).some((p) => /R2 has no/.test(p)), 'a heading typo does not skip R2');
+  const sub = full('R1').replace('- Numbers: up to 10 retries per vet per case (default)', '- Numbers:\n  - up to 10 retries per vet per case (default)').replace('### Decisions', '### Decisions (R1)');
+  assert.deepEqual(inventoryProblems(sub), [], 'sub-bullets and a heading suffix are fine');
 });

@@ -81,7 +81,8 @@ Follow `references/validation.md` (this skill's folder). In short:
 5. **Classify Project type:** any of `web`, `ai`, `automation`. It drives the verify gates (E2E
    for web, evals for ai) and what `rb vendor --type` installs.
 
-Close each ambiguous decision one at a time with a recommended answer. Unknown library with no
+Close the ambiguous decisions in one round: each numbered, with a recommended answer, so the user
+answers once (PLAN-1.0 E2). Unknown library with no
 prior experience? Mark a benchmark as DEFERRED for `/rb-spec` instead of guessing.
 
 ## Step 3: Interview the remaining areas (batched)

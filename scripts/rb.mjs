@@ -714,7 +714,7 @@ const handlers = {
     if (!pr) throw new CliError('usage: rb merge-gate <pr> --run <id> | --human-approved [--dry-run]', 2);
     const r = mergeGate(root, client(root, flags, io), pr, { dryRun: Boolean(flags['dry-run']), run: stringFlag(flags, 'run') || null, humanApproved: Boolean(flags['human-approved']) });
     // PLAN-1.0 C4: a PR held for the owner starts the human-wait phase; CI minutes stop counting.
-    if (!r.merged && r.task && (r.reasons || []).some((x) => ['approval', 'human-only'].includes(x.rule) || (x.rule === 'blocking-label' && /needs-human|hold/.test(x.detail)))) autoPhase(mainCheckoutRoot(root), r.task, 'wait');
+    if (!r.merged && !flags['dry-run'] && r.task && (r.reasons || []).some((x) => (x.rule === 'approval' && /needs the owner|does not name/.test(x.detail)) || x.rule === 'human-only' || (x.rule === 'blocking-label' && /needs-human|hold/.test(x.detail)))) autoPhase(mainCheckoutRoot(root), r.task, 'wait');
     if (r.merged && r.task) {
       // Close the task's phases and publish its minutes on the merged PR, so the numbers live on
       // GitHub even when the orchestrator never ran `rb timing line` (rockbuilt #49).

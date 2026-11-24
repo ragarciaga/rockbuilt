@@ -1336,3 +1336,14 @@ categories (`evals/results/2026-11-24-inventory-doorcas.md`). Issue #79.
 4. **Doorcas check (E4).** The six categories cover 17 of the 18 gaps Doorcas escalated; the 18th
    was structural and still asks. 7 of the 18 still carry a closed-list approval; the inventory
    moves them to spec approval, in the same round.
+5. **Independent review of 1.1.0 and 1.2.0.** A reviewer with no context found, and each now has a
+   test: the batch line closed spec tasks, issues already in another PR and parked follow-ups (now
+   refused); the shipped requirements template passed `rb spec check`, values needed no
+   `(default)`/`(owner)` mark, a `## R2 - x` heading skipped its requirement, and sub-bullets or
+   `### Decisions (R1)` were rejected (all fixed); the permissions log kept up to 120 characters
+   (a `KEY=value` or a heredoc body) and proposed rules such as `git -C`, `node -e` or `cat`
+   from a heredoc (now only the first words, values and anything after a quote or redirection
+   dropped, and a group with one risky command is never proposed); `rb sync` closed phases at sync
+   time in the wrong checkout (now at the merge time, in the main checkout, never over a newer
+   start); a dry-run gate opened the `wait` phase; test files counted by another rule than
+   `isTestPath`; kickoff and goal mode still asked one question at a time or escalated every gap.

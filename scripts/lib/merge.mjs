@@ -420,10 +420,11 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
       if (allIssues.includes(n)) continue;
       let bi = null;
       try { bi = ops.issueView(c, n); } catch (e) { no('batch', `could not read #${n}: ${e.message}`); continue; }
-      const held = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:hold', 'rb:blocked'].filter((l) => bi.labels.includes(l));
+      const held = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:hold', 'rb:blocked', 'rb:unplanned', 'rb:parked', 'rb:pr-open', 'rb:in-progress'].filter((l) => bi.labels.includes(l));
       if (bi.state !== 'open') no('batch', `batched #${n} is ${bi.state}`);
       else if (held.length) no('batch', `batched #${n} carries ${held.join(', ')}`);
       else if (!bi.labels.some((l) => ['rb:task', 'rb:bug'].includes(l))) no('batch', `batched #${n} is not an rb:task or rb:bug issue`);
+      else if (/<!--\s*rockbuilt:task\s+\S+\s+spec=docs\//.test(bi.body || '')) no('batch', `batched #${n} is a spec task: spec tasks are built from tasks.md, never batched`);
     }
   }
   const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;

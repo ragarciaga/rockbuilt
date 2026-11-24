@@ -183,7 +183,7 @@ test('merge-gate: label level lower than the live risk, declared level above the
   assert.deepEqual(reasonRules(r), ['approval']);
   // PLAN-1.0 C4: the wait for the owner is its own phase, not CI time.
   gh.state.issues[10].body += '<!-- rockbuilt:task T1 -->\n';
-  await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  await gate(root, gh, ['--run', 'run-1']);
   const events = readFileSync(path.join(root, '.rockbuilt', 'timing.jsonl'), 'utf8');
   assert.match(events, /"task":"T1","phase":"wait","event":"start"/);
   r = await gate(root, gh, ['--run', 'run-1', '--human-approved', '--dry-run']);

@@ -399,4 +399,5 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   requisito con `rb spec check` y chequeo en el gate para specs nuevos; una ronda de preguntas
   con defaults; huecos en construcción con default seguro y sección "Defaults tomados" en el
   resumen. E4: las seis categorías cubren 17 de los 18 huecos que Doorcas escaló
-  (`evals/results/2026-11-24-inventory-doorcas.md`). Eval nuevo `spec-inventory-es`. Evals 23/23, 14,39 USD (`evals/results/2026-11-24-1.2.md`); el eval nuevo encontró que el paso 1 de rb-spec seguía preguntando de a una (corregido).
+  (`evals/results/2026-11-24-inventory-doorcas.md`). Eval nuevo `spec-inventory-es`. Evals 23/23, 15,77 USD con la repetición tras la revisión independiente (`evals/results/2026-11-24-1.2.md`); el eval nuevo encontró que el paso 1 de rb-spec seguía preguntando de a una (corregido).
+- 2026-11-24: Andrés pregunta si Rockbuilt se usa para construir Rockbuilt: no (se sigue el proceso del repo, sin planner, verifier ni gate). Desde entonces cada PR lleva una revisión independiente antes de fusionar; la de las fases 2 y 3 encontró 11 hallazgos (3 altos), todos corregidos con prueba (DESIGN 31.5).
