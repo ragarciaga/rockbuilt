@@ -49,7 +49,7 @@ export const PAID_PY = [
   ['groq', 'groq'], ['together', 'together'], ['pinecone', 'pinecone'], ['litellm', 'ai-provider'],
 ];
 
-const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/i;
+const SOURCE_EXT = /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro|sh|bash|ps1)$/i;
 // Base lookups ignore the harness and prose: a string in a README or in the vendored rb tables is not prior use.
 const BASE_EXCLUDES = [':(exclude)tools/rockbuilt', ':(exclude).claude', ':(exclude).agents', ':(exclude).codex', ':(exclude).cursor', ':(exclude)docs', ':(exclude)*.md'];
 // Hosts that name a standard or a code host, not a paid API (SVG xmlns, JSON schema, repo links).
@@ -296,8 +296,9 @@ export function reviewLevel(tier, files = []) {
       // A lockfile mirrors package.json: on its own it adds nothing to check.
       if (/(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(r.path)) continue;
       if (!/package\.json$/.test(r.path)) { checks.add('dependency'); continue; }
-      // A manifest whose content was not read (rb risk --files) may change a script: level 3.
-      if (/not inspected/.test(r.detail)) { levelReasons.push(r); continue; }
+      // A manifest whose content was not read (rb risk --files, too large, invalid) may change a
+      // script: level 3.
+      if (/not inspected|could not read|not valid JSON/.test(r.detail)) { levelReasons.push(r); continue; }
       for (const c of changes) {
         if (RUNTIME_DEP_FIELDS.test(c)) { if (!/^removed /.test(c)) checks.add('dependency'); } else if (/\(devDependencies\)$/.test(c)) continue;
         else if (/\(\w+\)$/.test(c)) levelReasons.push({ ...r, detail: c });
@@ -311,6 +312,12 @@ export function reviewLevel(tier, files = []) {
   // PLAN-1.0 B1: tests enter level 1 only when they add; a removed or changed line in a test file
   // can weaken an assertion, so it gets the verifier (level 2).
   if (level === 1 && files.some((f) => isTestPath(f.path) && (f.deletions || 0) > 0)) level = 2;
+  // A test file runs in CI with its secrets: one that spawns processes, calls the network or reads
+  // secret-like env vars is never merged unreviewed (adversarial review of 1.0).
+  if (level === 1) {
+    const runs = files.filter((f) => isTestPath(f.path) && (f.added || []).some((l) => !isComment(l) && (SECURITY_LINE[1][1].test(l) || NETWORK_CALL.test(l) || /process\.env|os\.environ|\$\{?[A-Z_]*(KEY|SECRET|TOKEN)/.test(l))));
+    if (runs.length) level = 2;
+  }
   // A lesson binds every agent: committed by a task it does not raise the level to 3 (A3), but it
   // is never merged without the verifier reading it.
   if (level === 1 && files.some((f) => normalizePath(f.path) === '.claude/LESSONS.md')) level = 2;
@@ -324,9 +331,13 @@ const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.cla
 // PLAN-1.0 A2: the size limit does not count tests or fixtures (quick mode still counts them).
 export const FIXTURE_GLOBS = ['**/fixtures/**', '**/__fixtures__/**', '**/testdata/**', '**/__snapshots__/**', '**/*.snap'];
 export const SIZE_LIMIT = 800;
+// Fixtures count as tests only inside a test tree: src/lib/fixtures/handler.js is product code.
+const TEST_ROOTS = ['tests/**', 'test/**', 'e2e/**', '**/__tests__/**', '**/tests/**', '**/test/**', 'spec/**'];
 
 function classifyTier({ files: allFiles, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
-  const files = allFiles.filter((f) => !BOOKKEEPING_RE.test(normalizePath(f.path)));
+  // Only a file that is and was a bookkeeping file: a rename into docs/progress.md still counts
+  // what it removed (adversarial review of 1.0).
+  const files = allFiles.filter((f) => !(BOOKKEEPING_RE.test(normalizePath(f.path)) && !f.previousPath && f.status !== 'renamed'));
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -418,7 +429,7 @@ function classifyTier({ files: allFiles, contentKnown = true, packageJson = () =
   const srcDeleted = deleted.filter((f) => normalizePath(f.path).startsWith('src/')).reduce((s, f) => s + (f.deletions || 0), 0);
   if (srcDeleted > 300) { add('deletions', 'src/', `${srcDeleted} lines deleted with files under src/`); floor = true; }
   const changed = allFiles.reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
-  const sized = files.filter((f) => !isTestPath(f.path) && !matchAny(normalizePath(f.path), FIXTURE_GLOBS)).reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
+  const sized = files.filter((f) => !isTestPath(f.path) && !(matchAny(normalizePath(f.path), FIXTURE_GLOBS) && matchAny(normalizePath(f.path), TEST_ROOTS))).reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
   if (sized > SIZE_LIMIT) { add('size', '', `${sized} changed lines outside tests and fixtures (> ${SIZE_LIMIT})`); floor = true; }
 
   if (floor) return { tier: 'C', reasons, changedLines: changed };
@@ -526,10 +537,23 @@ function computeTier(root, { files: fileList, pr, base, gh } = {}) {
     const local = view.base && git(root, ['cat-file', '-e', `${view.base.sha}^{commit}`]).ok ? view.base.sha : resolveBaseRef(root, view.base ? view.base.ref : defaultBranch(root));
     const packageJson = (p) => {
       const f = files.find((x) => x.path === p);
-      return { old: f && f.status === 'added' ? null : ops.fileAt(gh, p, view.base.sha), new: f && f.status === 'deleted' ? null : ops.fileAt(gh, p, view.head.sha) };
+      try {
+        return { old: f && f.status === 'added' ? null : ops.fileAt(gh, p, view.base.sha), new: f && f.status === 'deleted' ? null : ops.fileAt(gh, p, view.head.sha) };
+      } catch {
+        return null; // too large or unreadable: "could not read", level 3
+      }
     };
     const headText = (p) => { try { return ops.fileAt(gh, p, view.head.sha); } catch { return null; } };
     const r = classify({ files, packageJson, baseHas: baseGrepper(root, local), headText, autonomy });
+    // GitHub lists at most 3000 files (and paging may stop earlier): a list shorter than the PR's
+    // changed_files hides files, so nothing can be concluded from it (adversarial review of 1.0).
+    if (view.changed_files != null && files.length < view.changed_files) {
+      const hidden = { rule: 'files-not-listed', path: '', detail: `${files.length} of ${view.changed_files} changed files listed` };
+      r.reasons.push(hidden);
+      r.levelReasons.push(hidden);
+      r.level = 3;
+      r.tier = 'C';
+    }
     return { source: 'pr', pr: view.number, head: view.head ? view.head.sha : null, ...r, files: summary(files) };
   }
   const branch = base && base !== true ? base : defaultBranch(root);

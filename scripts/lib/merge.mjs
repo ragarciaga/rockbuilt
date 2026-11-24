@@ -14,6 +14,7 @@ import { approvalStatus } from './approval.mjs';
 import { dependencyCheck } from './deps.mjs';
 import { ensureControl } from './control.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
+import { matchAny } from './glob.mjs';
 
 const BLOCKING_LABELS = ['rb:needs-human', 'rb:blocked', 'rb:hold'];
 const LEVEL_OF_TIER = { A: 1, B: 2, C: 3 };
@@ -28,8 +29,8 @@ export const CI_CHECK = 'rockbuilt-ci';
 // behind a plan job, its check runs appear late, and "every present check is green" alone could
 // be read before they exist.
 export const E2E_CHECK = 'rockbuilt-e2e';
-function e2eRequired(root, checks, no) {
-  const { text } = readContract(root);
+function e2eRequired(root, checks, no, baseText = null) {
+  const text = baseText ?? readContract(root).text;
   if (!/^##\s+E2E\s*$/m.test(text || '')) return;
   const ok = checks.some((x) => x.name === E2E_CHECK && x.source === 'check-run' && x.app === 'github-actions' && x.status === 'completed' && x.conclusion === 'success');
   if (!ok) no('e2e', `no successful ${E2E_CHECK} check run on the head (AGENTS.md has ## E2E)`);
@@ -169,6 +170,11 @@ export function queuedBehind(root, c, view, head) {
 const BOOKKEEPING_PREFIX = 'rb/bookkeeping-';
 const HUMAN_ONLY_PREFIXES = ['rb/revert-', 'rb/spec-', 'rb/verify-', 'rb/kickoff', 'rb/adopt', 'rb/retro-', 'chore/rockbuilt-'];
 
+const KIND_FILES = [
+  ['rb/spec-', ['docs/specs/**', 'docs/adr/**', 'docs/research/**', 'docs/v2.md', 'docs/brief.md', 'AGENTS.md']],
+  ['rb/verify-', ['docs/specs/**', 'e2e/**', 'playwright.config.*', 'evals/**', '.gitignore', 'package.json', 'package-lock.json']],
+];
+
 export function prKind(headRef) {
   const ref = String(headRef || '');
   if (ref.startsWith(BOOKKEEPING_PREFIX)) return 'bookkeeping';
@@ -221,9 +227,10 @@ export function bookkeepingOnly(files) {
 
 // PLAN-1.0 A8: rb:level-1/2/3; the old tier labels still count during the transition.
 export function labelLevel(labels) {
-  for (const n of [3, 2, 1]) if (labels.includes(`rb:level-${n}`)) return n;
+  const lv = [3, 2, 1].find((n) => labels.includes(`rb:level-${n}`)) || 0;
   const t = labelTier(labels);
-  return t ? LEVEL_OF_TIER[t] : null;
+  const n = Math.max(lv, t ? LEVEL_OF_TIER[t] : 0);
+  return n || null;
 }
 
 function labelTier(labels) {
@@ -308,9 +315,13 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // PLAN-1.0 A9 and B2: level 1 merges on CI alone; level 2 gets the verifier, and the auditor
   // when something visible changes or the PR is sampled; level 3 gets all three.
   const need = [];
-  const sampled = view.number % AUDIT_SAMPLE === 0;
+  // Sampled by the head commit, which the agent cannot pick the way it can pick a PR number.
+  const sampled = Boolean(head) && Number.parseInt(String(head).slice(0, 8), 16) % AUDIT_SAMPLE === 0;
   if (level >= 2) need.push('rb-verifier');
-  if (level === 3 || (level === 2 && ((risk && risk.userVisible) || sampled))) need.push('rb-auditor');
+  // A bug fix (rb/B<n>) or an owner's quick request (rb/Q<n>) describes what the user sees: the blind
+  // auditor always checks it.
+  const askedByUser = /^rb\/[BQ]\d+/.test((view.head && view.head.ref) || '');
+  if (level === 3 || (level === 2 && ((risk && risk.userVisible) || sampled || askedByUser))) need.push('rb-auditor');
   if (level === 3) need.push('rb-security-reviewer');
   // rockbuilt #42: the diff decides too. A PR that rb risk says needs the security review gets it
   // whatever its body says; the plan can only add the review, never drop it.
@@ -372,19 +383,37 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // the issue is the record of every pass and fail, which is what rb quality counts. Lines that
   // rb wrote itself (a `by=rb-review-delta` verifier line with `identical-to`) are re-checked
   // above, not posted. A task PR names its issue (`Closes #n`, or `Part of #n` for a partial PR).
+  // `F5-T14` (a run's own prefix) names the spec task `T14` (rockbuilt #47).
+  const sameTask = (a, b) => {
+    if (!a || !b) return true;
+    const x = String(a).toLowerCase();
+    const y = String(b).toLowerCase();
+    return x === y || x.endsWith(`-${y}`) || y.endsWith(`-${x}`);
+  };
   const taskIssues = body.closes.length ? body.closes : body.partOf;
+  // One task issue per PR, open, and the same task (adversarial review of 1.0): a second Closes
+  // rode on the first issue's approval and was closed unreviewed; an old approved issue could
+  // lend its approval to any PR that named it.
+  const allIssues = [...new Set([...body.closes, ...body.partOf])];
+  if (allIssues.length > 1) no('task-issue', `the body names ${allIssues.map((n) => `#${n}`).join(', ')}: a task PR closes exactly one issue`);
   // PLAN-1.0 A5 and A6: the closed-list approvals (rb risk, plus auth-model when the plan declares
   // it) need the owner's comment on the plan or a delegation that covers the task. Never a flag.
   let issueView = null;
   if (taskIssues.length) {
     try { issueView = ops.issueView(c, taskIssues[0]); } catch (e) { no('approval', `could not read #${taskIssues[0]}: ${e.message}`); }
   }
+  if (issueView) {
+    if (issueView.state && issueView.state !== 'open') no('task-issue', `#${taskIssues[0]} is ${issueView.state}`);
+    const prTask = (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
+    const issueTask = (String(issueView.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
+    if (prTask && issueTask && !sameTask(prTask, issueTask)) no('task-issue', `the PR is task ${prTask} but #${taskIssues[0]} is task ${issueTask}`);
+  }
   const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;
   const declared = planLine ? ((planLine.body.match(/^<!--\s*rockbuilt:plan\b[^>]*\bapprovals=([\w,-]+)/m) || [])[1] || '').split(',').filter((x) => APPROVAL_REASONS.includes(x)) : [];
   // PLAN-1.0 A7: a runtime dependency outside the design that fails the check asks the owner.
   let deps = null;
   if (risk && (risk.checks || []).includes('dependency')) {
-    try { deps = dependencyCheck(root, risk); } catch (e) { deps = { ok: false, results: [], unsupported: [`check failed: ${e.message}`] }; }
+    try { deps = dependencyCheck(root, risk, { ref: view.base && view.base.sha }); } catch (e) { deps = { ok: false, results: [], unsupported: [`check failed: ${e.message}`] }; }
   }
   const approvalReasons = [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared, ...(deps && !deps.ok ? ['dependency'] : [])])];
   let approval = { ok: true, how: null };
@@ -396,17 +425,16 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
         const ctl = ensureControl(c, { create: false });
         if (ctl) controlComments = ops.issueComments(c, ctl.number);
       } catch { controlComments = []; }
-      approval = approvalStatus({ reasons: approvalReasons, issueComments: issueView.comments, controlComments, issue: taskIssues[0], milestone: issueView.milestone, run, at: now().toISOString() });
+      const perms = new Map();
+      const canApprove = (login) => {
+        if (!login) return false;
+        if (!perms.has(login)) { let p = null; try { p = ops.permission(c, login); } catch { p = null; } perms.set(login, p); }
+        return ['admin', 'maintain', 'write'].includes(perms.get(login));
+      };
+      approval = approvalStatus({ reasons: approvalReasons, issueComments: issueView.comments, controlComments, issue: taskIssues[0], milestone: issueView.milestone, run, at: now().toISOString(), canApprove });
     }
     if (!approval.ok && approval.detail) no('approval', approval.detail);
   }
-  // `F5-T14` (a run's own prefix) names the spec task `T14` (rockbuilt #47).
-  const sameTask = (a, b) => {
-    if (!a || !b) return true;
-    const x = String(a).toLowerCase();
-    const y = String(b).toLowerCase();
-    return x === y || x.endsWith(`-${y}`) || y.endsWith(`-${x}`);
-  };
   if (!taskIssues.length) no('verdicts', 'the body names no task issue (Closes #n or Part of #n): the verdicts are posted there');
   else {
     let posted = null;
@@ -435,7 +463,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     no('checks', `could not read checks: ${e.message}`);
   }
   if (!ciPassed(checks)) no('ci', `no successful ${CI_CHECK} check run from GitHub Actions on ${String(head).slice(0, 7)}: no CI, no automatic merge`);
-  e2eRequired(root, checks, no);
+  let baseContract = null;
+  try { baseContract = view.base && view.base.sha ? ops.fileAt(c, 'AGENTS.md', view.base.sha) : null; } catch { baseContract = null; }
+  e2eRequired(root, checks, no, baseContract);
   for (const x of checks) {
     if (x.status !== 'completed') no('checks', `${x.name} is ${x.status}`);
     else if (!OK_CONCLUSIONS.includes(x.conclusion)) no('checks', `${x.name} concluded ${x.conclusion}`);
@@ -463,6 +493,17 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   for (const l of ['rb:blocked', 'rb:hold']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'bookkeeping' && !humanApproved) for (const l of ['rb:needs-human', 'rb:tier-c']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'human-only' && !humanApproved) no('human-only', `${view.head.ref} PRs merge only when the user asks (--human-approved)`);
+  // A human-only branch name is not a way around the task gate (adversarial review of 1.0): a
+  // spec or verify PR may only touch what that kind writes.
+  const allowed = KIND_FILES.find(([prefix]) => view.head.ref.startsWith(prefix));
+  if (allowed) {
+    try {
+      const outside = ops.prFiles(c, view.number).flatMap((f) => [f.path, f.previous_path].filter(Boolean)).filter((p) => !matchAny(p, allowed[1]));
+      if (outside.length) no('kind-files', `${allowed[0]}* PRs touch only ${allowed[1].join(', ')}; this one also changes ${outside.slice(0, 5).join(', ')}: build it as a task`);
+    } catch (e) {
+      no('kind-files', `could not read files: ${e.message}`);
+    }
+  }
   if (kind === 'bookkeeping') {
     let files = [];
     try {
@@ -536,11 +577,12 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
     try { fn(); after.push({ step: what, ok: true }); } catch (e) { after.push({ step: what, ok: false, error: e.message }); }
   };
   step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (${g.level ? `level ${g.level}` : `tier ${g.tier}`}${g.approval && g.approval.how === 'delegation' ? `, merged by delegation: ${g.approval.delegation.words}` : ''}${g.approval && g.approval.how === 'owner' ? `, plan approved by ${g.approval.approval.by || 'the owner'} on ${String(g.approval.approval.at).slice(0, 10)}` : ''}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
-  step('pr-labels', () => ops.labelRemove(c, g.pr, 'rb:pr-open'));
+  step('pr-labels', () => { ops.labelRemove(c, g.pr, 'rb:pr-open'); ops.labelRemove(c, g.pr, 'rb:approval-pending'); });
   for (const n of g.closes) {
     step(`issue-${n}`, () => {
       ops.labelRemove(c, n, 'rb:in-progress');
       ops.labelRemove(c, n, 'rb:pr-open');
+      ops.labelRemove(c, n, 'rb:approval-pending');
       ops.issueEdit(c, n, { state: 'closed' });
     });
   }

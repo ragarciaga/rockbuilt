@@ -7,7 +7,7 @@ import { REPO, cleanup, emptyState, fakeGh, fakeGhScript, rb, rbJson, repoWith, 
 
 after(cleanup);
 
-const HEAD = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const HEAD = 'a1b2c3d3e5f60718293a4b5c6d7e8f9012345678';
 const AGENTS = '# App\n\nDocs language: es\nProject type: web\nDefault branch: main\nAutonomy: auto\n\n## Verification\n```bash\nnode -e "0"\n```\n';
 
 function project() {
@@ -90,7 +90,28 @@ test('merge-gate: a sampled level 2 PR needs the auditor line; stale verifier he
   await locked(root, gh);
   r = await rbJson(root, ['merge-gate', '11', '--run', 'run-1'], { ghRunner: gh.runner });
   assert.equal(r.code, 3);
-  assert.deepEqual(reasonRules(r), ['stale-head'], 'level 2, not visible, not sampled: no auditor needed');
+  assert.ok(reasonRules(r).includes('stale-head'), JSON.stringify(r.json.reasons));
+
+  // Not sampled (the head hashes to a non-multiple of 5), nothing visible: the verifier is enough.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', number: 11, body: `${statusLine('rb-verifier')}\n` });
+  const H2 = 'b'.repeat(40);
+  gh.state.issues[11].body = gh.state.issues[11].body.split(HEAD).join(H2);
+  for (const cm of gh.state.comments[3]) cm.body = cm.body.split(HEAD).join(H2);
+  gh.state.pulls[11].headSha = H2;
+  gh.state.checkRuns[H2] = gh.state.checkRuns[HEAD];
+  await locked(root, gh);
+  r = await rbJson(root, ['merge-gate', '11', '--run', 'run-1', '--dry-run'], { ghRunner: gh.runner });
+  assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
+  assert.deepEqual(r.json.needs, ['rb-verifier']);
+
+  // A bug fix branch always needs the auditor at level 2, sampled or not.
+  gh = fakeGh();
+  seed(gh, { tier: 'B', number: 11, body: `${statusLine('rb-verifier')}\n` });
+  gh.state.pulls[11].head = 'rb/B7-fix-total';
+  await locked(root, gh);
+  r = await rbJson(root, ['merge-gate', '11', '--run', 'run-1', '--dry-run'], { ghRunner: gh.runner });
+  assert.ok(r.json.reasons.some((x) => x.rule === 'status-line' && /rb-auditor/.test(x.detail)), JSON.stringify(r.json.reasons));
 
   // Level 1 merges on CI alone (PLAN-1.0 A9): a stale verifier line does not matter.
   gh = fakeGh();
@@ -157,7 +178,7 @@ test('merge-gate: label level lower than the live risk, declared level above the
   gh = fakeGh();
   seed(gh, { labels: ['rb:level-3', 'rb:pr-open'], files: migration, body: full });
   await locked(root, gh);
-  gh.state.comments[3].push({ id: 5000, body: '<!-- rockbuilt:plan base=abc tier=C -->\nPlan', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T01:00:00Z' });
+  gh.state.comments[3].push({ id: 5000, body: '<!-- rockbuilt:plan base=abc level=3 approvals=schema -->\nPlan', user: { login: 'owner' }, author_association: 'OWNER', created_at: '2026-10-16T01:00:00Z' });
   r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
   assert.deepEqual(reasonRules(r), ['approval']);
   r = await gate(root, gh, ['--run', 'run-1', '--human-approved', '--dry-run']);
@@ -590,7 +611,7 @@ test('merge-gate: revert and spec PRs never merge unattended, but do with --huma
   for (const ref of ['rb/revert-7', 'rb/spec-01-x', 'chore/rockbuilt-0.3.0']) {
     const root = project();
     const gh = fakeGh();
-    seed(gh, { body: 'No reviewer lines\n', labels: [] });
+    seed(gh, { body: 'No reviewer lines\n', labels: [], files: [{ filename: 'docs/specs/01-x/requirements.md', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }] });
     gh.state.pulls[10].head = ref;
     await locked(root, gh);
     const auto = await gate(root, gh, ['--run', 'run-1']);
@@ -599,6 +620,53 @@ test('merge-gate: revert and spec PRs never merge unattended, but do with --huma
     const human = await gate(root, gh, ['--human-approved']);
     assert.equal(human.code, 0, `${ref}: ${JSON.stringify(human.json.reasons)}`);
   }
+  // A spec branch that changes code is not a spec PR, even with the owner's word (review of 1.0).
+  const root = project();
+  const gh = fakeGh();
+  seed(gh, { body: 'No reviewer lines\n', labels: [], files: [{ filename: 'src/auth/session.js', status: 'modified', additions: 1, deletions: 0, patch: '@@\n+x' }] });
+  gh.state.pulls[10].head = 'rb/spec-01-x';
+  const r = await gate(root, gh, ['--human-approved', '--dry-run']);
+  assert.ok(reasonRules(r).includes('kind-files'), JSON.stringify(r.json.reasons));
+});
+
+test('merge-gate: one open task issue of the same task; old and new labels take the higher level (review of 1.0)', async () => {
+  const root = project();
+  let gh = fakeGh();
+  seed(gh, { tier: 'B' });
+  gh.state.issues[10].body = gh.state.issues[10].body.replace('Closes #3', 'Closes #3\nCloses #9');
+  gh.state.issues[9] = { number: 9, title: 'T5', body: '<!-- rockbuilt:task T5 spec=none -->', state: 'open', labels: ['rb:task'] };
+  await locked(root, gh);
+  let r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'task-issue' && /#3, #9/.test(x.detail)), JSON.stringify(r.json.reasons));
+
+  gh = fakeGh();
+  seed(gh, { tier: 'B' });
+  gh.state.issues[10].body += '<!-- rockbuilt:task T1 -->\n';
+  gh.state.issues[3].body = '<!-- rockbuilt:task T7 spec=none -->';
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'task-issue' && /task T1 but #3 is task T7/.test(x.detail)), JSON.stringify(r.json.reasons));
+
+  gh = fakeGh();
+  seed(gh, { tier: 'B' });
+  gh.state.issues[3].state = 'closed';
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'task-issue' && /closed/.test(x.detail)));
+
+  // A file list shorter than changed_files hides files: level 3 (review of 1.0).
+  gh = fakeGh();
+  seed(gh);
+  gh.state.pulls[10].changedFiles = 2001;
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.ok(r.json.reasons.some((x) => x.rule === 'risk' && /files-not-listed/.test(x.detail)), JSON.stringify(r.json.reasons));
+
+  gh = fakeGh();
+  seed(gh, { labels: ['rb:level-1', 'rb:tier-c'] });
+  await locked(root, gh);
+  r = await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  assert.equal(r.json.labelLevel, 3);
 });
 
 test('merge-gate: review-less kinds still need green CI and respect the stop switch', async () => {

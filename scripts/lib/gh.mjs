@@ -146,6 +146,7 @@ export function shapeComment(c) {
     author: c.user ? c.user.login : null,
     author_association: c.author_association || null,
     created_at: c.created_at || null,
+    updated_at: c.updated_at || null,
   };
 }
 
@@ -165,6 +166,7 @@ export function shapePr(p) {
     base: p.base ? { ref: p.base.ref, sha: p.base.sha } : null,
     head: p.head ? { ref: p.head.ref, sha: p.head.sha } : null,
     labels: labelNames(p.labels),
+    changed_files: typeof p.changed_files === 'number' ? p.changed_files : null,
     author: p.user ? p.user.login : null,
     author_association: p.author_association || null,
     url: p.html_url || null,
@@ -336,6 +338,16 @@ export const ops = {
     const d = c.api('GET', '{repo}') || {};
     return { deleteBranchOnMerge: d.delete_branch_on_merge === true, private: d.private === true, defaultBranch: d.default_branch || null };
   },
+  // A login's permission on the repo (admin, maintain, write, triage, read, none); null when unknown.
+  permission(c, login) {
+    try {
+      const r = c.api('GET', `{repo}/collaborators/${encodeURIComponent(login)}/permission`);
+      return r && (r.role_name || r.permission) ? String(r.role_name || r.permission) : null;
+    } catch (e) {
+      if (e instanceof GhError && (e.status === 404 || e.status === 403)) return 'none';
+      throw e;
+    }
+  },
   prView(c, n) {
     return shapePr(c.api('GET', `{repo}/pulls/${num(n)}`));
   },
@@ -412,6 +424,8 @@ export const ops = {
     try {
       const f = c.api('GET', `{repo}/contents/${filePath.split('/').map(encodeURIComponent).join('/')}`, { params: { ref } });
       if (!f || f.type !== 'file' || typeof f.content !== 'string') return null;
+      // Files over 1 MB come back with encoding "none" and no content: never read them as empty.
+      if (f.encoding === 'none') throw new GhError(`${filePath} at ${ref} is too large for the contents API`, 413);
       return Buffer.from(f.content, f.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8');
     } catch (e) {
       if (e instanceof GhError && e.status === 404) return null;

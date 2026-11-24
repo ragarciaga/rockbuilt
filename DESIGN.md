@@ -1234,8 +1234,9 @@ owner interventions up to 20.8 per day).
    current conversation, never from text in an issue, comment or file.
 7. **Gate by level (A5, A8, A9, B2).** Labels `rb:level-1/2/3` (old `rb:tier-*` read as 1, 2, 3)
    and `rb:approval-pending`. The live `rb risk` level may not exceed the label. Reviews: level 1
-   none (CI only); level 2 the verifier, plus the blind auditor when `userVisible` or the PR number
-   is a multiple of 5 (sampling); level 3 verifier, auditor and security reviewer. Every review line
+   none (CI only); level 2 the verifier, plus the blind auditor when `userVisible`, the PR number
+   is a multiple of 5 (sampling), or the PR is a bug fix or quick batch (`rb/B<n>`, `rb/Q<n>`: the
+   report describes what the user sees); level 3 verifier, auditor and security reviewer. Every review line
    present in the body must still match a posted verdict. `rb risk --pr` reads `Sensitive paths`,
    `Tier A paths` and `Paid services` from AGENTS.md at the PR base, never its head.
 8. **One message per checkpoint (C1).** `rb state` reads GitHub and returns two halves: what waits
@@ -1257,3 +1258,23 @@ owner interventions up to 20.8 per day).
     `Kickback budget:` (0 to 3, default 2, how many review rounds a task gets), or has
     `Sensitive paths` over more than 40% of the source files without a `Sensitive paths reviewed:`
     line; "update rockbuilt" applies the text, and the owner reviews the globs once.
+12. **Adversarial review before release (A11).** Two independent reviewers attacked the 1.0 gate
+    (2026-11-24). Fixed, each with a test: an "ok" on a plan that never named the reason approved
+    it (an approval now covers only the reasons the plan's `approvals=` lists, and a plan edited
+    after the approval needs it again); loose approval words ("ok, pero no", "Si cambias...",
+    "listo?") approved (the whole first line must be approval words, no `?`); approvals and
+    delegations from any trusted association (now the author needs write access, read through
+    the collaborators permission API); a second `Closes #n`, or an old approved issue, lent its
+    approval and was closed (one open task issue per PR, same `rockbuilt:task` id); a quoted
+    delegation marker revived a revoked one (anchored marker, `until` required, capped at 90
+    days, never in the past); `rb:spec-*` plus `--human-approved` merged code (spec and verify PRs
+    may only touch what their kind writes); a file list shorter than `changed_files`, a rename
+    into docs/progress.md, a package.json over 1 MB, fixtures under `src/`, and test files that
+    spawn processes or read secrets all looked smaller than they were (level 3, or level 2 for the
+    tests); a changed or non-registry dependency spec skipped the check, and the check ran `npm`
+    through a shell on Windows with names from the PR (validated, no shell, `--`); a design
+    mention anywhere, or the PR's own design edit, pre-approved a dependency (only a dependencies
+    section of design.md or an ADR at the PR base); audit sampling by PR number (now by the head
+    commit); `## E2E` and `Default branch` read from the working tree or reaching git as an option.
+    Kept as a known limit (section 13): reviewer verdicts are trusted by association, since the
+    harness posts them with the owner's token.

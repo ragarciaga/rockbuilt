@@ -168,8 +168,8 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
 Reviews by final level (the gate requires the same): level 1 none; level 2 the verifier, plus the
-auditor when `rb risk` says `userVisible` or the PR number is a multiple of 5 (sampling); level 3
-all three. The security reviewer also runs whenever `security.required`.
+auditor when `rb risk` says `userVisible`, the PR number is a multiple of 5 (sampling), or the PR
+is a bug fix or quick batch (`rb/B<n>`, `rb/Q<n>`); level 3 all three. The security reviewer also runs whenever `security.required`.
 - **Verifier** (levels 2 and 3), on the committed head of step 8 (it stops on uncommitted changes):
   task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the implementer report, `git diff
   origin/<default>...HEAD --stat`, the default branch, the working directory, `Docs language`,

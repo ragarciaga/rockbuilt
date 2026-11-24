@@ -118,6 +118,7 @@ function pullOut(s, p) {
     merge_commit_sha: p.merge_commit_sha || null, mergeable: p.mergeable === undefined ? true : p.mergeable, mergeable_state: p.mergeable_state || 'clean',
     base: { ref: p.base, sha: p.baseSha || 'b'.repeat(40) }, head: { ref: p.head, sha: p.headSha }, labels: i.labels.map((name) => ({ name })),
     user: { login: i.author || s.user }, author_association: 'OWNER', html_url: `https://github.com/${REPO}/pull/${p.number}`,
+    ...(p.changedFiles != null ? { changed_files: p.changedFiles } : {}),
   };
 }
 
@@ -254,6 +255,11 @@ export function handle(s, method, fullPath, body) {
     if (method === 'PUT') { s.protection = { mode: 'on', contexts: body.required_status_checks.contexts, ...(body.required_status_checks.strict ? { strict: true } : {}) }; return ok({}); }
     if (s.protection.mode === 'on') return ok({ required_status_checks: { contexts: s.protection.contexts } });
     return err(404, 'Branch not protected');
+  }
+  if ((m = r.match(/^collaborators\/([^/]+)\/permission$/)) && method === 'GET') {
+    const login = decodeURIComponent(m[1]);
+    const role = (s.permissions || {})[login] || 'admin';
+    return ok({ permission: role === 'maintain' ? 'write' : role, role_name: role });
   }
   if ((m = r.match(/^contents\/(.+)$/))) {
     const key = `${q.get('ref')}:${decodeURIComponent(m[1])}`;

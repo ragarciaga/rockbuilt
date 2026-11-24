@@ -9,7 +9,7 @@
 //   merged harness PR as `Introduced by #<n>` (rb-fix writes it when it traces the cause).
 import { ops } from './gh.mjs';
 import { labelLevel, parseBody, parseStatusList, prKind } from './merge.mjs';
-import { APPROVE_WORD } from './approval.mjs';
+import { isApproval } from './approval.mjs';
 
 const SOURCES = ['mechanical', 'verifier', 'auditor', 'security', 'ci'];
 
@@ -114,7 +114,7 @@ export function ownerInterventions(c, merged, { since = null, until = null } = {
   try { comments = ops.repoComments(c, { since: since == null ? null : new Date(since).toISOString() }); } catch { return null; }
   const inW = comments.filter((cm) => inWindow(cm.created_at, since, until));
   const escalations = inW.filter((cm) => /<!--\s*rockbuilt:escalation\b/.test(cm.body || '')).length;
-  const approvals = inW.filter((cm) => TRUSTED.has(cm.author_association) && !/<!--\s*rockbuilt:/.test(cm.body || '') && APPROVE_WORD.test(cm.body || '')).length;
+  const approvals = inW.filter((cm) => TRUSTED.has(cm.author_association) && !/<!--\s*rockbuilt:/.test(cm.body || '') && isApproval(cm.body)).length;
   const gate = new Map();
   for (const cm of comments) if (/Merged by `rb merge-gate`/.test(cm.body || '')) gate.set(cm.number, cm.body);
   let humanApproved = 0;

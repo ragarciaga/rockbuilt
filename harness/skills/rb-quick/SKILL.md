@@ -104,7 +104,7 @@ anything is done. Requests that arrive while the reviews run go to the next batc
      the plan (with "Plan written by the orchestrator, who also implemented; there is no planner
      and no implementer report"), `git diff origin/<default>...HEAD --stat`, the default branch,
      the working directory, `Docs language`.
-   - `rb-auditor` (when `userVisible`, or the PR number is a multiple of 5), after the verifier passes, per `audit.md`: ONLY the task id, the
+   - `rb-auditor` (always on a quick batch: the owner asked for something they will see), after the verifier passes, per `audit.md`: ONLY the task id, the
      reviewed head, the working directory, the issue's criteria and how to run the app from
      AGENTS.md. Never the diff, your notes or the verifier verdict.
    - `rb-security-reviewer` when `security.required` (the gate enforces it): `Mode: task`, spec

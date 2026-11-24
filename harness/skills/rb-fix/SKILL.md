@@ -137,7 +137,7 @@ push; later fixes are commits on top); record the reviewed head. Then, serially:
   reports, the diff stat, the default branch, `Docs language`, and "Confirm the reproduction fails on the pre-fix
   code path (mutation probe: revert the fix in the production file, run the test, restore with git
   restore)."
-- `rb-auditor` (blind, by level as build step 9) with ONLY the inputs of build step 9: task id, reviewed head,
+- `rb-auditor` (blind, always on a fix) with ONLY the inputs of build step 9: task id, reviewed head,
   working directory, the bug's Expected and Steps from the issue as the criteria (plus the manual
   script when the repro is manual), how to run the app from AGENTS.md. Never the plan, the
   reports, the verifier verdict or the diff. After the verifier, or in its own copy

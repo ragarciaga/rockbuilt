@@ -18,7 +18,7 @@ plan needs a new one. The gate reads it itself; `--human-approved` does not repl
 
 ## Delegation
 
-When the owner hands approvals over in their own words in the current conversation ("delego todo
+The `rb-delegate` skill does this. When the owner hands approvals over in their own words in the current conversation ("delego todo
 hasta el viernes", "full auto del milestone MVP", "full auto #12 #15"), record it at once with
 their words verbatim:
 

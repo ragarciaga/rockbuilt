@@ -5,7 +5,7 @@
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readText } from './util.mjs';
+import { git, readText } from './util.mjs';
 
 export const OK_LICENSES = ['MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', '0BSD', 'Unlicense', 'CC0-1.0', 'BlueOak-1.0.0', 'Python-2.0', 'Zlib'];
 export const STALE_DAYS = 730;
@@ -18,28 +18,58 @@ export function addedRuntimeDeps(risk) {
     if (r.rule !== 'dependency') continue;
     if (!/package\.json$/.test(r.path)) { if (!LOCKFILES.test(r.path)) unsupported.push(r.path); continue; }
     for (const c of r.changes || []) {
-      const m = c.match(/^added (.+?)@(.+) \((dependencies|optionalDependencies|peerDependencies)\)$/);
-      if (m) out.push({ name: m[1], range: m[2], manifest: r.path });
+      // Added, or changed to another spec (adversarial review of 1.0: "^4" -> "npm:evil@1" or a
+      // tarball URL passed as a version bump).
+      const add = c.match(/^added (.+?)@(.+) \((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/);
+      const chg = c.match(/^(.+?) (.+) -> (.+) \((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/);
+      if (add) out.push({ name: add[1], range: add[2], manifest: r.path });
+      else if (chg) out.push({ name: chg[1], range: chg[3], manifest: r.path, changed: true });
     }
   }
   return { deps: out, unsupported };
 }
 
-function designText(root) {
+// Names the approved design lists as dependencies: backticked names on list or table lines under a
+// heading about dependencies, libraries or the stack, in design.md files and ADRs read at `ref`
+// (the PR base; adversarial review of 1.0: a mention anywhere, or a design edited by the PR itself,
+// must not pre-approve). Without `ref` (rb deps on a branch), the working tree.
+const DEP_HEADING = /^#{1,6}\s.*(dependenc|librar|librer|stack|paquete|package)/i;
+export function designDependencies(texts) {
+  const names = new Set();
+  for (const text of texts) {
+    let inside = false;
+    for (const line of String(text).split(/\r?\n/)) {
+      if (/^#{1,6}\s/.test(line)) { inside = DEP_HEADING.test(line); continue; }
+      if (inside && /^\s*([-*]|\|)/.test(line)) for (const m of line.matchAll(/`(@?[a-z0-9][\w.@/-]*)`/gi)) names.add(m[1].replace(/@[\^~<>=\d].*$/, ''));
+    }
+  }
+  return names;
+}
+
+function designTexts(root, ref) {
+  const pick = (p) => /^docs\/specs\/[^/]+\/design\.md$/.test(p) || /^docs\/adr\/[^/]+\.md$/.test(p);
+  if (ref) {
+    if (!git(root, ['cat-file', '-e', `${ref}^{commit}`]).ok) return [];
+    const ls = git(root, ['ls-tree', '-r', '--name-only', ref, '--', 'docs/specs', 'docs/adr']);
+    return ls.ok ? ls.stdout.split(/\r?\n/).filter(pick).map((p) => { const r = git(root, ['show', `${ref}:${p}`]); return r.ok ? r.stdout : ''; }) : [];
+  }
   const texts = [];
-  const read = (dir, pick) => {
+  const walk = (dir) => {
     let names = [];
     try { names = readdirSync(path.join(root, dir), { withFileTypes: true }); } catch { return; }
     for (const d of names) {
       const rel = `${dir}/${d.name}`;
-      if (d.isDirectory() && dir === 'docs/specs') read(rel, (n) => n === 'design.md');
-      else if (d.isFile() && pick(d.name)) texts.push(readText(path.join(root, rel)) || '');
+      if (d.isDirectory()) walk(rel);
+      else if (pick(rel)) texts.push(readText(path.join(root, rel)) || '');
     }
   };
-  read('docs/specs', () => false);
-  read('docs/adr', (n) => n.endsWith('.md'));
-  return texts.join('\n');
+  walk('docs/specs');
+  walk('docs/adr');
+  return texts;
 }
+
+const NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+const RANGE = /^[\w.^~<>=| *-]+$/;
 
 function npmView(name, range) {
   const fixture = process.env.RB_DEPS_FIXTURE;
@@ -47,7 +77,8 @@ function npmView(name, range) {
     const all = JSON.parse(readText(fixture) || '{}');
     return all[name] || null;
   }
-  const r = spawnSync('npm', ['view', `${name}@${range}`, 'license', 'deprecated', 'time.modified', '--json'], { encoding: 'utf8', shell: process.platform === 'win32', timeout: 30000 });
+  // Never through a shell: name and range come from the PR (adversarial review of 1.0).
+  const r = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['view', '--', `${name}@${range}`, 'license', 'deprecated', 'time.modified', '--json'], { encoding: 'utf8', shell: false, timeout: 30000 });
   if (r.status !== 0) return null;
   try {
     const j = JSON.parse(r.stdout || 'null');
@@ -69,11 +100,13 @@ export function checkPackage(meta, now = Date.now()) {
 }
 
 // { ok, results: [{ name, range, inDesign, problems }], unsupported }
-export function dependencyCheck(root, risk, { view = npmView, now = Date.now() } = {}) {
+export function dependencyCheck(root, risk, { view = npmView, now = Date.now(), ref = null } = {}) {
   const { deps, unsupported } = addedRuntimeDeps(risk);
-  const design = designText(root);
+  const listed = designDependencies(designTexts(root, ref));
   const results = deps.map((d) => {
-    const inDesign = new RegExp(`(^|[^\\w@/-])${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\w/-]|$)`).test(design);
+    // Only a registry semver range is checked; npm:, git, file and URL specs ask the owner.
+    if (!NAME.test(d.name) || !RANGE.test(d.range)) return { ...d, inDesign: false, problems: [`spec ${d.name}@${d.range} is not a plain registry version: the owner decides`] };
+    const inDesign = listed.has(d.name);
     return { ...d, inDesign, problems: inDesign ? [] : checkPackage(view(d.name, d.range), now) };
   });
   const ok = results.every((r) => !r.problems.length) && !unsupported.length;
