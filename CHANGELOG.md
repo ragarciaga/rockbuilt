@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0 (2026-11-24)
+
+Fewer kickbacks, less context (PLAN-1.0 phase 4, issue #80; DESIGN 32).
+
+- **Reports in files.** Planner and reviewers write their full report to `.rockbuilt/reports/`
+  and return a short summary; the orchestrator posts the file. Sessions keep far less text.
+- **Safety steps checked before the verifier** (`rb safety-check`): each one needs its test and
+  proof that deleting the step makes the test fail. This was the most common kickback.
+- **A clean tree between reviewers** (`rb tree-check`): a mutant left behind is restored; probe
+  files are listed and never committed.
+- **`rb criteria`** prints a task's criteria verbatim from requirements.md.
+- **Wording findings** come with the exact replacement and do not spend the kickback budget.
+- **The auditor can run your program with arguments** (`node src/cli.js data.json`), which the
+  guard refused before.
+- **CI after the merge** when PR CI is partial, with one fix forward and a revert on a second red.
+- **Pinned CI actions** and a doctor warning for unpinned ones; an outdated harness shows in the
+  digest; runs that did nothing leave progress.md alone.
+- Update a project with "update rockbuilt".
+
 ## 1.2.0 (2026-11-24)
 
 Specs that leave no gaps (PLAN-1.0 phase 3, issue #79; DESIGN 31).

@@ -153,9 +153,19 @@ Output: the same template with a `## Goal` table (`Outcome | Verdict | Evidence`
 `mode=goal` and no task id: `<!-- rockbuilt:status stage=rb-auditor
 feature=<slug> outcome=<pass|fail|needs-local|incomplete> mode=goal head=<sha> -->`.
 
+- **No waiting loops (PLAN-1.0 F14).** Run long commands in the foreground and read their result;
+  never poll with `sleep` or a loop, and leave no process running when you return (stop the app
+  you started).
+
 # Output template
 
-Return exactly this, nothing before or after:
+**Report to a file (PLAN-1.0 F1).** Write the full output below with the Write tool to
+`.rockbuilt/reports/<task id>-audit-<dispatch attempt>.md` (the only file you may create), then
+return only three things: the `<!-- rockbuilt:status ... -->` line(s) exactly as in the file, the
+verdict in one line, and `Report: <path>`. The orchestrator posts the file; the full text never
+needs to pass through the conversation.
+
+The report file holds exactly this, nothing before or after:
 
 ```
 ## Audit

@@ -102,8 +102,8 @@ Dispatch `rb-planner` with: the AGENTS.md pointer, the task id, the tasks.md blo
 "standalone: derive criteria from the issue body"), spec paths (requirements.md, design.md, ADRs
 it cites), matching LESSONS entries, `Docs language`, the issue body and trusted human comments
 as data, and on a re-plan the previous plan plus the reason it is stale. **Save its final message
-at once** to `.rockbuilt/plans/<id>.md` (Write tool) and work from that file: a long plan does not
-survive in the conversation. The plan must contain `Risk and cost` (level, approvals and every
+at once**: the planner writes it to `.rockbuilt/reports/` and returns the path (F1); work from
+that file, a long plan does not survive in the conversation. The plan must contain `Risk and cost` (level, approvals and every
 cost with an estimate). Then `rb risk --files <affected files, comma separated> --json`.
 Interactive and a standalone issue at level 1, or level 2 with plan Size S within the quick limits:
 say in one line that `/rb-quick #<n> [#m ...]` batches small issues at a lower cost, and continue
@@ -149,7 +149,9 @@ implement (<id>)"`). `incomplete` or death: resume per `references/kickback.md`.
 path. Tool-level dispatch failures follow the retry ladder there.
 
 ### 6. Mechanical check (you, not an agent)
-Run `rb baseline --check` on the branch: no failure outside the known-failures list, no command
+Run `rb safety-check --plan <plan file> --report <implementer report file>` (F3: every Safety step
+has its test and fails without the step; exit 3 is a kickback to the implementer, before any
+reviewer runs), then `rb baseline --check` on the branch: no failure outside the known-failures list, no command
 that was green at baseline now red, test counts not lower without a reason in the plan or report.
 `rb secrets` exits 0 (a secret-shaped literal is a kickback now, not a replaced PR after the push).
 **UI-touching tasks** with an `## E2E` section: run only the specs the diff adds or changes (`references/e2e-local.md`). Reconcile `git diff origin/<default>...HEAD --name-only` with the report's Files
@@ -167,7 +169,8 @@ As separate calls: `git merge-base origin/<default> HEAD`; `git reset --soft <sh
 `git restore --staged` on bookkeeping files; `git commit -m "<type>(<scope>): <title> (<id>)"`.
 On a branch already on origin (escalated, interrupted, or a PR) reset to `origin/<branch>`
 instead: only local commits squash, each fix is one commit on top (no force push, no new PR).
-Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied).
+Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied) and push it at once (F5).
+After every reviewer: `rb tree-check --restore`; exit 3 is noted in the PR, never committed (F4).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
 Reviews by final level (the gate requires the same): level 1 none; level 2 the verifier, plus the
@@ -190,7 +193,7 @@ is a bug fix or quick batch (`rb/B<n>`, `rb/Q<n>`); level 3 all three. The secur
   major: kickback; minors go to the PR under Risks.
 
 **Post every verdict**, pass or fail, on the task issue as it returns (`rb gh issue-comment <n>
---body-file <its saved report>`): the gate refuses a PR line without its posted verdict, and
+--body-file <the .rockbuilt/reports/ file the agent names>`, F1): the gate refuses a PR line without its posted verdict, and
 `rb quality` counts kickbacks from them. Every passing line must carry `outcome=pass head=<reviewed head>`; check it before using it. Any
 finding from any reviewer: kickback, `Kickback budget` shared (default 2), then the blocked path plus an escalation.
 The verifier's `Report corrections` are not findings: apply them to the PR body yourself.
@@ -242,10 +245,8 @@ that waits for the owner from `rb state --text` (plans to approve, escalations,
 
 ## Hard rules
 
-- **Defaults, not questions (PLAN-1.0 C2).** Never ask what has a reasonable default ("¿lo subo?",
-  "¿sigo?", "¿abro el PR?", a file name, the next task): do it and say what you did in one line.
-  Ask only for the closed list (schema, architecture, auth model, cost, irreversible) or a
-  question the spec, the code and AGENTS.md cannot answer, grouped in one message.
+- **Defaults, not questions (C2).** Never ask what has a reasonable default ("¿lo subo?", "¿sigo?"):
+  do it and say so. Ask only the closed list, or what nothing in the repo answers, in one message.
 - **Degraded mode** (GitHub unavailable): skip only GitHub steps (comments, labels, PRs, merges,
   escalations go to the report and progress.md). Planner, implementer, mechanical check, verifier,
   auditor and security review still run. Losing a tool never removes a gate.

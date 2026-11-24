@@ -165,7 +165,9 @@ every merge; the lock is already held.
 
 ## 6. Close the run
 
-1. `rb timing report --write`. Update `docs/progress.md` (current state, next steps).
+1. `rb timing report --write`. Update `docs/progress.md` (current state, next steps) only when
+   the run changed something (a merge, a PR, an escalation, a blocked item): a run that found
+   nothing to do adds no entry (PLAN-1.0 F7); its digest is enough.
 2. **Bookkeeping PR**, one per day: `git checkout <default>`, then `rb bookkeeping save --run
    <run id> --final`. It commits only tasks.md, progress.md and LESSONS.md in a temporary
    worktree and pushes them to the day's `rb/bookkeeping-<YYYY-MM-DD>` (on top of the PR carried in

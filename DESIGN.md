@@ -1347,3 +1347,46 @@ categories (`evals/results/2026-11-24-inventory-doorcas.md`). Issue #79.
    time in the wrong checkout (now at the merge time, in the main checkout, never over a newer
    start); a dry-run gate opened the `wait` phase; test files counted by another rule than
    `isTestPath`; kickoff and goal mode still asked one question at a time or escalated every gap.
+
+## 32. Fewer kickbacks and less context (1.3.0)
+
+Evidence: PLAN-1.0 section 1 (55% to 88% of PRs had a kickback, most from the verifier on safety
+rules without a test; reviewers saw each other's mutants and probe files reached commits in three
+projects; full agent reports filled the orchestrator's context), issue #80.
+
+1. **Reports in files (F1).** The planner, the verifier, the auditor and the security reviewer
+   write their full output to `.rockbuilt/reports/<task>-<agent>-<attempt>.md` (the guard lets
+   them Write there and nowhere else) and return only the status line, a one-line verdict and the
+   path. The orchestrator posts the file (`rb gh issue-comment --body-file`).
+2. **Criteria from the source (F2).** `rb criteria <spec-dir> <task>` prints the covered criteria
+   verbatim from requirements.md, with their Decisions; an amendment is an edit to that file.
+3. **Safety steps pinned before review (F3).** `rb safety-check --plan --report` requires, for
+   every plan Safety step, its test file and case, and the implementer's report line showing that
+   deleting the step makes the test fail. Exit 3 is a kickback before any reviewer runs.
+4. **A clean tree between reviewers (F4).** `rb tree-check [--restore]` after each reviewer: a
+   mutant left in a tracked file is restored, an untracked file is listed (never deleted, never
+   committed). A copy per reviewer was rejected: the verifier runs the project's tests, and a copy
+   without its installed dependencies cannot.
+5. **Push at the collapse (F5)**, so every reviewed head is reachable on GitHub.
+6. **Migrations shared (F6)**: already true since 0.7 (`rb parallel` treats `migrations/` as a
+   shared file); kept.
+7. **No empty progress entries (F7).** `rb timing report --write` writes nothing when nothing was
+   timed, and a run that changed nothing adds no progress entry.
+8. **Outdated harness (F8).** `rb state` and the digest say when the project's Rockbuilt is older
+   than the plugin where it runs.
+9. **Investigated (F9, F10).** The maysa "stuck queue" was not reproducible: the four queued PRs
+   merged within minutes of queueing. The guard did still refuse the auditor and the verifier
+   running the project's program with arguments (`node src/cli.js data.json 2026-10`): a plain
+   interpreter on a file of the project, outside the harness, with no inline code flag, is now
+   allowed. rb-fix's second commit (2026-11-11) did not recur: `fix-s1-es` checks one commit and
+   passed in every run since.
+10. **CI after the merge (F11).** When the PR's CI is not the whole suite, the train waits for
+    the default branch's CI on each merge; a red caused by the run is fixed forward once through
+    `/rb-fix`; a second red reverts and stops the train.
+11. **Pinned actions (F12).** The harness workflow pins every action to a commit SHA, and `rb
+    doctor` warns about unpinned actions in any workflow. "Branches must be up to date" stays off
+    on purpose (section 8.4: the merge queue merges PRs behind the base, and the gate enforces it).
+12. **Class `wording` (F13).** A text-only finding carries the exact replacement; the orchestrator
+    applies it in one round that does not spend the kickback budget, once per task.
+13. **No waiting loops (F14).** Agents run long commands in the foreground and leave nothing
+    running when they return.

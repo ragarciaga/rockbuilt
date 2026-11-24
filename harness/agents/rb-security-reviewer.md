@@ -9,7 +9,7 @@ description: >
   input validation and injection, secrets in the diff, new external hosts, cost triggers, file
   upload, SSRF, rate limiting, dependency risk via npm audit, and LLM-specific risks. Writes
   nothing. Returns findings with location, severity, an exploit sketch and a fix direction.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 model: opus
 readonly: true
 ---
@@ -88,9 +88,19 @@ Before anything else: Read `.claude/LESSONS.md` yourself too (all of it; it is s
 - **Context running out:** return what you have, unchecked areas under Not checked,
   `outcome=incomplete`.
 
+- **No waiting loops (PLAN-1.0 F14).** Run long commands in the foreground and read their result;
+  never poll with `sleep` or a loop, and leave no process running when you return (stop the app
+  you started).
+
 # Output
 
-Return exactly this, nothing before or after:
+**Report to a file (PLAN-1.0 F1).** Write the full output below with the Write tool to
+`.rockbuilt/reports/<task id>-security-<dispatch attempt>.md` (the only file you may create), then
+return only three things: the `<!-- rockbuilt:status ... -->` line(s) exactly as in the file, the
+verdict in one line, and `Report: <path>`. The orchestrator posts the file; the full text never
+needs to pass through the conversation.
+
+The report file holds exactly this, nothing before or after:
 
 ```
 Result: PASS | FAIL   (FAIL if any blocker or major in task or plan mode, any blocker in feature mode)

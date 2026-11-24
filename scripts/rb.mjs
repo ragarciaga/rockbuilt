@@ -24,10 +24,12 @@ import { projectState, stateText } from './lib/state.mjs';
 import { dependencyCheck, depsText } from './lib/deps.mjs';
 import { logPermission, permissionReport, permissionText } from './lib/permissions.mjs';
 import { inventoryProblems } from './lib/inventory.mjs';
+import { treeCheck, treeText } from './lib/treecheck.mjs';
+import { safetyCheck } from './lib/safety.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
-import { coverage, loadSpec, taskProblems } from './lib/spec.mjs';
+import { coverage, loadSpec, taskCriteria, taskProblems } from './lib/spec.mjs';
 import { claimIssue, syncProject, syncText } from './lib/sync.mjs';
 import { addRows, aggregate, appendEvent, autoPhase, localRow, markPublished, mergeReports, parseBlock, parseTimingLines, readEvents, renderTable, taskMarker, timingLine, writeProgressBlock } from './lib/timing.mjs';
 import { CliError, git, listFlag, parseArgs, projectRoot, readText, requireRepoRoot, sleepMs, stringFlag } from './lib/util.mjs';
@@ -65,6 +67,9 @@ export const COMMANDS = {
   escalate: '<issue|new> --kind human|local --title <t> --body-file <f>',
   delegate: 'Delegated approval on the control issue: --words "<owner words>" [--scope all|milestone:<name>|issues:12,15] [--until YYYY-MM-DD] [--include cost,irreversible] [--run <id>] | revoke [--words t] | list',
   deps: 'Runtime dependencies the branch adds outside the design: license, deprecation, maintenance  [--base <ref>] (exit 3 when one needs the owner)',
+  'safety-check': 'Before the verifier: every Safety step of the plan has its test and the report shows it fails without the step  --plan <file> --report <file> (exit 3 with what is missing)',
+  criteria: 'The criteria a task covers, verbatim from requirements.md, with their Decisions  <spec-dir> <task id> (exit 3 when a covered id is missing)',
+  'tree-check': 'After a reviewer: the working tree equals the reviewed head (bookkeeping and .rockbuilt/ aside)  [--restore] (exit 3 when it did not)',
   spec: 'check <spec-dir>: the decision inventory of requirements.md is complete (exit 3 with the gaps)',
   permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
   state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
@@ -75,7 +80,7 @@ export const COMMANDS = {
   help: 'Show this help',
 };
 
-const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft', 'hook'];
+const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft', 'hook', 'restore'];
 
 function makeIo(io) {
   return {
@@ -388,7 +393,8 @@ const handlers = {
       }
       report = { tasks: rows, open: local.open };
       const table = renderTable(report);
-      const written = flags.write ? writeProgressBlock(root, table) : null;
+      // PLAN-1.0 F7: a run that timed nothing writes nothing (no empty table in progress.md).
+      const written = flags.write && report.tasks.length ? writeProgressBlock(root, table) : null;
       const text = `${table}${written ? `\n\nwritten to ${written}` : ''}\n\nGitHub: ${github}`;
       return { data: { ...report, table, written, github }, text, code: 0 };
     }
@@ -807,6 +813,28 @@ const handlers = {
     return { data: r, text: depsText(r), code: r.ok ? 0 : 3 };
   },
 
+  'safety-check'({ cwd, flags }) {
+    const root = requireRepoRoot(cwd);
+    const plan = readText(path.resolve(cwd, stringFlag(flags, 'plan', { required: true })));
+    if (plan === null) throw new CliError('--plan file not found', 2);
+    const report = readText(path.resolve(cwd, stringFlag(flags, 'report', { required: true }))) || '';
+    const r = safetyCheck(root, plan, report);
+    return { data: r, text: r.ok ? `${r.steps.length} safety step(s) pinned by a test` : r.problems.join('\n'), code: r.ok ? 0 : 3 };
+  },
+
+  criteria({ cwd, positionals }) {
+    const [dir, task] = positionals;
+    if (!dir || !task) throw new CliError('usage: rb criteria <spec-dir> <task id>', 2);
+    const r = taskCriteria(path.resolve(cwd, dir), task);
+    const text = [...r.criteria, ...r.missing.map((m) => `MISSING in requirements.md: ${m}`), ...r.decisions.flatMap((d) => [`${d.requirement} decisions:`, ...d.lines.map((l) => `  ${l}`)])].join('\n');
+    return { data: r, text, code: r.missing.length ? 3 : 0 };
+  },
+
+  'tree-check'({ cwd, flags }) {
+    const t = treeCheck(requireRepoRoot(cwd), { restore: Boolean(flags.restore) });
+    return { data: t, text: treeText(t), code: t.clean ? 0 : 3 };
+  },
+
   spec({ cwd, positionals }) {
     const [sub, dir] = positionals;
     if (sub !== 'check' || !dir) throw new CliError('usage: rb spec check <spec-dir>', 2);
@@ -838,7 +866,8 @@ const handlers = {
   },
 
   state({ cwd, flags, io }) {
-    const s = projectState(client(projectRoot(cwd), flags, io));
+    const root = projectRoot(cwd);
+    const s = projectState(client(root, flags, io), { root });
     return { data: s, text: stateText(s), code: s.complete ? 0 : 3 };
   },
 

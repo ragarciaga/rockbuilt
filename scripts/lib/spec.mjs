@@ -230,6 +230,37 @@ export function taskProblems(tasks, errors = []) {
   return problems;
 }
 
+// rb criteria (PLAN-1.0 F2): the criteria a task covers, verbatim from requirements.md, with their
+// requirement's Decisions block. Agents quote these, never a paraphrase from an older plan; an
+// amendment is an edit to requirements.md, so the next call already prints it.
+export function taskCriteria(specDir, taskId) {
+  const tasksText = readText(path.join(specDir, 'tasks.md'));
+  const reqText = readText(path.join(specDir, 'requirements.md'));
+  if (tasksText === null || reqText === null) throw new CliError(`tasks.md and requirements.md are needed in ${specDir}`, 2);
+  const task = parseTasks(tasksText).tasks.find((t) => t.id.toLowerCase() === String(taskId).toLowerCase());
+  if (!task) throw new CliError(`no task ${taskId} in ${specDir}/tasks.md`, 2);
+  const lines = reqText.split(/\r?\n/);
+  const out = [];
+  const missing = [];
+  for (const id of task.covers) {
+    const line = lines.find((l) => new RegExp(`^\\s*[-*]\\s*${id.replace('.', '\\.')}\\b`).test(l));
+    if (line) out.push(line.trim()); else missing.push(id);
+  }
+  const reqs = [...new Set(task.covers.map((c) => c.split('.')[0]))];
+  const decisions = [];
+  for (const r of reqs) {
+    const start = lines.findIndex((l) => new RegExp(`^##\\s+${r}\\s*[:.]`).test(l));
+    if (start === -1) continue;
+    let i = lines.findIndex((l, k) => k > start && /^###\s+(Decisions|Decisiones)\s*$/i.test(l));
+    const next = lines.findIndex((l, k) => k > start && /^##\s/.test(l));
+    if (i === -1 || (next !== -1 && i > next)) continue;
+    const block = [];
+    for (i += 1; i < lines.length && !/^#{2,3}\s/.test(lines[i]); i++) if (lines[i].trim()) block.push(lines[i].trim());
+    decisions.push({ requirement: r, lines: block });
+  }
+  return { task: task.id, criteria: out, missing, decisions };
+}
+
 export function loadSpec(specDir) {
   const tasksText = readText(path.join(specDir, 'tasks.md'));
   if (tasksText === null) throw new CliError(`tasks.md not found in ${specDir}`);

@@ -107,6 +107,23 @@ function checkSettings(root, types) {
   return [problems.length ? warn('settings.json', problems.join('; ')) : pass('settings.json', 'permissions and guard hook present')];
 }
 
+// PLAN-1.0 F8: { vendored, plugin, behind } for rb state and the digest (plugin null when the
+// plugin is not installed where this runs, as in a cloud routine).
+export function versionStatus(root) {
+  const vendored = (readText(path.join(root, 'tools', 'rockbuilt', 'VERSION')) || '').trim() || null;
+  const plugin = pluginRoot();
+  let pv = null;
+  if (plugin) { try { pv = JSON.parse(readFileSync(path.join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).version; } catch { pv = null; } }
+  const older = (a, b) => {
+    const x = String(a).split('.').map(Number);
+    const y = String(b).split('.').map(Number);
+    for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0);
+    return false;
+  };
+  const behind = Boolean(vendored && pv && older(vendored, pv));
+  return { vendored, plugin: pv, behind };
+}
+
 function checkVendored(root) {
   const vendored = readText(path.join(root, 'tools', 'rockbuilt', 'VERSION'));
   if (vendored === null) return [warn('vendored harness', 'tools/rockbuilt/ missing; run `rb vendor`')];
@@ -127,7 +144,21 @@ function checkCi(root) {
   if (setup.some((c) => /^npm ci\b/.test(c)) && !exists(path.join(root, 'package-lock.json'))) {
     return warn('CI workflow', 'Setup runs `npm ci` but there is no package-lock.json: CI will fail; commit the lockfile or change ## Setup');
   }
-  return pass('CI workflow', '.github/workflows/rockbuilt-ci.yml present');
+  // PLAN-1.0 F12 (from trail-blazer-flow's external audit): a third-party action pinned to a tag
+  // can change under the same name; a commit SHA cannot.
+  const unpinned = [];
+  let names = [];
+  try { names = readdirSync(path.join(root, '.github', 'workflows')).filter((n) => /\.ya?ml$/.test(n)); } catch { names = []; }
+  for (const n of names) {
+    const text = readText(path.join(root, '.github', 'workflows', n)) || '';
+    for (const m of text.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)/gm)) {
+      const ref = m[1];
+      if (ref.startsWith('./') || ref.startsWith('docker://')) continue;
+      if (!/@[0-9a-f]{40}$/.test(ref)) unpinned.push(`${n}: ${ref}`);
+    }
+  }
+  if (unpinned.length) return warn('CI actions', `not pinned to a commit SHA: ${unpinned.slice(0, 4).join(', ')}${unpinned.length > 4 ? ` (+${unpinned.length - 4})` : ''}; \`rb vendor\` pins the harness workflow, pin the rest the same way (uses: owner/action@<sha> # vX.Y.Z)`);
+  return pass('CI workflow', '.github/workflows/rockbuilt-ci.yml present, actions pinned');
 }
 
 const DEPLOY_FILES = ['vercel.json', 'netlify.toml', 'fly.toml', 'render.yaml', 'wrangler.toml', 'railway.json', 'railway.toml', 'app.yaml', 'Procfile'];

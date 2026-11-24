@@ -41,6 +41,9 @@ Una línea con la fase que más pesó en la corrida y por qué, si se sabe.
 <e> bugs que vienen de PRs fusionados (#<bug> de #<pr>). El auditor cuenta lo que el verificador
 dejó pasar; CI, lo que pasó todos los chequeos locales.
 
+### Rockbuilt desactualizado
+- Este proyecto tiene Rockbuilt <x>, hay <y>: di "actualiza rockbuilt" (de `rb state`; se omite si está al día).
+
 ### Delegación vigente
 - <alcance> hasta <fecha>: "<tus palabras>" (de `rb state`; se omite si no hay ninguna).
 

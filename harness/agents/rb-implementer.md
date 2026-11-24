@@ -133,6 +133,10 @@ once at the end. Sweep, mutate and probe only what the fix changes. Report only 
 - **Context running out:** stop, leave the tree exactly as it is, return `Status: incomplete`
   with a Resume brief.
 
+- **No waiting loops (PLAN-1.0 F14).** Run long commands in the foreground and read their result;
+  never poll with `sleep` or a loop, and leave no process running when you return (stop the app
+  you started).
+
 # Report template
 
 Return exactly this, nothing before or after:
@@ -155,6 +159,8 @@ One paragraph: what you implemented (or attempted).
 ## Evidence
 - Claims swept: <grep patterns and sites fixed>, or "None: no behavioral claim changed"
 - Mutation checks: <test, mutation, failed y/n> per new or rewritten test, or "None"
+- Safety steps: one line per plan Safety step, `<step> | <test file>: <case>: deleted, failed: yes|no`
+  (`rb safety-check` reads these lines before the verifier), or "None"
 - Behavior probes: <criterion, mutation, killing test> or <survived, test added> or
   <not probed, reason>
 - Numbers: <each count and the command it came from>

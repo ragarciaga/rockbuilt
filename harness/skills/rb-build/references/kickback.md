@@ -16,7 +16,14 @@ All checkpoints keep the `wip:` prefix so branch classification stays a simple r
 
 ## 1. Kickback (mechanical, verifier, auditor or security failure)
 
-Budget: **2 kickbacks per task, shared** by every source (at most 3 implementer passes).
+Budget: **`Kickback budget` per task (AGENTS.md, 0 to 3, default 2), shared** by every source.
+
+**Wording round (PLAN-1.0 F13).** When every finding of a failed verdict is class `wording` (a
+claim, a message, a comment or a doc sentence, each with the verifier's exact replacement), you
+apply the replacements yourself in one commit, run the mechanical check, and the verifier
+re-reviews that head. It does not spend the budget, and it happens once per task; a second
+wording-only failure is an ordinary kickback.
+
 For kickback k:
 
 1. `rb timing start <id> fix`. Dispatch `rb-implementer` with the task id, the full plan and
