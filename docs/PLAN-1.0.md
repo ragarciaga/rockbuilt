@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 0.14.0. Fase en curso: **1 (niveles y aprobación)**, pendiente de la decisión de la bitácora del 2026-11-24 sobre C1. Ver la tabla de fases.
+**Estado.** Versión en `main`: 0.14.0. Fase en curso: **1 (niveles y aprobación)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -128,8 +128,8 @@ y #52, PRs #26 y #46).
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
 | 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
-| 1. Niveles y aprobación | 1.0.0 | Bloques A y B | Pendiente |
-| 2. No interrumpir y lotes | 1.1.0 | Bloques C y D | Pendiente |
+| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | En curso |
+| 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Pendiente |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
@@ -160,8 +160,11 @@ costo pesa más que las interrupciones, puede subir al segundo lugar sin romper 
 ### Fase 1. Niveles y aprobación (1.0.0)
 
 Bloque A, niveles y aprobación:
-- [ ] A1 `rb risk` devuelve nivel (1, 2, 3) y la lista de motivos de aprobación (lista cerrada
-      de la sección 2), en lugar de un solo nivel A, B o C.
+- [x] A1 `rb risk` devuelve nivel (1, 2, 3) y la lista de motivos de aprobación (lista cerrada
+      de la sección 2), en lugar de un solo nivel A, B o C. Hecho: junto al tier, que sigue
+      decidiendo el merge hasta A5 (DESIGN 29).
+- [ ] C1 (adelantado desde la fase 2, decisión del 2026-11-24) Agrupar las decisiones en un solo
+      mensaje por punto de control. Ver su texto completo en la fase 2.
 - [ ] A2 El límite de tamaño no cuenta pruebas ni fixtures.
 - [ ] A3 Archivos de contabilidad (LESSONS, progress, tasks.md) dentro de un PR de tarea no suben
       el nivel.
@@ -201,7 +204,7 @@ Bloque B, calidad medida:
 ### Fase 2. No interrumpir y lotes (1.1.0)
 
 Bloque C, interrupciones:
-- [ ] C1 Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
+- [ ] C1 (se hace en la fase 1) Las decisiones se apartan sin bloquear: la sesión sigue con otro trabajo y manda un solo
       mensaje con todo lo pendiente por punto de control o al final de la corrida. Base mecánica:
       estado en JSON con dos mitades, lo que el harness hará solo y lo que espera al dueño (planes
       por aprobar, PRs, bloqueados, seguimientos, escalaciones), marcado como incompleto si falla
@@ -352,3 +355,14 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   funcionalidad dentro de una tarea piden aprobación (16 de 26 en 2brain); `**/design.md` toca la
   plantilla del harness. Decisión del dueño pendiente antes de publicar la fase 1: la regla sola no
   cumple la meta; recomiendo adelantar C1 (agrupar decisiones) a la 1.0.0. Sin evals.
+- 2026-11-24: Andrés decide adelantar C1 (agrupar decisiones) a la 1.0.0, porque la regla de
+  niveles sola no cumple la meta en Doorcas. Regla de versión de la fase 1: los PRs de cada punto
+  no suben la versión; la 1.0.0 sale cuando la fase completa esté fusionada, para no publicar un
+  gate a medias.
+- 2026-11-24: A1 hecho. `rb risk` devuelve `level`, `approvals`, `checks` y `levelReasons` junto
+  al tier (DESIGN 29, `tests/rb-level.test.mjs`). Defaults decididos con la reproducción: editar
+  un spec existente dentro de una tarea es nivel 3 y se reporta, no se pregunta (crear uno sí
+  pregunta); un host externo nuevo es nivel 3 sin aprobación; una dependencia de runtime va al
+  chequeo automático (A7), las de desarrollo son libres; el design.md de las plantillas del
+  harness no cuenta como arquitectura. Sin evals: el cambio es una función de `rb` sin consumidores
+  todavía, y lo cubren pruebas unitarias. Siguiente: A2.

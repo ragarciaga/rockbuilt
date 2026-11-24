@@ -1189,3 +1189,22 @@ Evidence 20.24.
    setup they accept or refuse, asked one question each before approval.
 5. **Seed.** An optional `## Seed` block loads committed fixtures and a test identity; the
    orchestrator runs it before starting the app for the blind auditor.
+
+## 29. Review levels and owner approvals (1.0.0, in progress)
+
+Evidence: PLAN-1.0 sections 1 and 2, issue #75, `evals/results/2026-11-24-field-baseline.md` and
+`evals/results/2026-11-24-replay-levels.md` (539 merged PRs of 5 projects: tier C 52% to 87%,
+owner interventions up to 20.8 per day).
+
+1. **Level and approvals from the diff (A1).** `rb risk --json` returns, next to the tier,
+   `level` (1 batch, 2 normal, 3 sensitive), `approvals: [{ reason, path, detail }]`, `checks`
+   and `levelReasons`, all derived from the same findings as the tier. Approvals come only from a
+   closed list: `schema` (migrations and schema files), `architecture` (ADR, brief, a new spec,
+   a design.md outside the harness), `cost` (an unapproved paid SDK or a new secret-like key),
+   `irreversible` (large deletions) and `auth-model` (declared by the planner, never computed).
+   Level 3, with no approval: sensitive and auth paths, CI and deploy, harness files, size, a new
+   external host, an unreadable diff, a changed manifest script or engine, and an edit to an
+   existing spec (reported, not asked: in the replay it caused most asks in two projects). A
+   runtime dependency goes to `checks: ["dependency"]` (A7), not to the owner; dev and test
+   dependencies are free. Level 1 is tier A. Until the gate reads the level (A5), the tier keeps
+   deciding the merge.

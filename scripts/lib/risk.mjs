@@ -242,7 +242,56 @@ export function securityNeed(files, tier, autonomy = {}) {
 
 export function classify(input) {
   const r = classifyTier(input);
-  return { ...r, security: securityNeed(input.files, r, input.autonomy) };
+  return { ...r, security: securityNeed(input.files, r, input.autonomy), ...reviewLevel(r, input.files) };
+}
+
+// PLAN-1.0 A1 (#75, evals/results/2026-11-24-replay-levels.md): the review level and the owner
+// approvals, derived from the same findings as the tier. Level 1 (batch): tier A work. Level 3
+// (sensitive): sensitive and auth paths, schema, CI and deploy, harness files, large deletions,
+// size, a new external host, an unreadable diff, a changed manifest script or engine, and an edit
+// to an existing spec. Level 2: everything else. Approvals come only from the closed list; auth
+// model is declared by the planner, never computed. A runtime dependency goes to the dependency
+// check (A7), not to the owner; dev and test dependencies are free.
+export const APPROVAL_REASONS = ['schema', 'architecture', 'auth-model', 'cost', 'irreversible'];
+const LEVEL3_RULES = new Set(['auth-permissions-payments', 'sensitive-path', 'data-schema', 'infra-deploy-ci', 'harness-secrets', 'deletions', 'size']);
+const HARNESS_GLOBS = FLOOR_PATHS.find((g) => g.rule === 'harness-secrets').globs;
+const RUNTIME_DEP_FIELDS = /\((dependencies|optionalDependencies|peerDependencies|bundleDependencies|bundledDependencies)\)$/;
+const SPEC_DOC = /^docs\/specs\/[^/]+\/(requirements|design)\.md$/;
+
+export function reviewLevel(tier, files = []) {
+  const approvals = [];
+  const levelReasons = [];
+  const checks = new Set();
+  const ask = (reason, r) => { if (!approvals.some((a) => a.reason === reason && a.path === r.path)) approvals.push({ reason, path: r.path, detail: r.detail }); };
+  const status = (p) => (files.find((f) => normalizePath(f.path) === p) || {}).status;
+  for (const r of tier.reasons) {
+    if (r.rule === 'data-schema') ask('schema', r);
+    else if (r.rule === 'deletions') ask('irreversible', r);
+    else if (r.rule === 'architecture' || r.rule === 'spec') {
+      // Harness files (a skill's design.md template) are level 3 through harness-secrets.
+      if (matchAny(r.path, HARNESS_GLOBS)) continue;
+      if (SPEC_DOC.test(r.path) && status(r.path) !== 'added') {
+        levelReasons.push({ rule: 'spec-amendment', path: r.path, detail: 'edits an existing spec: reported, not asked' });
+      } else ask('architecture', r);
+      continue;
+    } else if (r.rule === 'cost') {
+      if (/imports paid SDK|secret-like env var/.test(r.detail)) ask('cost', r);
+      else levelReasons.push(r);
+      continue;
+    } else if (r.rule === 'dependency') {
+      const changes = r.changes || [r.detail];
+      if (!/package\.json$/.test(r.path)) checks.add('dependency');
+      for (const c of changes) {
+        if (RUNTIME_DEP_FIELDS.test(c)) { if (!/^removed /.test(c)) checks.add('dependency'); } else if (/\(devDependencies\)$/.test(c)) continue;
+        else if (/\(\w+\)$/.test(c)) levelReasons.push({ ...r, detail: c });
+        else checks.add('dependency');
+      }
+      continue;
+    }
+    if (LEVEL3_RULES.has(r.rule)) levelReasons.push(r);
+  }
+  const level = levelReasons.length ? 3 : tier.tier === 'A' ? 1 : 2;
+  return { level, approvals, checks: [...checks], levelReasons };
 }
 
 function classifyTier({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
@@ -269,7 +318,7 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
       if (!contentKnown) { add('dependency', p, 'dependency manifest in the file list (content not inspected)'); floor = true; } else {
         const pj = packageJson(p);
         const changes = pj ? packageDepChanges(pj.old, pj.new) : ['could not read package.json versions'];
-        if (changes.length) { add('dependency', p, changes.slice(0, 5).join('; ')); floor = true; }
+        if (changes.length) { reasons.push({ rule: 'dependency', path: p, detail: changes.slice(0, 5).join('; '), changes }); floor = true; }
       }
     } else if (matchAny(p, OTHER_MANIFESTS)) {
       add('dependency', p, 'dependency manifest or lockfile changed'); floor = true;
@@ -467,6 +516,12 @@ export function riskText(r) {
   const lines = [`tier ${r.tier}  (${r.source}${r.pr ? ` #${r.pr}` : ''}${r.base ? ` vs ${r.base}` : ''}, ${r.files.length} file(s), ${r.changedLines} changed lines)`];
   for (const x of r.reasons) lines.push(`  ${x.rule.padEnd(26)} ${x.path || '-'}  ${x.detail}`);
   if (r.quick) lines.push(r.quick.eligible ? `quick mode: within limits (${r.changedLines}/${r.quick.limits.lines} lines, ${r.files.length}/${r.quick.limits.files} files)` : `quick mode: not eligible (${r.quick.reasons.join('; ')})`);
+  if (r.level) {
+    const why = (r.levelReasons || []).slice(0, 3).map((x) => `${x.rule} ${x.path || ''}`.trim()).join('; ');
+    lines.push(`level ${r.level}${why ? ` (${why})` : ''}`);
+    lines.push(r.approvals && r.approvals.length ? `owner approval: ${r.approvals.map((a) => `${a.reason} (${a.path || a.detail})`).join('; ')}` : 'owner approval: none');
+    if (r.checks && r.checks.length) lines.push(`automatic checks: ${r.checks.join(', ')}`);
+  }
   if (r.security) lines.push(r.security.required ? `security review: required (${r.security.reasons.slice(0, 4).map((x) => `${x.detail} ${x.path}`.trim()).join('; ')})` : 'security review: not required by the diff');
   return lines.join('\n');
 }
