@@ -868,10 +868,11 @@
           "pattern": "<!-- rockbuilt:level 1 -->"
         },
         {
-          "type": "defaultBranchUnchanged"
+          "type": "noEmDash"
         },
         {
-          "type": "noEmDash"
+          "type": "bashExcludes",
+          "pattern": "gh pr merge"
         }
       ]
     }

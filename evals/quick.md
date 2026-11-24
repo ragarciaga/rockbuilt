@@ -65,5 +65,6 @@ Headless: `quick-s3-level1-docs`. GitHub simulator, seed `empty`.
 - Prompt (es):
   > Agrega al README una sección corta que explique cómo correr las pruebas.
 - Pass: rb-quick loads; no planner, implementer, verifier, auditor or security reviewer runs; the
-  PR body carries `<!-- rockbuilt:level 1 -->`; `main` does not move; no em dash.
+  PR body carries `<!-- rockbuilt:level 1 -->`; the merge goes through `rb merge-gate` (it may land
+  on `main`, level 1 merges on CI); no em dash.
 - Expected failure before 1.0: the verifier runs on a README change.

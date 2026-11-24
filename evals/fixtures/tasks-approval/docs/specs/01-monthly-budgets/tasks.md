@@ -17,7 +17,7 @@ Spec: docs/specs/01-monthly-budgets/  |  Status: approved  |  Converged: 2026-10
 
 ## T2: Comparar el mes contra los topes y avisar por correo
 - Purpose: ver por categoría el gasto, el tope, la diferencia y si se excedió, y mandar un correo con el resumen cuando una categoría se pase, usando el servicio pago Resend (SDK `resend` y la variable RESEND_API_KEY; no está en Paid services)
-- Covers: R2.1, R2.2, R2.3
+- Covers: R2.1, R2.2, R2.3, R2.4
 - Size: S
 - Depends on: T1
 - Files: package.json, src/budgets.js, src/notify.js, tests/budgets.test.js
