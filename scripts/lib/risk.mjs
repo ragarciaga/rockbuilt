@@ -290,11 +290,25 @@ export function reviewLevel(tier, files = []) {
     }
     if (LEVEL3_RULES.has(r.rule)) levelReasons.push(r);
   }
-  const level = levelReasons.length ? 3 : tier.tier === 'A' ? 1 : 2;
+  let level = levelReasons.length ? 3 : tier.tier === 'A' ? 1 : 2;
+  // PLAN-1.0 B1: tests enter level 1 only when they add; a removed or changed line in a test file
+  // can weaken an assertion, so it gets the verifier (level 2).
+  if (level === 1 && files.some((f) => isTestPath(f.path) && (f.deletions || 0) > 0)) level = 2;
+  // A lesson binds every agent: committed by a task it does not raise the level to 3 (A3), but it
+  // is never merged without the verifier reading it.
+  if (level === 1 && files.some((f) => normalizePath(f.path) === '.claude/LESSONS.md')) level = 2;
   return { level, approvals, checks: [...checks], levelReasons };
 }
 
-function classifyTier({ files, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+// PLAN-1.0 A3: task status, progress notes and lessons a task PR commits do not raise its tier or
+// level (the cycle writes them; the reviewers still see them in the diff).
+const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
+// PLAN-1.0 A2: the size limit does not count tests or fixtures (quick mode still counts them).
+export const FIXTURE_GLOBS = ['**/fixtures/**', '**/__fixtures__/**', '**/testdata/**', '**/__snapshots__/**', '**/*.snap'];
+export const SIZE_LIMIT = 800;
+
+function classifyTier({ files: allFiles, contentKnown = true, packageJson = () => null, baseHas = () => null, headText = () => null, autonomy = {} }) {
+  const files = allFiles.filter((f) => !BOOKKEEPING_RE.test(normalizePath(f.path)));
   const reasons = [];
   const add = (rule, p, detail) => reasons.push({ rule, path: p, detail });
   const sensitive = autonomy.sensitivePaths || [];
@@ -385,8 +399,9 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
   if (deleted.length > 10) { add('deletions', '', `${deleted.length} files deleted`); floor = true; }
   const srcDeleted = deleted.filter((f) => normalizePath(f.path).startsWith('src/')).reduce((s, f) => s + (f.deletions || 0), 0);
   if (srcDeleted > 300) { add('deletions', 'src/', `${srcDeleted} lines deleted with files under src/`); floor = true; }
-  const changed = files.reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
-  if (changed > 800) { add('size', '', `${changed} changed lines (> 800)`); floor = true; }
+  const changed = allFiles.reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
+  const sized = files.filter((f) => !isTestPath(f.path) && !matchAny(normalizePath(f.path), FIXTURE_GLOBS)).reduce((s, f) => s + (f.additions || 0) + (f.deletions || 0), 0);
+  if (sized > SIZE_LIMIT) { add('size', '', `${sized} changed lines outside tests and fixtures (> ${SIZE_LIMIT})`); floor = true; }
 
   if (floor) return { tier: 'C', reasons, changedLines: changed };
   const notA = files.map((f) => normalizePath(f.path)).filter((p) => matchAny(p, NOT_TIER_A) || !matchAny(p, [...TIER_A_GLOBS, ...tierAExtra]));
@@ -396,8 +411,6 @@ function classifyTier({ files, contentKnown = true, packageJson = () => null, ba
   for (const p of notA.slice(0, 20)) add('tier-b', p, 'outside the tier A list');
   return { tier: 'B', reasons, changedLines: changed };
 }
-
-const BOOKKEEPING_RE = /^(docs\/specs\/[^/]+\/tasks\.md|docs\/progress\.md|\.claude\/LESSONS\.md)$/;
 
 const STATUS = { A: 'added', M: 'modified', D: 'deleted', R: 'renamed', C: 'copied', T: 'modified', U: 'modified' };
 

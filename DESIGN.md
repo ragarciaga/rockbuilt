@@ -1208,3 +1208,11 @@ owner interventions up to 20.8 per day).
    runtime dependency goes to `checks: ["dependency"]` (A7), not to the owner; dev and test
    dependencies are free. Level 1 is tier A. Until the gate reads the level (A5), the tier keeps
    deciding the merge.
+2. **Size without tests (A2).** The 800-line limit counts product lines only: tests and fixtures
+   (`**/fixtures/**`, `**/__fixtures__/**`, `**/testdata/**`, snapshots) are left out. Quick mode
+   still counts every line: the reviewer reads them all.
+3. **Bookkeeping does not raise a task (A3).** tasks.md, docs/progress.md and .claude/LESSONS.md
+   committed by a task PR are left out of the tier and level. A lesson binds every agent, so a
+   diff that commits one is at least level 2.
+4. **Tests in level 1 only when they add (B1).** A test file with removed or changed lines can
+   weaken an assertion: level 2.

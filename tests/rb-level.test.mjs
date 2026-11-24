@@ -107,3 +107,24 @@ test('rb risk prints the level and the approvals next to the tier', () => {
     assert.match(riskText(r.json), /level 3 .*owner approval: schema/s);
   });
 });
+
+test('A2: tests and fixtures do not count for size; product code still does', () => {
+  const many = (n) => Array.from({ length: n }, () => 'x');
+  const r = run([file('src/big.ts', many(300)), file('tests/big.test.ts', many(900)), file('tests/fixtures/data.json', many(900))]);
+  assert.ok(!r.reasons.some((x) => x.rule === 'size'));
+  assert.equal(r.level, 2);
+  assert.equal(r.changedLines, 2100);
+  assert.ok(run([file('src/huge.ts', many(801))]).reasons.some((x) => x.rule === 'size'));
+});
+
+test('A3: bookkeeping files inside a task PR do not raise the level', () => {
+  const r = run([file('src/lib/sum.ts'), file('docs/specs/feed/tasks.md'), file('docs/progress.md'), file('.claude/LESSONS.md')]);
+  assert.equal(r.tier, 'B');
+  assert.equal(r.level, 2);
+  assert.equal(run([file('docs/guide.md'), file('docs/progress.md')]).level, 1);
+});
+
+test('B1: a test that removes or changes lines is level 2, an added test level 1', () => {
+  assert.equal(run([file('tests/a.test.ts', ['x'])]).level, 1);
+  assert.equal(run([file('tests/a.test.ts', ['x'], { deletions: 1 })]).level, 2);
+});

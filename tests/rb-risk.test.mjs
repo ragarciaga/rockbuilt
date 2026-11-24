@@ -81,8 +81,10 @@ test('tier B: production code and non-dependency package.json edits; lockfiles a
   assert.equal(r.tier, 'B', JSON.stringify(r.reasons));
   r = await tierOf(base(), { 'package.json': PKG.replace('"name": "app"', '"name": "app",\n  "overrides": { "a": "9" }') });
   assert.equal(r.tier, 'C', 'overrides are dependencies');
+  r = await tierOf(base(), { 'docs/specs/01-x/requirements.md': 'req\n' });
+  assert.notEqual(r.tier, 'A', 'specs are not tier A');
   r = await tierOf(base(), { 'docs/specs/01-x/tasks.md': 'tasks\n' });
-  assert.equal(r.tier, 'B', 'specs are not tier A');
+  assert.equal(r.tier, 'A', 'task status alone is bookkeeping (PLAN-1.0 A3)');
 });
 
 test('floor: package.json dependency diff (added, bumped, devDependencies)', async () => {
@@ -268,7 +270,9 @@ test('git mode: uncommitted bookkeeping edits (task claim, lessons) do not raise
   assert.equal(r.tier, 'A', JSON.stringify(r.reasons));
   write(root, '.claude/LESSONS.md', '# Lessons\n- committed by the task\n');
   commitAll(root, 'task touches lessons');
-  assert.equal((await tierOf(root, {}, { commit: false })).tier, 'C', 'committed harness edits still count');
+  const committed = await tierOf(root, {}, { commit: false });
+  assert.equal(committed.tier, 'A', 'a committed lesson does not raise the tier (PLAN-1.0 A3)');
+  assert.equal(committed.level, 2, 'but the verifier reads it');
 });
 
 test('cost scan: hosts in config files count; namespaces and look-alike names do not', () => {
