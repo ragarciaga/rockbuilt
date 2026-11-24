@@ -12,6 +12,7 @@ import { classify, isTestPath, normalizePatch, samePatches } from './delta.mjs';
 import { APPROVAL_REASONS, computeRisk, maxTier, tierRank } from './risk.mjs';
 import { approvalStatus } from './approval.mjs';
 import { dependencyCheck } from './deps.mjs';
+import { inventoryProblems } from './inventory.mjs';
 import { ensureControl } from './control.mjs';
 import { CliError, git, now, sleepMs } from './util.mjs';
 import { matchAny } from './glob.mjs';
@@ -419,10 +420,11 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
       if (allIssues.includes(n)) continue;
       let bi = null;
       try { bi = ops.issueView(c, n); } catch (e) { no('batch', `could not read #${n}: ${e.message}`); continue; }
-      const held = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:hold', 'rb:blocked'].filter((l) => bi.labels.includes(l));
+      const held = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:hold', 'rb:blocked', 'rb:unplanned', 'rb:parked', 'rb:pr-open', 'rb:in-progress'].filter((l) => bi.labels.includes(l));
       if (bi.state !== 'open') no('batch', `batched #${n} is ${bi.state}`);
       else if (held.length) no('batch', `batched #${n} carries ${held.join(', ')}`);
       else if (!bi.labels.some((l) => ['rb:task', 'rb:bug'].includes(l))) no('batch', `batched #${n} is not an rb:task or rb:bug issue`);
+      else if (/<!--\s*rockbuilt:task\s+\S+\s+spec=docs\//.test(bi.body || '')) no('batch', `batched #${n} is a spec task: spec tasks are built from tasks.md, never batched`);
     }
   }
   const planLine = issueView ? [...issueView.comments].reverse().find((cm) => TRUSTED_ASSOC.has(cm.author_association) && /^<!--\s*rockbuilt:plan\b/m.test(cm.body || '')) : null;
@@ -515,8 +517,17 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   const allowed = KIND_FILES.find(([prefix]) => view.head.ref.startsWith(prefix));
   if (allowed) {
     try {
-      const outside = ops.prFiles(c, view.number).flatMap((f) => [f.path, f.previous_path].filter(Boolean)).filter((p) => !matchAny(p, allowed[1]));
+      const prFiles = ops.prFiles(c, view.number);
+      const outside = prFiles.flatMap((f) => [f.path, f.previous_path].filter(Boolean)).filter((p) => !matchAny(p, allowed[1]));
       if (outside.length) no('kind-files', `${allowed[0]}* PRs touch only ${allowed[1].join(', ')}; this one also changes ${outside.slice(0, 5).join(', ')}: build it as a task`);
+      // PLAN-1.0 E1: a new spec reaches main only with its decision inventory complete.
+      if (allowed[0] === 'rb/spec-') {
+        for (const f of prFiles.filter((x) => x.status === 'added' && /^docs\/specs\/[^/]+\/requirements\.md$/.test(x.path))) {
+          const text = ops.fileAt(c, f.path, head);
+          const gaps = text == null ? ['could not read it'] : inventoryProblems(text);
+          if (gaps.length) no('inventory', `${f.path}: ${gaps.slice(0, 4).join('; ')}${gaps.length > 4 ? ` (+${gaps.length - 4})` : ''}: complete it (rb spec check)`);
+        }
+      }
     } catch (e) {
       no('kind-files', `could not read files: ${e.message}`);
     }

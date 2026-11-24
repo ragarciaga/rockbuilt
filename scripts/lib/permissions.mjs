@@ -8,16 +8,22 @@ import { readText } from './util.mjs';
 
 const FILE = (root) => path.join(root, '.rockbuilt', 'permissions.jsonl');
 // Never proposed for the allow list, however often it was asked.
-const RISKY = /^(rm|sudo|chmod|chown|dd|mkfs|curl|wget|ssh|scp|kill|pkill|killall|git push|git reset|git clean|git rebase|git checkout --|gh|npm publish|npx|docker|kubectl)\b|[|;&`$]/;
+const RISKY = /^(rm|sudo|chmod|chown|dd|mkfs|curl|wget|ssh|scp|kill|pkill|killall|bash|sh|zsh|env|xargs|find|mv|cp|python\d?|perl|ruby|node -e|node --eval|git -C|git push|git reset|git clean|git rebase|git checkout|git branch|git stash|git config|gh|npm publish|npx|docker|kubectl)\b|[|;&`$<>]/;
 
 export function permissionKey(input) {
   const tool = String(input.tool_name || input.tool || 'unknown');
   const ti = input.tool_input || {};
   if (tool === 'Bash') {
-    const cmd = String(ti.command || '').trim().replace(/\s+/g, ' ');
-    const words = cmd.split(' ');
+    // Only the first words, never values: leading VAR=value assignments are dropped (they can hold
+    // a key), and everything from a quote, a redirection or a heredoc on is cut (file bodies).
+    const full = String(ti.command || '').trim().replace(/\s+/g, ' ');
+    let cmd = full;
+    const cut = cmd.search(/["'`<>]|<<|\$\(/);
+    if (cut !== -1) cmd = cmd.slice(0, cut).trim();
+    const words = cmd.split(' ').filter((w) => w && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
     const prefix = words.slice(0, /^(git|npm|node|npx|pnpm|yarn)$/.test(words[0]) ? 2 : 1).join(' ');
-    return { tool, prefix, command: cmd.slice(0, 120) };
+    const shape = words.slice(0, 4).map((w) => (/^[\w./-]+$/.test(w) ? w : '…')).join(' ');
+    return { tool, prefix, command: shape, risky: RISKY.test(full) || RISKY.test(words.join(' ')) };
   }
   if (ti.file_path) return { tool, prefix: path.posix.dirname(String(ti.file_path).replace(/\\/g, '/')), command: null };
   return { tool, prefix: '', command: null };
@@ -35,17 +41,19 @@ export function permissionReport(root) {
     let e;
     try { e = JSON.parse(l); } catch { continue; }
     const k = `${e.tool}\u0000${e.prefix}`;
-    const g = groups.get(k) || { tool: e.tool, prefix: e.prefix, count: 0, last: null, example: e.command };
+    const g = groups.get(k) || { tool: e.tool, prefix: e.prefix, count: 0, last: null, example: e.command, all: [] };
     g.count++;
+    g.all.push(e.risky ? '|' : e.command || '');
     g.last = e.at;
     groups.set(k, g);
   }
   const rows = [...groups.values()].sort((a, b) => b.count - a.count);
   for (const r of rows) {
     if (r.tool !== 'Bash' || !r.prefix) r.rule = null;
-    else if (RISKY.test(r.prefix) || RISKY.test(r.example || '')) r.rule = null;
+    else if (RISKY.test(r.prefix) || r.all.some((c) => RISKY.test(c))) r.rule = null;
     else r.rule = `Bash(${r.prefix} *)`;
   }
+  for (const r of rows) delete r.all;
   return { total: lines.length, rows };
 }
 

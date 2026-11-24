@@ -148,9 +148,10 @@ function rel(ws, p) {
   return path.relative(ws, path.resolve(ws, p)).split(path.sep).join('/');
 }
 
+// A leading inline flag group, as in PCRE: (?i), (?m), (?im)...
 function toRegExp(pattern) {
-  if (pattern.startsWith('(?i)')) return new RegExp(pattern.slice(4), 'i');
-  return new RegExp(pattern);
+  const m = String(pattern).match(/^\(\?([imsu]+)\)/);
+  return m ? new RegExp(pattern.slice(m[0].length), m[1]) : new RegExp(pattern);
 }
 
 function filesUnder(full) {

@@ -934,6 +934,48 @@
           "type": "noEmDash"
         }
       ]
+    },
+    {
+      "id": "spec-inventory-es",
+      "source": "spec.md#S1",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "spec-approved"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Arranquemos la spec de una funcionalidad nueva: exportar el reporte del mes a un CSV para abrirlo en Excel.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-spec"
+        },
+        {
+          "type": "textMatches",
+          "pattern": "(?m)^###\\s+(Decisiones|Decisions)\\s*$"
+        },
+        {
+          "type": "textMatches",
+          "pattern": "(?im)^-\\s*(Qué pasa si|What if):\\s*\\S"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs spec check"
+        },
+        {
+          "type": "finalMatches",
+          "pattern": "(?i)acepto|por defecto|propongo"
+        },
+        {
+          "type": "noCommits"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
     }
   ]
 }

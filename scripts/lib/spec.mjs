@@ -1,5 +1,6 @@
 // tasks.md and requirements.md parsing (DESIGN.md section 15).
 import path from 'node:path';
+import { isTestPath } from './delta.mjs';
 import { matchAny } from './glob.mjs';
 import { FLOOR_PATHS } from './risk.mjs';
 import { CliError, readText } from './util.mjs';
@@ -175,7 +176,7 @@ export function coverage(criteria, tasks) {
 // PLAN-1.0 D4: larger tasks, fewer PRs. Test files do not count (the size limit ignores them too).
 export const MAX_TASK_FILES = 10;
 export const MAX_TASK_CRITERIA = 6;
-const isTestFile = (f) => /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[^/]+$/.test(String(f).replace(/\\/g, '/'));
+const isTestFile = (f) => isTestPath(String(f).replace(/\\/g, '/')) || /_test\.go$/.test(String(f));
 
 export function taskProblems(tasks, errors = []) {
   const ids = new Set(tasks.map((t) => t.id));

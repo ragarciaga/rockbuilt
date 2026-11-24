@@ -183,7 +183,7 @@ test('merge-gate: label level lower than the live risk, declared level above the
   assert.deepEqual(reasonRules(r), ['approval']);
   // PLAN-1.0 C4: the wait for the owner is its own phase, not CI time.
   gh.state.issues[10].body += '<!-- rockbuilt:task T1 -->\n';
-  await gate(root, gh, ['--run', 'run-1', '--dry-run']);
+  await gate(root, gh, ['--run', 'run-1']);
   const events = readFileSync(path.join(root, '.rockbuilt', 'timing.jsonl'), 'utf8');
   assert.match(events, /"task":"T1","phase":"wait","event":"start"/);
   r = await gate(root, gh, ['--run', 'run-1', '--human-approved', '--dry-run']);
@@ -616,7 +616,7 @@ test('merge-gate: revert and spec PRs never merge unattended, but do with --huma
   for (const ref of ['rb/revert-7', 'rb/spec-01-x', 'chore/rockbuilt-0.3.0']) {
     const root = project();
     const gh = fakeGh();
-    seed(gh, { body: 'No reviewer lines\n', labels: [], files: [{ filename: 'docs/specs/01-x/requirements.md', status: 'added', additions: 1, deletions: 0, patch: '@@\n+x' }] });
+    seed(gh, { body: 'No reviewer lines\n', labels: [], files: [{ filename: 'docs/specs/01-x/requirements.md', status: 'modified', additions: 1, deletions: 0, patch: '@@\n+x' }] });
     gh.state.pulls[10].head = ref;
     await locked(root, gh);
     const auto = await gate(root, gh, ['--run', 'run-1']);
@@ -624,6 +624,16 @@ test('merge-gate: revert and spec PRs never merge unattended, but do with --huma
     assert.ok(reasonRules(auto).includes('human-only'), ref);
     const human = await gate(root, gh, ['--human-approved']);
     assert.equal(human.code, 0, `${ref}: ${JSON.stringify(human.json.reasons)}`);
+  }
+  // PLAN-1.0 E1: a new requirements.md needs its decision inventory.
+  {
+    const root2 = project();
+    const gh2 = fakeGh();
+    seed(gh2, { body: 'No reviewer lines\n', labels: [], files: [{ filename: 'docs/specs/02-y/requirements.md', status: 'added', additions: 3, deletions: 0, patch: '@@\n+x' }] });
+    gh2.state.pulls[10].head = 'rb/spec-02-y';
+    gh2.state.contents[`${HEAD}:docs/specs/02-y/requirements.md`] = '# R\n\n## R1: x\n- R1.1 The system shall x. `[unit]`\n';
+    const r2 = await gate(root2, gh2, ['--human-approved', '--dry-run']);
+    assert.ok(r2.json.reasons.some((x) => x.rule === 'inventory' && /R1 has no/.test(x.detail)), JSON.stringify(r2.json.reasons));
   }
   // A spec branch that changes code is not a spec PR, even with the owner's word (review of 1.0).
   const root = project();

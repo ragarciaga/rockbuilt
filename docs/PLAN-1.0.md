@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 1.1.0. Fase en curso: **3 (spec)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.2.0. Fase en curso: **4 (menos devoluciones y contexto)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -130,7 +130,7 @@ y #52, PRs #26 y #46).
 | 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
 | 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, release v1.0.0) |
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Hecha |
-| 3. Spec | 1.2.0 | Bloque E | Pendiente |
+| 3. Spec | 1.2.0 | Bloque E | Hecha |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
 | 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Pendiente |
@@ -230,15 +230,15 @@ Bloque D, lotes:
 ### Fase 3. Spec (1.2.0)
 
 Bloque E:
-- [ ] E1 Inventario de decisiones obligatorio por requisito: números y umbrales, tiempos, qué pasa
+- [x] E1 Inventario de decisiones obligatorio por requisito: números y umbrales, tiempos, qué pasa
       si (fallas, cancelaciones, duplicados, topes), quién puede, datos (retención, borrado,
       redacción) y definiciones (métricas). `rb` verifica que no quede vacío antes de aprobar,
       con el mismo patrón del decision record de trail-blazer-flow (secciones obligatorias y
       con contenido, revisadas por código).
-- [ ] E2 Una sola ronda de preguntas con defaults propuestos ("acepto todo salvo 3 y 7").
-- [ ] E3 Huecos durante la construcción: default seguro, registrado como decisión por defecto,
+- [x] E2 Una sola ronda de preguntas con defaults propuestos ("acepto todo salvo 3 y 7").
+- [x] E3 Huecos durante la construcción: default seguro, registrado como decisión por defecto,
       reportado en el digest; detenerse solo si es irreversible o estructural.
-- [ ] E4 Prueba con el spec de Doorcas: las 18 preguntas de huecos deberían quedar cubiertas.
+- [x] E4 Prueba con el spec de Doorcas: las 18 preguntas de huecos deberían quedar cubiertas.
 
 ### Fase 4. Menos devoluciones y menos contexto (1.3.0)
 
@@ -395,3 +395,9 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   lote); D2 lote de nivel 1 en el ciclo; D3 aviso en `/rb-build`; D4 tareas de hasta 10 archivos
   de producción y 6 criterios; D5 `rb:unplanned` y `rb:parked`. Evals 22/22, 13,18 USD
   (`evals/results/2026-11-24-1.1.md`).
+- 2026-11-24: fase 3 hecha (1.2.0, DESIGN 31): inventario de decisiones de seis líneas por
+  requisito con `rb spec check` y chequeo en el gate para specs nuevos; una ronda de preguntas
+  con defaults; huecos en construcción con default seguro y sección "Defaults tomados" en el
+  resumen. E4: las seis categorías cubren 17 de los 18 huecos que Doorcas escaló
+  (`evals/results/2026-11-24-inventory-doorcas.md`). Eval nuevo `spec-inventory-es`. Evals 23/23, 15,77 USD con la repetición tras la revisión independiente (`evals/results/2026-11-24-1.2.md`); el eval nuevo encontró que el paso 1 de rb-spec seguía preguntando de a una (corregido).
+- 2026-11-24: Andrés pregunta si Rockbuilt se usa para construir Rockbuilt: no (se sigue el proceso del repo, sin planner, verifier ni gate). Desde entonces cada PR lleva una revisión independiente antes de fusionar; la de las fases 2 y 3 encontró 11 hallazgos (3 altos), todos corregidos con prueba (DESIGN 31.5).

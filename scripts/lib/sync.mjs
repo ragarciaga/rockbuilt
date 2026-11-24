@@ -2,7 +2,8 @@
 import { readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { holdsLock } from './control.mjs';
-import { autoPhase, taskMarker } from './timing.mjs';
+import { appendEvent, openPhases, readEvents, taskMarker } from './timing.mjs';
+import { mainCheckoutRoot } from './repo.mjs';
 import { ops } from './gh.mjs';
 import { parseTasks, STATUS_DONE_ES } from './spec.mjs';
 import { currentBranch, defaultBranch } from './repo.mjs';
@@ -105,6 +106,15 @@ export function setTaskStatus(text, taskId, spanish) {
   return { text, changed: false };
 }
 
+function closeMergedPhases(root, task, mergedAt) {
+  try {
+    const events = readEvents(root);
+    const later = events.some((e) => e && e.task === task && e.event === 'start' && Date.parse(e.ts) > mergedAt.getTime());
+    if (later) return;
+    for (const p of openPhases(events, task, mergedAt)) appendEvent(root, 'end', task, p, mergedAt);
+  } catch { /* timing never blocks sync */ }
+}
+
 export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   const result = { tasks: [], ambiguous: [], branches: { deleted: [], kept: [] }, labels: [], github: 'ok' };
   const specs = specDirs(root).map((dir) => ({ dir, rel: toPosix(path.relative(root, dir)), text: readText(path.join(dir, 'tasks.md')) }));
@@ -143,8 +153,10 @@ export function syncProject(root, c, { log = () => {}, run = null } = {}) {
   for (const pr of merged) {
     // PLAN-1.0 C4: a PR merged by hand never ran the gate's timing close; close its open phases so
     // the task's total is not left at 0 with phases open forever (2brain, maysa).
+    // Closed at the merge time, in the main checkout (as every other caller), and only when no
+    // phase of that task id started after the merge (the id may belong to a newer task).
     const marker = taskMarker(pr.body);
-    if (marker) autoPhase(root, marker, null);
+    if (marker && pr.merged_at) closeMergedPhases(mainCheckoutRoot(root), marker, new Date(pr.merged_at));
     const ref = taskRefFromPr(pr);
     if (!ref) continue;
     if (!ref.spec) {

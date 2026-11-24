@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 (2026-11-24)
+
+Specs that leave no gaps (PLAN-1.0 phase 3, issue #79; DESIGN 31).
+
+- **Decision inventory.** Every requirement now has a `Decisions` block with six lines: numbers,
+  timing, what if, who can, data and definitions. `rb spec check` refuses an incomplete one, and
+  the merge gate refuses a new spec without it. In Doorcas these six categories cover 17 of the 18
+  questions that reached you during the build.
+- **One round of questions.** The spec asks every open decision at once, numbered, with a proposed
+  default: you answer "acepto todo salvo 3 y 7".
+- **Gaps during the build take the safe default** and appear in the digest under "Defaults taken";
+  only schema, architecture, auth model, cost and irreversible steps are asked.
+- Existing approved specs are not checked again; the next spec you write uses the new template.
+- Fixes from an independent review of 1.1 and 1.2 (DESIGN 31.5): the batch line no longer closes
+  spec tasks or issues in another PR, the template can no longer pass the check, and the
+  permissions log keeps no values.
+
 ## 1.1.0 (2026-11-24)
 
 Fewer interruptions and fewer small PRs (PLAN-1.0 phase 2, issues #77 and #78; DESIGN 30).

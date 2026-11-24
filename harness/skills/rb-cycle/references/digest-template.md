@@ -41,13 +41,19 @@ Una línea con la fase que más pesó en la corrida y por qué, si se sabe.
 <e> bugs que vienen de PRs fusionados (#<bug> de #<pr>). El auditor cuenta lo que el verificador
 dejó pasar; CI, lo que pasó todos los chequeos locales.
 
+### Delegación vigente
+- <alcance> hasta <fecha>: "<tus palabras>" (de `rb state`; se omite si no hay ninguna).
+
 ### Esperan tu decisión
-- #34 (T5, nivel C): <una línea: qué decidir>. Acción: <comenta "aprobado" o elige una opción en #<issue>, o di "/rb-merge #34">.
+- #34 (T5, plan por aprobar: esquema): <una línea: qué decidir>. Acción: escribe "aprobado" en #<issue>, o elige una opción.
 - #35 bookkeeping (docs: progress): revísalo y fusiónalo con `/rb-merge #35` cuando quieras.
 
 ### Escalaciones
 - #12 (decisión): <pregunta en una línea>. Recomendación: <opción>. Costo: <estimado | ninguno>.
 - #14 (paso local): <qué correr>. Comando en el issue.
+
+### Defaults tomados
+- #18 (T4): <decisión> porque <por qué es lo seguro>. Si no te sirve, dilo en el issue y se rehace.
 
 ### Bloqueadas
 - #16 (T7): <motivo en una línea>. Rama `rb/T7-...`. Reintento: quita `rb:blocked`.
@@ -67,6 +73,6 @@ Tomará: <#n CI, T6, T8, #20 bug>. Necesita de ti antes: <#12 respuesta, #14 pas
 Para pausar: agrega la etiqueta `rb:stop` a #<ctl>.
 ~~~~
 
-English headings, for `Docs language: en`: Summary, Merged, Waiting for your decision,
-Escalations, Blocked, Failures and notices, Time per task, Next run. Columns: PR, Task, Level,
+English headings, for `Docs language: en`: Summary, Merged, Delegation in force, Waiting for
+your decision, Escalations, Defaults taken, Blocked, Failures and notices, Time per task, Next run. Columns: PR, Task, Level,
 Minutes, To revert.
