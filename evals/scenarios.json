@@ -947,7 +947,7 @@
         "type": "automation",
         "lang": "es"
       },
-      "prompt": "/rb-spec Quiero que el reporte me avise cuando una categoría pase su tope del mes.",
+      "prompt": "Arranquemos la spec de una funcionalidad nueva: exportar el reporte del mes a un CSV para abrirlo en Excel.",
       "checks": [
         {
           "type": "skill",
@@ -955,11 +955,11 @@
         },
         {
           "type": "textMatches",
-          "pattern": "(?m)^###\\s+Decisiones\\s*$"
+          "pattern": "(?m)^###\\s+(Decisiones|Decisions)\\s*$"
         },
         {
           "type": "textMatches",
-          "pattern": "(?im)^-\\s*Qué pasa si:\\s*\\S"
+          "pattern": "(?im)^-\\s*(Qué pasa si|What if):\\s*\\S"
         },
         {
           "type": "bashIncludes",

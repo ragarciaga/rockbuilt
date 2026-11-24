@@ -60,13 +60,12 @@ Commands below are written `rb <cmd>`; run them as `node tools/rockbuilt/rb.mjs 
 ## Step 1: Close the brainstorm residue
 
 List every decision the feature depends on that is still ambiguous (data source, library,
-where output lands, what is in vs out, edge-case policy, sync vs background, which model).
-Then close them **one question at a time**, each with your recommended answer and the reason,
-so the user can just say yes. Use AskUserQuestion when options are discrete. Tag leftovers
-BLOCKING / ADVISORY / DEFERRED. Deferred scope goes to `docs/v2.md` with a reason now.
-
-End with a short summary of all decisions for approval. Do not write requirements before the
-user confirms the summary.
+where output lands, what is in vs out, edge-case policy, sync vs background, which model), and
+take a recommended default for each. Do not ask them one at a time (PLAN-1.0 E2): go straight
+on to write the requirements draft (Step 3) with those defaults in its decision inventory, and
+ask everything in **one round** at the end of Step 3. Deferred scope goes to `docs/v2.md` with a
+reason now. Only a decision that changes what the feature is (two readings of the request that
+lead to different specs) is asked before the draft, alone.
 
 ## Step 2 (optional): Benchmark an unknown library
 

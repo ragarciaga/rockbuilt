@@ -76,7 +76,10 @@ Setup convention: see README; `RB` is the Rockbuilt checkout; the "with" arm ven
 Headless: `spec-inventory-es`. Setup `node-app harness-es spec-approved`.
 
 - Prompt (es):
-  > /rb-spec Quiero que el reporte me avise cuando una categoría pase su tope del mes.
+  > Arranquemos la spec de una funcionalidad nueva: exportar el reporte del mes a un CSV para
+  > abrirlo en Excel.
+  (The first wording, an alert when a category passes its cap, overlapped the approved R2.2 of
+  the fixture: the session rightly asked first whether it was a new spec.)
 - Pass: rb-spec loads; the draft requirements.md has a `### Decisiones` block with a `Qué pasa si`
   line; `rb spec check` runs; the final message lists the open decisions with proposed defaults
   so the owner can accept them in one answer; nothing is committed; no em dash.
