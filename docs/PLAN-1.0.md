@@ -127,7 +127,7 @@ y #52, PRs #26 y #46).
 
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
-| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Pendiente |
+| 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | En curso |
 | 1. Niveles y aprobación | 1.0.0 | Bloques A y B | Pendiente |
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C y D | Pendiente |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
@@ -142,11 +142,14 @@ costo pesa más que las interrupciones, puede subir al segundo lugar sin romper 
 
 ### Fase 0. Preparación (sin cambios al harness)
 
-- [ ] 0.1 Abrir issues en `ragarciaga/rockbuilt` con la evidencia de la sección 1, uno por bloque
-      (A a H), enlazados a este plan.
-- [ ] 0.2 Línea base de calidad e interrupciones de los 5 repos: PRs por nivel C, devoluciones
+- [x] 0.1 Abrir issues en `ragarciaga/rockbuilt` con la evidencia de la sección 1, uno por bloque
+      (A a H), enlazados a este plan. Hecho: A #75, B #76, C #77, D #78, E #79, F #80, G #81,
+      H #82.
+- [x] 0.2 Línea base de calidad e interrupciones de los 5 repos: PRs por nivel C, devoluciones
       por revisor, reversiones, bugs escapados, intervenciones del dueño por día. Guardarla en
       `evals/results/` como archivo fechado.
+      Hecho: `evals/results/2026-11-24-field-baseline.md`, calculada con
+      `evals/tools/field-baseline.mjs`.
 - [ ] 0.3 Script de reproducción (en `evals/tools/`) que clasifica los PRs fusionados de los 5
       repos con la regla nueva (nivel y motivo de aprobación) usando la lista real de archivos de
       cada PR. Resultado: qué porcentaje pediría aprobación y cuántos agentes se ahorran. La
@@ -326,3 +329,12 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   A6 (full auto por alcance), A11 (casos de su auditoría externa), A12, C1 (estado en JSON), C3
   (corridas sin avisos de permiso), D5 (etiquetas de seguimientos), E1 (patrón decision record),
   F11 a F14 y la fase 8 (tracker en vivo). Agregado el prompt para arrancar una sesión.
+- 2026-11-24: 0.1 hecho. Issues por bloque abiertos con la etiqueta `harness-feedback`, en inglés
+  como los anteriores: A #75, B #76, C #77, D #78, E #79, F #80, G #81, H #82. Sin evals.
+- 2026-11-24: 0.2 hecho. Línea base en `evals/results/2026-11-24-field-baseline.md` (539 PRs
+  fusionados, datos vía Composio con la cuenta "rag"), script `evals/tools/field-baseline.mjs` con
+  su prueba. Cifras: nivel C 52% a 87%; intervenciones por día 20,8 Doorcas, 8,4 signal-engine,
+  6,2 2brain, menos de 3 en maysa y 3d_brain; devoluciones en 53% a 88% de los PRs con datos (el
+  plan decía 55% a 76%: otra definición; la nueva queda en el script); 0 reversiones y 0 bugs
+  escapados trazados; 3d_brain (0.9.0) sin veredictos de revisores. Definición de intervención:
+  escalaciones más merges aprobados por humano más merges a mano, por día calendario. Sin evals.
