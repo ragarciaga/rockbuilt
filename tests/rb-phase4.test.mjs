@@ -53,19 +53,20 @@ test('F4: rb tree-check finds a mutant left behind and restores it; probe files 
   assert.deepEqual(r.json.untracked, ['probe.test.js']);
   r = await rbJson(root, ['tree-check', '--restore']);
   assert.deepEqual(r.json.restored, ['src/a.js']);
-  assert.equal(readFileSync(path.join(root, 'src/a.js'), 'utf8'), 'export const a = 1;\n');
+  assert.equal(readFileSync(path.join(root, 'src/a.js'), 'utf8').replace(/\r\n/g, '\n'), 'export const a = 1;\n');
   assert.ok(existsSync(path.join(root, 'probe.test.js')), 'never deleted');
-  // Review of 1.3.0: tabs in names, renames, staged new files.
+  // Review of 1.3.0: tabs in names (not on Windows, which forbids them), renames, staged new files.
   const { sh } = await import('./rb-helpers.mjs');
-  const r2 = repoWith({ 'src/tab\tx.js': 'a\n', 'src/old.js': 'o\n' });
-  w(r2, 'src/tab\tx.js', 'mutant\n');
+  const odd = process.platform === 'win32' ? 'src/odd name.js' : 'src/tab\tx.js';
+  const r2 = repoWith({ [odd]: 'a\n', 'src/old.js': 'o\n' });
+  w(r2, odd, 'mutant\n');
   sh(r2, 'git', ['mv', 'src/old.js', 'src/new.js']);
   w(r2, 'src/staged.js', 's\n');
   sh(r2, 'git', ['add', 'src/staged.js']);
   const t = await rbJson(r2, ['tree-check', '--restore']);
   assert.equal(t.code, 3);
   assert.deepEqual(t.json.failed, []);
-  assert.equal(readFileSync(path.join(r2, 'src/tab\tx.js'), 'utf8'), 'a\n');
+  assert.equal(readFileSync(path.join(r2, odd), 'utf8').replace(/\r\n/g, '\n'), 'a\n');
   assert.ok(existsSync(path.join(r2, 'src/old.js')), 'the renamed-away file is back');
   assert.ok(existsSync(path.join(r2, 'src/staged.js')), 'a staged new file is never deleted');
   assert.ok(t.json.added.includes('src/staged.js'));
