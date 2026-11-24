@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 0.14.0. Fase en curso: **1 (niveles y aprobación)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 0.14.0. Fase en curso: **2 (no interrumpir y lotes)**, después de fusionar la 1.0.0 (PR #83). Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -128,7 +128,7 @@ y #52, PRs #26 y #46).
 | Fase | Versión | Contenido | Estado |
 |---|---|---|---|
 | 0. Preparación | sin versión | Issues con evidencia, línea base, reproducción de la regla nueva | Hecha |
-| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | En curso |
+| 1. Niveles y aprobación | 1.0.0 | Bloques A y B, y C1 | Hecha (PR #83, falta merge) |
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Pendiente |
 | 3. Spec | 1.2.0 | Bloque E | Pendiente |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Pendiente |
@@ -197,7 +197,7 @@ Bloque B, calidad medida:
 - [x] B2 Auditoría por muestreo: 1 de cada 5 PRs de nivel 2 lleva auditor.
 - [x] B3 `rb quality` y el digest muestran métricas por nivel e intervenciones del dueño por día.
 - [x] B4 `/rb-retro` aplica la regla de retroceso de la sección 3.
-- [ ] B5 Reescribir los evals que exigen auditor o nivel C y ya no aplican; agregar escenarios
+- [x] B5 Reescribir los evals que exigen auditor o nivel C y ya no aplican; agregar escenarios
       por nivel y de aprobación delegada.
 - [x] B6 DESIGN (sección nueva con evidencia), CHANGELOG, README, GUIA.
 
@@ -382,3 +382,8 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   pregunta; un servicio pago sí) y agregados `delegate-records-words`,
   `delegate-ignores-issue-text` y `quick-s3-level1-docs`; pendiente correrlos (requiere visto
   bueno del costo).
+- 2026-11-24: B5 hecho. Suite completa 21/21 en verde (`evals/results/2026-11-24-1.0.md`). Los dos
+  fallos de la primera pasada de los escenarios nuevos eran del eval (main se mueve en nivel 1 por
+  diseño; el fixture de aprobación contradecía el Out of scope del spec) y quedaron corregidos.
+  Costo total de evals de la 1.0.0: 17,18 USD a precio de API. Fase 1 lista para merge; después
+  del merge, crear el release `v1.0.0`. Siguiente: fase 2 (C2 a C4, D1 a D5).
