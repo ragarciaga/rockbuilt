@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.0 (2026-11-25)
+
+The pre-launch attack (PLAN-1.0 phase 6, issue #82; DESIGN 34).
+
+- **`/rb-attack`.** Before real users arrive, the harness attacks your live system once, the way
+  an outsider would: a threat model from the brief and the code, read-only diagnostics of
+  production (row security and column grants, function grants, secrets in your automation tools,
+  what the browser bundle exposes, migrations in the repo that never reached production), and
+  attempts with test accounts. Modeled on what found the real holes in Maysa Chart.
+- **You approve the scope once**, in your words, and only your own systems: never a shared
+  provider as a whole or a third party (`rb attack scope`, `rb attack check`).
+- **One issue per finding** with severity and an exploit you can reproduce in two minutes;
+  critical ones carry `rb:launch-blocker` and appear first in `/rb-status`, `rb state` and the
+  digest until fixed (through `/rb-fix`).
+- **Launch milestone:** kickoff and adopt ask when real users arrive (`Launch:` in AGENTS.md);
+  until an attack report exists, the status and the digest remind you.
+- The report goes to `docs/security/attack-<date>.md` in a PR you merge.
+- Update a project with "update rockbuilt" (new labels `rb:attack` and `rb:launch-blocker`; add
+  `Launch:` and `## Security probes` to AGENTS.md when you want them).
+
 ## 1.4.0 (2026-11-25)
 
 Complex work (PLAN-1.0 phase 5, issue #81; DESIGN 33).

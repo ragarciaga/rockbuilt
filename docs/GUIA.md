@@ -149,6 +149,27 @@ Dos líneas del encabezado de `AGENTS.md` cambian esta tabla:
   sola vez, en su PR a `main`. Las de nivel 3 nunca pasan por esa rama, y el gate rechaza la rama
   si tiene commits que él no fusionó.
 
+## Antes de salir con usuarios reales (`/rb-attack`)
+
+El kickoff te pregunta cuándo llegan los usuarios reales (`Launch:` en `AGENTS.md`). Antes de esa
+fecha, di "hackea la app antes de salir": `/rb-attack` ataca tu sistema en vivo una vez, como lo
+haría alguien de afuera.
+
+1. Te pide el alcance una sola vez: qué sistemas tuyos puede tocar (por ejemplo `app.tudominio.com`
+   y tu proyecto de Supabase) y hasta cuándo. Queda con tus palabras en el issue de control. Nunca
+   ataca a terceros ni un proveedor completo (Stripe, Vercel, la API del modelo).
+2. Arma el modelo de amenaza con el brief y el código.
+3. Corre diagnósticos de solo lectura contra producción (`## Security probes` en `AGENTS.md`):
+   permisos por fila y por columna, quién puede ejecutar cada función, claves en n8n u otras
+   herramientas, qué llega al navegador, y migraciones que están en el repo pero no en producción.
+4. Intenta los ataques con cuentas de prueba que tú creas (A y B); nunca con datos de personas.
+5. Abre un issue por hallazgo con severidad y el paso a paso para reproducirlo. Los críticos llevan
+   `rb:launch-blocker` y salen primero en el estado y el resumen hasta que se arreglen con
+   `/rb-fix`.
+6. Deja el reporte en `docs/security/attack-<fecha>.md` en un PR que fusionas tú.
+
+Después de esa vez, solo corre si se lo pides.
+
 ## Trabajo complejo
 
 - **Exploración.** "Antes de la spec, explora una hora si X es viable": trabaja en

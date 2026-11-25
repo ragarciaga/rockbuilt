@@ -80,6 +80,7 @@ Take the first rule that matches:
 | Condition | Next |
 |---|---|
 | No contract | `/rb-kickoff` or `/rb-adopt` |
+| `rb:launch-blocker` open (`rb state` `launchBlockers`) | Say it first: no launch to real users while it is open; `/rb-fix #n` for each |
 | Stop switch on | Tell the user it is on and which issue holds `rb:stop`; next run will not start until they remove it |
 | `rb:approval-pending` open | Read the plan on issue #n (what needs the owner: schema, architecture, auth model, cost, irreversible) and write "aprobado" on it, or ask for changes; the gate merges once approved |
 | `rb:needs-human` open | Answer issue #n (the question shown), then remove `rb:needs-human`; the next run picks it up |
@@ -95,6 +96,7 @@ Take the first rule that matches:
 | Spec with requirements or design `draft` | `/rb-spec <folder>` to finish approval |
 | Spec PR (`rb/spec-*`) open | Merge it so the cycle can build its tasks |
 | Approved spec without tasks.md | `/rb-tasks docs/specs/NN-slug/` |
+| `Launch:` date set and no `docs/security/attack-*.md` (`rb state` `launch`) | Remind it: `/rb-attack` before real users arrive (days left) |
 | Ready tasks or `rb:task`/`rb:bug` issues, no routine | `/rb-cycle` now, or set up the nightly routine (docs/CLOUD.md in the Rockbuilt repo) |
 | Ready tasks, routine set | Nothing: the next run takes them (say when, if known) |
 | All tasks of a feature done, gates not run | `/rb-verify docs/specs/NN-slug/` |
@@ -110,6 +112,9 @@ first because they are the only thing blocking autonomous work:
 ```
 <Project> | autonomy <auto|supervised> | baseline <green|new failures|missing> (<sha>) | protection <github|rb-only>
 Last run: <date from digest, outcome> | lock <free|held by run X, age> | stop <off|ON (#n)> | next run <time|unknown>
+
+Launch blockers (only when any; before everything)
+- #<n> <critical finding>: /rb-fix #<n>. Launch <date>: <attack report path | no attack report yet, /rb-attack>
 
 Needs you
 - #<n> needs-human: <question in one line>. Recommended: <option>. <Cost: estimate, if any>

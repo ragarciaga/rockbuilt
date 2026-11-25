@@ -173,10 +173,12 @@ export function queuedBehind(root, c, view, head) {
 // PR kinds that carry no reviewer lines (DESIGN 8.1). Bookkeeping may merge unattended when it only
 // touches bookkeeping files and LESSONS.md only grows; the rest need the human.
 const BOOKKEEPING_PREFIX = 'rb/bookkeeping-';
-const HUMAN_ONLY_PREFIXES = ['rb/revert-', 'rb/spec-', 'rb/verify-', 'rb/kickoff', 'rb/adopt', 'rb/retro-', 'chore/rockbuilt-'];
+const HUMAN_ONLY_PREFIXES = ['rb/revert-', 'rb/spec-', 'rb/verify-', 'rb/attack-', 'rb/kickoff', 'rb/adopt', 'rb/retro-', 'chore/rockbuilt-'];
 
 const KIND_FILES = [
   ['rb/spec-', ['docs/specs/**', 'docs/adr/**', 'docs/research/**', 'docs/v2.md', 'docs/brief.md', 'AGENTS.md']],
+  // PLAN-1.0 H: the attack report and the probe definitions; fixes go through /rb-fix.
+  ['rb/attack-', ['docs/security/**', 'AGENTS.md']],
   ['rb/verify-', ['docs/specs/**', 'e2e/**', 'playwright.config.*', 'evals/**', '.gitignore', 'package.json', 'package-lock.json']],
 ];
 

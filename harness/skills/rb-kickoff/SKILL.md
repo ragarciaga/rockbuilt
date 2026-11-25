@@ -111,6 +111,9 @@ constraints, hosting, security and data sensitivity, and **operation** (Round E)
   the verifier and the security review) or `none` (a spike, a demo or a one-off script that never
   reaches real users: AGENTS.md and the brief only, no vendored harness, and `/rb-adopt` the day
   it gets users). A project headed to production is never `none` (rockbuilt #54).
+- **Launch with real users** (PLAN-1.0 H1). The date real users (or paying testers) arrive, or
+  `not set`. Written as `Launch: YYYY-MM-DD` in the AGENTS.md header; before it, `/rb-attack`
+  attacks the live system once, and `/rb-status` and the digest remind it until a report exists.
 - **Branch protection.** On a public repo (or a paid plan) `rb protect` is free and becomes part
   of this approval. On a private free repo it needs GitHub Pro (cost, owner approval): ask, and record a
   refusal as the header line `Branch protection: declined (<date>, <reason>)` in AGENTS.md.
@@ -129,7 +132,7 @@ Present in the chat, in one message, in the user's language:
    of data storage, auth model, hosting that were decided.
 4. **First feature list:** 3 to 7 vertical features in build order, one line each. These become
    `/rb-spec` runs, not issues yet.
-5. **Operation:** tools, Autonomy mode, Profile with its reason, Paid services, branch protection (on, or declined), and
+5. **Operation:** tools, Autonomy mode, Profile with its reason, Launch date, Paid services, branch protection (on, or declined), and
    that the nightly cloud routine is optional and set up by them.
 6. **Out of scope / v2** list and remaining ADVISORY defaults.
 
@@ -156,7 +159,7 @@ Read `references/setup.md` for exact commands and failure handling.
    `node tools/rockbuilt/rb.mjs`.
 3. **AGENTS.md.** Fill the template vendor installed, exactly per DESIGN.md section 5: header
    lines (`Docs language`, `Project type`, `Default branch`, `Autonomy`, `Parallel`,
-   `Max parallel`, `Max tasks per run`, `Kickback budget`, `Profile`, `Feature review`), Goal, Stack (pinned, linked), Conventions (only
+   `Max parallel`, `Max tasks per run`, `Kickback budget`, `Profile`, `Feature review`, `Launch`), Goal, Stack (pinned, linked), Conventions (only
    non-obvious rules), Verification/E2E/Evals/Setup blocks with the intended commands,
    `## Autonomy` (`Sensitive paths`, `Tier A paths`, `Paid services` from Round E), Out of
    scope. Remove E2E, Evals, Seed or Deploy check sections that do not apply (Deploy check stays
@@ -199,6 +202,7 @@ Tell the user, in their language:
   digest ends with it as a standing item: a merge in the GitHub UI skips `rb merge-gate`, and
   that is how two red PRs reached the default branch in rockbuilt #64. Never buy GitHub Pro on
   your own.
+- **Before real users:** `/rb-attack` once, on the live system (milestone `Launch:`).
 - The next steps in order: merge the kickoff PR; the skeleton issue runs through `/rb-build #<n>`
   (or the nightly `/rb-cycle` picks it up); then `/rb-spec <first feature>`.
 

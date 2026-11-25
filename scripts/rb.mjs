@@ -28,6 +28,7 @@ import { treeCheck, treeText } from './lib/treecheck.mjs';
 import { safetyCheck } from './lib/safety.mjs';
 import { addIteration, calibrationLine, calibrationState, calibrationText, entriesFromComments, readCalibration } from './lib/calibration.mjs';
 import { checkExploration, exploreText, startExploration } from './lib/explore.mjs';
+import { inScope, recordScope, revokeScope, showScope } from './lib/attack.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -42,7 +43,7 @@ export const COMMANDS = {
   vendor: 'Install or update the harness  [--tools claude,cursor,codex] [--type web,ai,automation] [--lang es] [--from <harness root>]',
   init: 'Alias of vendor',
   doctor: 'Environment, contract, vendored version, CI, protection mode, labels, control issue',
-  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup|Run|Seed|"Deploy check"]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
+  'verify-cmds': 'Commands from an AGENTS.md section  [Verification|E2E|Evals|Setup|Run|Seed|"Deploy check"|"Security probes"]; E2E only: [--shard i/n] (CI) or [--only a.spec.ts,b.spec.ts] [--grep "title"] (local)',
   'e2e-plan': 'CI: has E2E, shard count and matrix from AGENTS.md (key=value lines for GITHUB_OUTPUT)',
   'review-delta': 'Task change since the reviewed head, by content: identical | test-only | different  --reviewed <sha> [--base origin/<default>] [--line --task <id>: print the verifier identity line, exit 3 unless identical after merges only] (exit 3 when different)',
   baseline: 'Run Verification and ratchet against docs/rockbuilt/known-failures.json  [--check] [--accept]',
@@ -73,6 +74,7 @@ export const COMMANDS = {
   criteria: 'The criteria a task covers, verbatim from requirements.md, with their Decisions  <spec-dir> <task id> (exit 3 when a covered id is missing)',
   'tree-check': 'After a reviewer: the working tree equals the reviewed head (bookkeeping and .rockbuilt/ aside)  [--restore] (exit 3 when it did not)',
   spec: 'check <spec-dir>: the decision inventory of requirements.md is complete (exit 3 with the gaps)',
+  attack: 'Pre-launch attack scope on the control issue (/rb-attack): scope --words "<owner words>" --targets a.example.com,supabase:<ref> [--until YYYY-MM-DD] | scope show (exit 3 when none in force) | scope revoke | check <target> (exit 3 outside the scope)',
   explore: 'Exploration time box on rb/explore-<slug> (never merged): start <slug> [--hours 2] (max 8) | check <slug> (exit 3 when the time is up)',
   calibration: 'Calibration loop, the eval is the gate: add <task> --score <n> --cost <usd> --cap <usd> --ref <sha> [--lower-is-better] [--issue <n>] (kept only when it beats the best; exit 3 at the cap or after 3 without improvement) | show <task> [--issue <n>] (--issue keeps the history on the task issue, for a new session)',
   permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
@@ -849,6 +851,30 @@ const handlers = {
     const problems = inventoryProblems(text);
     void root;
     return { data: { spec: dir, problems }, text: problems.length ? problems.join('\n') : 'decision inventory complete', code: problems.length ? 3 : 0 };
+  },
+
+  attack({ cwd, positionals, flags, io }) {
+    const [sub, arg] = positionals;
+    const root = requireRepoRoot(cwd);
+    const c = client(root, flags, io);
+    if (sub === 'scope' && !arg) {
+      const r = recordScope(c, { words: stringFlag(flags, 'words', { required: true }), targets: stringFlag(flags, 'targets', { required: true }), until: flags.until === undefined ? null : String(flags.until) });
+      return { data: r, text: `attack scope recorded on #${r.control}: ${r.targets.join(', ')} until ${r.until}`, code: 0 };
+    }
+    if (sub === 'scope' && arg === 'show') {
+      const r = showScope(c);
+      return { data: { scope: r }, text: r ? `in force until ${r.until}: ${r.targets.join(', ')} ("${r.words}")` : 'no attack scope in force: ask the owner once and record their words', code: r ? 0 : 3 };
+    }
+    if (sub === 'scope' && arg === 'revoke') {
+      const r = revokeScope(c);
+      return { data: r, text: `attack scope revoked on #${r.control}`, code: 0 };
+    }
+    if (sub === 'check' && arg) {
+      const scope = showScope(c);
+      const ok = inScope(scope, arg);
+      return { data: { target: arg, inScope: ok, scope }, text: ok ? `${arg} is in the approved scope` : `${arg} is NOT in the approved scope: do not touch it`, code: ok ? 0 : 3 };
+    }
+    throw new CliError('usage: rb attack scope --words "<owner words>" --targets a,b [--until YYYY-MM-DD] | scope show | scope revoke | check <target>', 2);
   },
 
   explore({ cwd, positionals, flags }) {

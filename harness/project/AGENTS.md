@@ -10,6 +10,7 @@ Max tasks per run: 6
 Kickback budget: 2
 Profile: full
 Feature review: off
+Launch: not set
 
 This file is the project contract. Every coding agent (Claude Code, Cursor, Codex) reads it, and
 the Rockbuilt harness (`node tools/rockbuilt/rb.mjs`) parses its header lines and sections. Keep
@@ -104,6 +105,9 @@ How the harness decides (computed by `rb risk` from the real diff; the highest l
   CI and deploy, harness files, large diffs): verifier, blind auditor and security reviewer.
 - **Profile** (header): `full` is the above. `minimal` merges levels 1 and 2 on green CI and gives
   level 3 the verifier and the security reviewer. `none` means the project runs without the harness.
+- **Launch** (header, `YYYY-MM-DD` or `not set`): the day real users arrive. Before it, `/rb-attack`
+  attacks the live system once within a scope you approve; critical findings carry
+  `rb:launch-blocker` and every report lists them first.
 - **Feature review** (header, `on` or `off`): with `on`, level 2 tasks of a spec merge into
   `rb/feature-<NN-slug>` with CI and the verifier, and the blind auditor and the security reviewer
   review the whole feature once, in its PR to the default branch. Level 3 tasks never go there.
@@ -124,6 +128,13 @@ need your machine (for example a browser or local credentials) and include exact
 To stop all autonomous work, add the `rb:stop` label to any open issue (or to the
 `Rockbuilt control` issue); remove it to resume. `Autonomy: supervised` in the header makes every
 pull request wait for the human.
+
+## Security probes
+```bash
+# Read-only diagnostics of the live system, one per line (run by /rb-attack before launch).
+# Examples: a SQL file under docs/security/probes/ run against production with a read-only role,
+# a grep of the built bundle for key-shaped strings. Never a command that writes.
+```
 
 ## Out of scope
 Deferred scope with reasons: docs/v2.md.

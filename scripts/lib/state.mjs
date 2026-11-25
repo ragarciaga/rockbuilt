@@ -6,12 +6,15 @@ import { parseDelegations } from './approval.mjs';
 import { ensureControl } from './control.mjs';
 import { ops } from './gh.mjs';
 import { versionStatus } from './doctor.mjs';
+import { latestAttackReport } from './attack.mjs';
+import { headerField, readContract } from './contract.mjs';
+import { now } from './util.mjs';
 
 const WAIT = ['rb:approval-pending', 'rb:needs-human', 'rb:needs-local', 'rb:blocked', 'rb:hold'];
 // PLAN-1.0 D5: review follow-ups wait outside every queue until the owner promotes them.
 const OUT = ['rb:unplanned', 'rb:parked'];
 
-export function projectState(c, { at = new Date().toISOString(), root = null } = {}) {
+export function projectState(c, { at = now().toISOString(), root = null } = {}) {
   const errors = [];
   const tryRead = (what, fn, fallback) => {
     try { return fn(); } catch (e) { errors.push(`${what}: ${e.message}`); return fallback; }
@@ -41,11 +44,24 @@ export function projectState(c, { at = new Date().toISOString(), root = null } =
   const delegations = parseDelegations(controlComments, at);
   const ownerCount = Object.values(waitingOnOwner).reduce((s, xs) => s + xs.length, 0);
   const harness = root ? versionStatus(root) : null;
-  return { complete: errors.length === 0, errors, waitingOnOwner, ownerCount, harnessWillDo, followups, delegations, harness };
+  // PLAN-1.0 H1 and H5: critical attack findings come before everything; the launch milestone
+  // (`Launch: YYYY-MM-DD` in AGENTS.md) is reminded while no attack report exists.
+  const launchBlockers = issues.filter((i) => has(i, 'rb:launch-blocker')).map(brief);
+  return { complete: errors.length === 0, errors, launchBlockers, launch: root ? launchInfo(root, at) : null, waitingOnOwner, ownerCount, harnessWillDo, followups, delegations, harness };
+}
+
+export function launchInfo(root, at = now().toISOString()) {
+  const raw = headerField(readContract(root).text, 'Launch') || '';
+  const date = (raw.match(/^\d{4}-\d{2}-\d{2}\b/) || [])[0] || null;
+  const attackReport = latestAttackReport(root);
+  const daysLeft = date ? Math.ceil((Date.parse(`${date}T00:00:00Z`) - Date.parse(at)) / 86400000) : null;
+  return { date, set: Boolean(date), daysLeft, attackReport };
 }
 
 export function stateText(s) {
   const out = [];
+  if (s.launchBlockers && s.launchBlockers.length) out.push(`LAUNCH BLOCKERS (${s.launchBlockers.length}): ${s.launchBlockers.map((x) => `#${x.number} ${x.title}`).join('; ')}. No launch to real users while open.`);
+  if (s.launch && s.launch.set && !s.launch.attackReport) out.push(`Launch ${s.launch.date} (${s.launch.daysLeft >= 0 ? `in ${s.launch.daysLeft} days` : `${-s.launch.daysLeft} days ago`}): no attack report yet: run /rb-attack before real users arrive.`);
   if (!s.complete) out.push(`INCOMPLETE: ${s.errors.join('; ')}. Do not report that nothing waits for the owner.`);
   if (s.harness && s.harness.behind) out.push(`Rockbuilt ${s.harness.vendored} in this project, ${s.harness.plugin} available: say "update rockbuilt"`);
   for (const d of s.delegations) out.push(`Delegation in force: ${d.scope}${d.run ? ` (run ${d.run})` : ''} until ${d.until}: ${d.words}`);

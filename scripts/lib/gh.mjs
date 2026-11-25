@@ -17,6 +17,8 @@ export const LABELS = [
   { name: 'rb:level-3', color: 'f9d0c4', description: 'Level 3: sensitive; verifier, auditor and security' },
   { name: 'rb:unplanned', color: 'ededed', description: 'Follow-up from a review: out of every queue until the owner promotes it (rb:task)' },
   { name: 'rb:parked', color: 'd4c5f9', description: 'Follow-up kept for later: out of every queue' },
+  { name: 'rb:attack', color: 'b60205', description: 'Finding of the pre-launch attack (/rb-attack), with a reproducible exploit' },
+  { name: 'rb:launch-blocker', color: '000000', description: 'Critical finding: no launch to real users while open' },
   { name: 'rb:feature', color: 'bfd4f2', description: 'Feature review: the whole feature is audited once in its PR (rb/feature-*)' },
   { name: 'rb:approval-pending', color: 'e99695', description: 'The plan waits for the owner (schema, architecture, cost, irreversible)' },
   // Before 1.0 (PLAN-1.0 A8): still read by the gate as levels 1, 2 and 3.

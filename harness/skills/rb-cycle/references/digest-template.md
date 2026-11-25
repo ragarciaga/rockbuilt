@@ -24,6 +24,10 @@ Rules:
 Baseline: <verde | rojo (ver abajo) | <k> fallas conocidas>. Navegador: <sí | no (E2E pendiente en local)>.
 Duración: <min> min. Harness: <contents of tools/rockbuilt/VERSION>. Modo: <normal | degradado (sin GitHub API)>.
 
+### Bloquean el lanzamiento
+- #<n> <hallazgo crítico de /rb-attack> (de `rb state`, `launchBlockers`; va antes que todo y se omite si no hay).
+- Salida con usuarios reales el <fecha>, en <n> días: sin reporte de ataque todavía, corre /rb-attack (de `rb state`, `launch`; se omite si hay reporte o no hay fecha).
+
 ### Fusionados
 | PR | Tarea | Nivel | Minutos | Para revertir |
 |---|---|---|---|---|
@@ -76,6 +80,6 @@ Tomará: <#n CI, T6, T8, #20 bug>. Necesita de ti antes: <#12 respuesta, #14 pas
 Para pausar: agrega la etiqueta `rb:stop` a #<ctl>.
 ~~~~
 
-English headings, for `Docs language: en`: Summary, Merged, Delegation in force, Waiting for
+English headings, for `Docs language: en`: Summary, Launch blockers, Merged, Delegation in force, Waiting for
 your decision, Escalations, Defaults taken, Blocked, Failures and notices, Time per task, Next run. Columns: PR, Task, Level,
 Minutes, To revert.
