@@ -17,6 +17,7 @@ export const LABELS = [
   { name: 'rb:level-3', color: 'f9d0c4', description: 'Level 3: sensitive; verifier, auditor and security' },
   { name: 'rb:unplanned', color: 'ededed', description: 'Follow-up from a review: out of every queue until the owner promotes it (rb:task)' },
   { name: 'rb:parked', color: 'd4c5f9', description: 'Follow-up kept for later: out of every queue' },
+  { name: 'rb:feature', color: 'bfd4f2', description: 'Feature review: the whole feature is audited once in its PR (rb/feature-*)' },
   { name: 'rb:approval-pending', color: 'e99695', description: 'The plan waits for the owner (schema, architecture, cost, irreversible)' },
   // Before 1.0 (PLAN-1.0 A8): still read by the gate as levels 1, 2 and 3.
   { name: 'rb:tier-a', color: 'c2e0c6', description: 'Before 1.0: read as level 1' },
@@ -304,6 +305,13 @@ export const ops = {
     const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
     return { behindBy: Number(d && d.behind_by) || 0, aheadBy: Number(d && d.ahead_by) || 0, status: d && d.status };
   },
+  // Commits in base...head with their parents. The compare API lists at most 250 commits.
+  compareCommits(c, base, head) {
+    const d = c.api('GET', `{repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`) || {};
+    const list = (d.commits || []).map((x) => ({ sha: x.sha, parents: (x.parents || []).map((p) => p.sha) }));
+    const total = Number(d.total_commits ?? list.length);
+    return { list, total, truncated: total > list.length || list.length >= 250 };
+  },
   // Files changed in base...head with their patches (index lines are not part of GitHub patches).
   // The compare API lists at most 300 files; treat that many as truncated.
   compareFiles(c, base, head) {
@@ -353,9 +361,9 @@ export const ops = {
   prView(c, n) {
     return shapePr(c.api('GET', `{repo}/pulls/${num(n)}`));
   },
-  prList(c, { state = 'open', headPrefix = null, maxPages = 20 } = {}) {
-    const all = c.paged('{repo}/pulls', { state }, (x) => x, maxPages).map(shapePr);
-    return headPrefix ? all.filter((p) => p.head && p.head.ref.startsWith(headPrefix)) : all;
+  prList(c, { state = 'open', headPrefix = null, base = null, maxPages = 20 } = {}) {
+    const all = c.paged('{repo}/pulls', { state, ...(base ? { base } : {}) }, (x) => x, maxPages).map(shapePr);
+    return all.filter((p) => (!headPrefix || (p.head && p.head.ref.startsWith(headPrefix))) && (!base || (p.base && p.base.ref === base)));
   },
   prFiles(c, n) {
     return c.paged(`{repo}/pulls/${num(n)}/files`).map((f) => ({

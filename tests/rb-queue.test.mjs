@@ -133,3 +133,10 @@ test('the gate accepts a queued PR behind its base only when GitHub would land t
   const done = await rbJson(root, ['queue', 'done', '--run', 'cycle-y', '--repo', REPO], { ghRunner: gh.runner });
   assert.deepEqual(done.json.deleted.sort(), [s1.branch, s2.branch].sort());
 });
+
+test('PLAN-1.0 G3: the queue never takes a task PR aimed at a feature branch', async () => {
+  const { root, gh } = project();
+  gh.state.pulls[11].base = 'rb/feature-01-x';
+  const r = await rbJson(root, ['queue', 'build', '--run', 'cycle-f', '--prs', '10,11', '--repo', REPO], { ghRunner: gh.runner });
+  assert.deepEqual(r.json.skipped, [{ pr: 11, reason: 'base is rb/feature-01-x, not main: merge it serially' }]);
+});

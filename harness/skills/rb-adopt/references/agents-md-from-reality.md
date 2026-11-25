@@ -16,6 +16,9 @@ Autonomy: auto                       # or supervised (every PR waits for the hum
 Parallel: auto                       # "off" if the repo has heavy shared state (single migration folder churn, monolithic config)
 Max parallel: 3
 Max tasks per run: 6
+Kickback budget: 2
+Profile: full                        # or minimal (levels 1 and 2 on CI; level 3 verifier and security)
+Feature review: off                  # on: level 2 tasks merge into rb/feature-<NN-slug>, one audit per feature
 ```
 
 ## Where each section comes from

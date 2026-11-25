@@ -138,6 +138,28 @@ decide quién revisa; no decide si te preguntan.
 Todos se fusionan solos cuando pasan sus revisiones y la CI. Si prefieres revisar todo como antes,
 pon `Autonomy: supervised` en `AGENTS.md`: cada PR espera por ti.
 
+Dos líneas del encabezado de `AGENTS.md` cambian esta tabla:
+
+- `Profile:` (kickoff y adopt te recomiendan uno). `full` es la tabla. `minimal` fusiona los
+  niveles 1 y 2 con la CI en verde y solo revisa el nivel 3 (verifier y seguridad): sirve para una
+  herramienta que solo usas tú. `none` es sin harness, para algo que nunca llegará a usuarios
+  reales (una prueba, una demo); si después sale a producción, corre `/rb-adopt`.
+- `Feature review: on`: las tareas de nivel 2 de un spec se fusionan en `rb/feature-<NN-slug>` con
+  el verifier, y el auditor ciego y la revisión de seguridad miran la funcionalidad completa una
+  sola vez, en su PR a `main`. Las de nivel 3 nunca pasan por esa rama, y el gate rechaza la rama
+  si tiene commits que él no fusionó.
+
+## Trabajo complejo
+
+- **Exploración.** "Antes de la spec, explora una hora si X es viable": trabaja en
+  `rb/explore-<slug>` con reloj (`rb explore`, 2 horas si no dices otra cosa), sin planner ni
+  revisores. Ese código nunca se fusiona, ni aunque lo pidas; la conclusión queda en
+  `docs/research/<slug>.md` y entra con el PR del spec.
+- **Calibración.** Para lo que se mide con un puntaje (un prompt, un umbral, un peso): cada
+  iteración corre el eval y se queda solo si mejora la mejor; para al llegar al tope de costo del
+  plan o tras tres iteraciones sin mejora (`rb calibration`). La revisión normal corre una vez,
+  sobre la versión que quedó. Subir el tope es una aprobación de costo.
+
 ## Cuándo te pregunta
 
 Solo por una lista cerrada, y siempre sobre el plan, nunca sobre el merge:

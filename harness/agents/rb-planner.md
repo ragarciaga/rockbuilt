@@ -171,6 +171,9 @@ None | <migration file to add, following AGENTS.md>
 - New env vars: none | <NAME, where read>
 - New external hosts: none | <host, why>
 - Cost: none | <service, monthly estimate and basis, question for the user>
+- Mode: normal | calibration, cap <USD for the whole loop>, <USD per eval run>: calibration only
+  when the criterion is an `[eval]` with a threshold and the work is tuning (a prompt, a weight, a
+  threshold); the eval gates each iteration (`.claude/skills/rb-build/references/calibration.md`)
 - Security review: decided by rb risk | required, <the reason the diff will not show>
 
 ## Implementation steps

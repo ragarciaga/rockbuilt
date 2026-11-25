@@ -89,6 +89,11 @@ Ask in the same message (batched, recommendation first):
   verifier, level 3 (sensitive paths, auth, data, deletion) all three reviews; the owner approves
   only schema, architecture, the auth model, costs and irreversible steps, in one message per run. Anything that can
   cost money always asks first.
+- **Profile** (PLAN-1.0 G4), recommended from the map with one line of why: `full` (real users,
+  personal data, money or a team), `minimal` (a tool only the owner uses: levels 1 and 2 merge on
+  green CI, level 3 gets the verifier and the security review) or `none` (a repo that never
+  reaches real users; then AGENTS.md and current-state.md only, no vendoring). Written as
+  `Profile:` in the header.
 - **Paid services** already approved, with a monthly cap, or none. **Sensitive paths** beyond
   the built-in floor, if the map found any (for example a legacy billing folder).
 
@@ -98,6 +103,9 @@ when it is missing, and a template AGENTS.md would make the baseline run command
 does not have.
 
 ## Step 3: Vendor the harness
+
+With `Profile: none` stop here: commit AGENTS.md and docs/current-state.md (Step 8) and say that
+`/rb-adopt` again vendors the harness the day the repo reaches real users.
 
 ```bash
 rb vendor --type <types from the map> --lang <lang> --tools <claude[,cursor][,codex]>

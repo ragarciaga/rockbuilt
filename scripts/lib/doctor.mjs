@@ -39,6 +39,10 @@ function levelsChecks(root, text) {
   const out = [];
   if (/highest tier wins|Tier C pull requests are merged by the human/.test(text)) out.push(warn('contract 1.0', 'AGENTS.md ## Autonomy still describes tiers A, B and C: replace the "How the harness decides" paragraphs with the level text from the template (tools/rockbuilt/project/AGENTS.md)'));
   if (headerField(text, 'Kickback budget') === null) out.push(warn('contract 1.0', 'no `Kickback budget:` header line (0 to 3, default 2): add `Kickback budget: 2` under `Max tasks per run`'));
+  // PLAN-1.0 G4: the review profile. No line means full.
+  const profile = headerField(text, 'Profile');
+  if (profile !== null && !['full', 'minimal', 'none'].includes(profile.toLowerCase())) out.push(warn('profile', `Profile: ${profile} is not full, minimal or none; the gate applies full`));
+  if (profile !== null && profile.toLowerCase() === 'none') out.push(warn('profile', 'Profile: none means the project runs without the harness, yet it is vendored here; the gate applies full. Set `Profile: minimal` or `full`'));
   if (headerField(text, 'Sensitive paths reviewed') === null) {
     const globs = parseAutonomy(text).sensitivePaths;
     const tracked = run('git', ['-C', root, 'ls-files']).stdout.split(/\r?\n/).filter((p) => /\.(c|m)?[jt]sx?$|\.(py|go|rb|rs|java|kt|php|cs|swift|vue|svelte|astro)$/.test(p) && !isTestPath(p) && !p.startsWith('tools/rockbuilt/'));

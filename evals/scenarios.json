@@ -100,6 +100,10 @@
           "path": "docs/current-state.md"
         },
         {
+          "type": "textMatches",
+          "pattern": "(?i)(Profile|Perfil)\\b[^\\n]{0,60}\\b(full|minimal|none)\\b"
+        },
+        {
           "type": "noChangesUnder",
           "paths": [
             "src/",
@@ -971,6 +975,57 @@
         },
         {
           "type": "noCommits"
+        },
+        {
+          "type": "noEmDash"
+        }
+      ]
+    },
+    {
+      "id": "spec-explore-es",
+      "source": "spec.md#S5",
+      "setup": [
+        "node-app",
+        "harness-es",
+        "--remote"
+      ],
+      "vendor": {
+        "type": "automation",
+        "lang": "es"
+      },
+      "prompt": "Antes de escribir la spec quiero saber si podemos importar gastos desde un CSV del banco aunque las columnas vengan en otro orden, sin preguntarle nada al usuario. Haz una exploración de máximo una hora y dime la conclusión.",
+      "checks": [
+        {
+          "type": "skill",
+          "name": "rb-spec"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb/explore-[a-z0-9-]+"
+        },
+        {
+          "type": "bashIncludes",
+          "pattern": "rb\\.mjs explore start [a-z0-9-]+.*--hours 1\\b"
+        },
+        {
+          "type": "textMatches",
+          "pattern": "(?m)^#+\\s*(Respuesta|Answer)\\b"
+        },
+        {
+          "type": "bashExcludes",
+          "pattern": "merge-gate|pr-create"
+        },
+        {
+          "type": "agentsExclude",
+          "agents": [
+            "rb-planner",
+            "rb-verifier",
+            "rb-auditor",
+            "rb-security-reviewer"
+          ]
+        },
+        {
+          "type": "defaultBranchUnchanged"
         },
         {
           "type": "noEmDash"

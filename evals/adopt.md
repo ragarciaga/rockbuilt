@@ -21,7 +21,8 @@ the AGENTS.md template still unfilled (adopt fills it from reality).
      `tests/expenses.test.js`).
   3. Recognizes AGENTS.md as the unfilled template, shows the full AGENTS.md draft built from
      the map and waits for approval before writing it.
-  4. AGENTS.md has `Docs language: es`, `Autonomy:`, the `## Autonomy` section, and `npm test`
+  4. AGENTS.md has `Docs language: es`, `Autonomy:`, a recommended `Profile:` (1.4.0, G4), the
+     `## Autonomy` section, and `npm test`
      as the first line of the `## Verification` block (no CI, so it comes from package.json);
      none of the template's placeholder commands (typecheck, lint, build) survive.
   5. Runs `rb baseline` only after the approved AGENTS.md is written; reports it green with 4

@@ -44,6 +44,8 @@ export function buildQueue(root, c, { run, prs }) {
     for (const n of list) {
       const view = ops.prView(c, n);
       if (view.state !== 'open' || !view.head) { skipped.push({ pr: n, reason: 'not open' }); continue; }
+      // A task into a feature branch (PLAN-1.0 G3) merges there, never through this queue.
+      if (view.base && view.base.ref !== d) { skipped.push({ pr: n, reason: `base is ${view.base.ref}, not ${d}: merge it serially` }); continue; }
       // An explicit refspec: single-branch and shallow clones do not map other branches.
       if (!git(root, ['fetch', '--quiet', 'origin', `+refs/heads/${view.head.ref}:refs/remotes/origin/${view.head.ref}`]).ok) { skipped.push({ pr: n, reason: `cannot fetch ${view.head.ref}` }); continue; }
       const fetched = git(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${view.head.ref}`]).stdout;

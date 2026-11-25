@@ -105,6 +105,12 @@ constraints, hosting, security and data sensitivity, and **operation** (Round E)
   "less ceremony for now" means `Autonomy: supervised` from day one, never a later vendoring: a
   deferral written only in the brief was never acted on, and a month of production work ran with
   no review. Say so in one sentence and record `supervised` instead.
+- **Profile** (PLAN-1.0 G4). Recommend one, with the reason, and write it as `Profile:` in the
+  AGENTS.md header: `full` (default: real users, personal data, money, or a team), `minimal` (a
+  tool only the owner uses, low-risk automation: levels 1 and 2 merge on green CI, level 3 gets
+  the verifier and the security review) or `none` (a spike, a demo or a one-off script that never
+  reaches real users: AGENTS.md and the brief only, no vendored harness, and `/rb-adopt` the day
+  it gets users). A project headed to production is never `none` (rockbuilt #54).
 - **Branch protection.** On a public repo (or a paid plan) `rb protect` is free and becomes part
   of this approval. On a private free repo it needs GitHub Pro (cost, owner approval): ask, and record a
   refusal as the header line `Branch protection: declined (<date>, <reason>)` in AGENTS.md.
@@ -123,7 +129,7 @@ Present in the chat, in one message, in the user's language:
    of data storage, auth model, hosting that were decided.
 4. **First feature list:** 3 to 7 vertical features in build order, one line each. These become
    `/rb-spec` runs, not issues yet.
-5. **Operation:** tools, Autonomy mode, Paid services, branch protection (on, or declined), and
+5. **Operation:** tools, Autonomy mode, Profile with its reason, Paid services, branch protection (on, or declined), and
    that the nightly cloud routine is optional and set up by them.
 6. **Out of scope / v2** list and remaining ADVISORY defaults.
 
@@ -143,12 +149,14 @@ Read `references/setup.md` for exact commands and failure handling.
    access), turn on Settings, General, "Automatically delete head branches" (cloud sessions cannot
    delete remote branches or change repo settings), and give you its URL; then wire it as
    `origin`. Confirm the owner/name and default branch back.
-2. **Vendor the harness.** `rb vendor --type <types> --lang <lang> --tools <tools>` (plugin or
+2. **Vendor the harness** (skip it, and the labels, control issue and skeleton issue, when the
+   approved Profile is `none`; write AGENTS.md by hand from `harness/project/AGENTS.md`).
+   `rb vendor --type <types> --lang <lang> --tools <tools>` (plugin or
    `../rockbuilt` path, see above). Report what it created, merged and skipped. From now on use
    `node tools/rockbuilt/rb.mjs`.
 3. **AGENTS.md.** Fill the template vendor installed, exactly per DESIGN.md section 5: header
    lines (`Docs language`, `Project type`, `Default branch`, `Autonomy`, `Parallel`,
-   `Max parallel`, `Max tasks per run`), Goal, Stack (pinned, linked), Conventions (only
+   `Max parallel`, `Max tasks per run`, `Kickback budget`, `Profile`, `Feature review`), Goal, Stack (pinned, linked), Conventions (only
    non-obvious rules), Verification/E2E/Evals/Setup blocks with the intended commands,
    `## Autonomy` (`Sensitive paths`, `Tier A paths`, `Paid services` from Round E), Out of
    scope. Remove E2E, Evals, Seed or Deploy check sections that do not apply (Deploy check stays

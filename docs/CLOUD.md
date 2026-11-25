@@ -39,6 +39,12 @@ Todos se fusionan solos al pasar. El nivel lo calcula `rb risk` con código a pa
 un modelo puede subirlo, nunca bajarlo. Solo te pregunta por esquema, arquitectura, modelo de
 auth, costo o algo irreversible, y lo aprueba un "aprobado" tuyo en el issue.
 
+`Profile: minimal` en `AGENTS.md` deja los niveles 1 y 2 solo con CI. Con `Feature review: on`, la
+rutina fusiona las tareas de nivel 2 en `rb/feature-<NN-slug>` y, cuando están todas, abre el PR de
+la funcionalidad con el auditor ciego y la revisión de seguridad sobre el total. Una tarea en modo
+calibración corre en la rutina solo con su tope dentro de `Paid services`; las exploraciones no
+corren en la rutina (las pides en una sesión).
+
 ## Antes de empezar
 
 - Un plan de Claude con Claude Code (Pro o Max). Las rutinas usan tu suscripción, sin cobro

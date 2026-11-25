@@ -519,7 +519,7 @@ export function computeRisk(root, opts = {}) {
   return { ...r, quick: quickCheck(r) };
 }
 
-function computeTier(root, { files: fileList, pr, base, gh } = {}) {
+function computeTier(root, { files: fileList, pr, base, gh, rulesRef = null } = {}) {
   let autonomy = contractInfo(root);
   if (fileList && fileList.length) {
     const files = fileList.map((p) => ({ path: normalizePath(p), status: 'modified', additions: 0, deletions: 0, added: null }));
@@ -530,7 +530,10 @@ function computeTier(root, { files: fileList, pr, base, gh } = {}) {
     const view = ops.prView(gh, pr);
     // PLAN-1.0 A5: the rules a PR is judged by come from AGENTS.md at its base, never its head,
     // so a PR cannot loosen Sensitive paths or Paid services for itself.
-    const baseContract = view.base && view.base.sha ? ops.fileAt(gh, 'AGENTS.md', view.base.sha) : null;
+    // A task into a feature branch (PLAN-1.0 G3) is judged by the default branch's rules.
+    const featureBase = Boolean(view.base && /^rb\/feature-/.test(view.base.ref));
+    const rules = rulesRef || (featureBase ? defaultBranch(root) : view.base && view.base.sha);
+    const baseContract = rules ? ops.fileAt(gh, 'AGENTS.md', rules) : null;
     if (baseContract != null) autonomy = { ...autonomy, sensitivePaths: [], tierAPaths: [], paidServices: [], ...parseAutonomy(baseContract) };
     const prFiles = ops.prFiles(gh, pr);
     const files = prFiles.map((f) => ({ path: f.path, previousPath: f.previous_path, status: f.status === 'removed' ? 'deleted' : f.status, additions: f.additions, deletions: f.deletions, added: f.patch == null ? null : patchAdded(f.patch) }));

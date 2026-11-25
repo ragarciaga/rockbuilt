@@ -85,3 +85,20 @@ Headless: `spec-inventory-es`. Setup `node-app harness-es spec-approved`.
   so the owner can accept them in one answer; nothing is committed; no em dash.
 - Evidence: 18 of Doorcas's 22 escalations were gaps a spec left open
   (`evals/results/2026-11-24-inventory-doorcas.md`).
+
+## S5 (1.4.0): A time-boxed exploration before the spec (PLAN-1.0 G1)
+
+- Setup: `node-app harness-es --remote` (a local bare origin; no GitHub needed).
+- Prompt (es):
+  > Antes de escribir la spec quiero saber si podemos importar gastos desde un CSV del banco
+  > aunque las columnas vengan en otro orden, sin preguntarle nada al usuario. Haz una exploración
+  > de máximo una hora y dime la conclusión.
+- Pass:
+  1. Uses rb-spec and works on a `rb/explore-<slug>` branch.
+  2. Starts the clock with `rb explore start <slug> --hours 1` (the user's time box, not the
+     default 2).
+  3. Writes the conclusion (`docs/research/<slug>.md`) with an `Answer`/`Respuesta` section.
+  4. No PR and no merge of the exploration; no planner or reviewers dispatched.
+  5. The default branch is unchanged; no em dash.
+- Expected failure without 1.4.0: explores on the default branch or a generic branch with no time
+  box, or opens a PR with the exploration code.
