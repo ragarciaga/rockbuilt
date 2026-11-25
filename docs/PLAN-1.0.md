@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 1.4.0. Fase en curso: **6 (seguridad anti hackeo)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.5.0. Fase en curso: **7 (despliegue y medición)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -132,8 +132,8 @@ y #52, PRs #26 y #46).
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Hecha |
 | 3. Spec | 1.2.0 | Bloque E | Hecha (release v1.2.0) |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Hecha |
-| 5. Trabajo complejo | 1.4.0 | Bloque G | Hecha |
-| 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Pendiente |
+| 5. Trabajo complejo | 1.4.0 | Bloque G | Hecha (PR #87, release v1.4.0) |
+| 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Hecha |
 | 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | Pendiente |
 | 8. Tracker en vivo | 1.6.0 | Bloque I (después de medir 1.0 a 1.5) | Pendiente |
 
@@ -283,16 +283,16 @@ Bloque G:
 ### Fase 6. Seguridad anti hackeo (1.5.0)
 
 Bloque H, `/rb-attack` (modelo: lo que se hizo en Maysa Chart):
-- [ ] H1 Hito "salida con usuarios reales" en el kickoff; `rb-status` y el digest lo recuerdan.
-- [ ] H2 Modelo de amenaza desde el brief y el código.
-- [ ] H3 Sección `## Security probes` en AGENTS.md: diagnósticos de solo lectura del entorno vivo
+- [x] H1 Hito "salida con usuarios reales" en el kickoff; `rb-status` y el digest lo recuerdan.
+- [x] H2 Modelo de amenaza desde el brief y el código.
+- [x] H3 Sección `## Security probes` en AGENTS.md: diagnósticos de solo lectura del entorno vivo
       (permisos y RLS, grants de funciones, secretos en herramientas externas, qué expone el
       navegador, diferencias entre el repo y producción).
-- [ ] H4 Intentos de explotación con cuentas de prueba, sin dañar datos reales; cada intento queda
+- [x] H4 Intentos de explotación con cuentas de prueba, sin dañar datos reales; cada intento queda
       como prueba automatizada cuando se puede.
-- [ ] H5 Un issue por hallazgo con severidad y exploit reproducible; los críticos bloquean el
+- [x] H5 Un issue por hallazgo con severidad y exploit reproducible; los críticos bloquean el
       lanzamiento.
-- [ ] H6 Alcance aprobado por el dueño una sola vez; solo sistemas propios; nunca terceros.
+- [x] H6 Alcance aprobado por el dueño una sola vez; solo sistemas propios; nunca terceros.
 
 ### Fase 7. Despliegue y medición
 
@@ -421,4 +421,21 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   de nivel 3 en la rama de funcionalidad), todos corregidos con prueba (DESIGN 33.5). Evals:
   24/24, 14,68 USD más 1,22 de la primera pasada de los escenarios nuevos (15,90 USD en total,
   `evals/results/2026-11-25-1.4.md`).
+- 2026-11-25: 1.4.0 fusionada (#87) con CI verde en Windows, macOS y Linux; release `v1.4.0`.
+- 2026-11-25: fase 6 hecha (1.5.0, DESIGN 34): skill `/rb-attack` con `rb attack scope|check`
+  (alcance con las palabras del dueño en el issue de control, solo sistemas propios, nunca un
+  proveedor compartido entero), modelo de amenaza, `## Security probes` de solo lectura, intentos
+  con cuentas de prueba A y B, un issue `rb:bug` + `rb:attack` por hallazgo y `rb:launch-blocker`
+  en los críticos (primero en `rb state`, `/rb-status` y el digest), reporte en
+  `docs/security/attack-<fecha>.md` por PR `rb/attack-<fecha>` humano. H1: línea `Launch:` en el
+  encabezado de AGENTS.md, preguntada en kickoff y adopt. Defaults decididos: el alcance dura 30
+  días (máximo 90); solo los críticos bloquean el lanzamiento (los altos se cierran antes salvo que
+  el dueño los acepte por escrito en el issue); el PR del ataque solo toca `docs/security/**` y
+  AGENTS.md (los arreglos van por `/rb-fix`); nunca corre en la rutina. Eval nuevo
+  `attack-asks-scope-es`: la primera pasada mostró que el skill no se activaba con "ataca la app
+  como lo haría un hacker" y que el fixture no tenía sistema en vivo (corregidos). Revisión independiente: 11 hallazgos (2 altos: el chequeo de alcance se
+  engañaba con `https://evil.com?.example.com` y aceptaba `api.stripe.com`), corregidos con prueba o
+  regla (DESIGN 34.9); queda como límite conocido que el CLI no puede probar quién registró el
+  alcance. Evals: 25/25, 17,61 USD de la suite más 2,27 de las pasadas del escenario nuevo (19,88
+  USD, `evals/results/2026-11-25-1.5.md`).
 

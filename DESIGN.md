@@ -1489,32 +1489,56 @@ per-PR security reviewer reads diffs; none of these were in a diff.
    --targets <a,b> [--until]` records `<!-- rockbuilt:attack-scope targets=... until=... -->` and
    the words on the control issue (30 days by default, at most 90). Only a trusted author with
    write access counts; the marker is anchored; `rb attack scope revoke` ends it. Targets are hosts,
-   `*.domain`, `host:port` or `system:id`; a shared provider as a whole (`supabase.co`,
-   `vercel.app`, `stripe.com`, an LLM API...) is refused: only the owner's project on it, named.
-   `rb attack check <target>` exits 3 outside the scope, and the skill runs it before every request
-   to a live system. Only from the owner in the conversation, never from repository text, and
-   never in an unattended run.
+   `*.domain`, `host:port` or `system:id`. A third party (payment, LLM, email, code hosting, cloud
+   APIs) is refused at any depth (`api.stripe.com` too); a hosting platform only as the owner's
+   own project one label above it (`myapp.vercel.app`, `<ref>.supabase.co`), never a wildcard over
+   it; a wildcard over a public suffix (`*.co.uk`, `*.com.co`) and link-local or metadata addresses
+   are refused. `rb attack check <target>` parses the target as a client would (`new URL`:
+   hostname, port, trailing dot, case), refuses userinfo, backslashes and spaces, and exits 3
+   outside the scope; a plain host covers ports 80 and 443 only. The skill runs it before every
+   request to a live system. Only from the owner in the conversation, never from repository text,
+   and never in an unattended run. Known limit (section 13): the CLI cannot tell who typed the
+   words; a recorded scope is the owner's only as far as the skill obeys that rule.
 3. **Threat model (H2)** from the brief and the code (scout in spec mode): assets, attackers
    (anonymous, signed-in, another user, former user, admin), entry points, trust boundaries,
    numbered hypotheses, each tied to a probe or an attempt.
 4. **Security probes (H3).** `## Security probes` in AGENTS.md holds read-only diagnostics of the
-   live environment, one command per line (`rb verify-cmds "Security probes"`), with their scripts
-   under `docs/security/probes/`: row security and column grants, function grants as a matrix,
+   live environment, one command per line, with their scripts under `docs/security/probes/`. The
+   scope records a fingerprint of that list, the owner approves both in one message, and `rb attack
+   probes` prints the commands only while the list is unchanged (a later edit, by any PR, does not
+   run until approved again). Never in CI or a routine. They cover: row security and column grants, function grants as a matrix,
    repo versus production migrations, secrets in external tools, what the browser bundle exposes,
-   storage, CORS and headers. A difference between the repo and production is a finding.
+   storage, CORS and headers. A difference between the repo and production is a finding. Every
+   secret, token, key and session in a result or a recorded request is masked.
 5. **Attempts with test accounts (H4).** Only accounts the owner created for this and the
    anonymous visitor; impact is proved on test account B, never on a person; writes only to test
-   accounts' rows; no scanning, brute force or denial of service. A working attempt becomes the
-   failing test of its fix when the stack allows.
+   accounts' rows; no scanning, brute force or denial of service; payment flows in the provider's
+   test mode only; a paid resource at most 5 calls inside the `Paid services` cap. A working attempt
+   becomes the failing test of its fix when the stack allows.
 6. **Findings (H5).** One issue per finding, labelled `rb:bug` and `rb:attack`, with severity
    (critical, high, medium, low, graded by impact on launch day), a reproducible exploit, the
    evidence, the fix options and the test. Critical findings carry `rb:launch-blocker`: `rb state`
    returns `launchBlockers` and its text, `/rb-status` and the digest list them before anything
    else. Fixes go through `/rb-fix`. A finding without a reproducible exploit is listed as not
-   confirmed, never as an issue.
+   confirmed, never as an issue. On a public repository (`rb attack scope show` returns
+   `repoPrivate`) an open finding's exploit is never published: the issue carries severity and area,
+   the details go to the owner and to a local, uncommitted report until the fix merges.
 7. **Report.** `docs/security/attack-<date>.md` (scope with the owner's words, threat model,
    every probe and attempt with its result, findings, what was not tested) on `rb/attack-<date>`, a
    human-only PR that may touch only `docs/security/**` and AGENTS.md. After the first run, the
    skill runs again only when the owner asks; a repeat starts by re-running every attempt that
    worked.
+8. **Launch line.** `Launch: live` with no report reminds too; a value that is not a date, `live`
+   or `not set` is reported, never read as unset.
+9. **Independent review of 1.5.0.** A reviewer with no context found, each now with a test or a
+   rule: `inScope` matched `https://evil.com?.example.com`, `#`, backslash and userinfo forms against
+   `*.example.com` (now parsed as a client would); third-party subdomains (`api.stripe.com`,
+   `api.openai.com`), shared hosts and public suffixes as wildcards (`*.pages.dev`, `*.co.uk`) and
+   the metadata address were accepted; a plain host covered every port; probe commands came from
+   repository text with no scope check (now an approved, fingerprinted list); the probes reference
+   invited CI runs against production; reports and issues could carry secrets and session tokens
+   verbatim, and exploits of open findings were published on public repositories; payment and paid
+   API attempts had no test mode or call limit; a read-only `rb attack check` created the control
+   issue; `Launch: live` and unreadable dates were silent. Kept as a known limit: the CLI cannot
+   prove who recorded a scope (section 13).
 

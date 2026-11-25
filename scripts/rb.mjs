@@ -28,7 +28,7 @@ import { treeCheck, treeText } from './lib/treecheck.mjs';
 import { safetyCheck } from './lib/safety.mjs';
 import { addIteration, calibrationLine, calibrationState, calibrationText, entriesFromComments, readCalibration } from './lib/calibration.mjs';
 import { checkExploration, exploreText, startExploration } from './lib/explore.mjs';
-import { inScope, recordScope, revokeScope, showScope } from './lib/attack.mjs';
+import { inScope, probeList, recordScope, revokeScope, showScope } from './lib/attack.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -74,7 +74,7 @@ export const COMMANDS = {
   criteria: 'The criteria a task covers, verbatim from requirements.md, with their Decisions  <spec-dir> <task id> (exit 3 when a covered id is missing)',
   'tree-check': 'After a reviewer: the working tree equals the reviewed head (bookkeeping and .rockbuilt/ aside)  [--restore] (exit 3 when it did not)',
   spec: 'check <spec-dir>: the decision inventory of requirements.md is complete (exit 3 with the gaps)',
-  attack: 'Pre-launch attack scope on the control issue (/rb-attack): scope --words "<owner words>" --targets a.example.com,supabase:<ref> [--until YYYY-MM-DD] | scope show (exit 3 when none in force) | scope revoke | check <target> (exit 3 outside the scope)',
+  attack: 'Pre-launch attack scope on the control issue (/rb-attack): scope --words "<owner words>" --targets a.example.com,supabase:<ref> [--until YYYY-MM-DD] | scope show (exit 3 when none in force) | scope revoke | probes (the ## Security probes commands, exit 3 unless approved with the scope) | check <target> (exit 3 outside the scope)',
   explore: 'Exploration time box on rb/explore-<slug> (never merged): start <slug> [--hours 2] (max 8) | check <slug> (exit 3 when the time is up)',
   calibration: 'Calibration loop, the eval is the gate: add <task> --score <n> --cost <usd> --cap <usd> --ref <sha> [--lower-is-better] [--issue <n>] (kept only when it beats the best; exit 3 at the cap or after 3 without improvement) | show <task> [--issue <n>] (--issue keeps the history on the task issue, for a new session)',
   permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
@@ -858,16 +858,25 @@ const handlers = {
     const root = requireRepoRoot(cwd);
     const c = client(root, flags, io);
     if (sub === 'scope' && !arg) {
-      const r = recordScope(c, { words: stringFlag(flags, 'words', { required: true }), targets: stringFlag(flags, 'targets', { required: true }), until: flags.until === undefined ? null : String(flags.until) });
+      const r = recordScope(c, { root, words: stringFlag(flags, 'words', { required: true }), targets: stringFlag(flags, 'targets', { required: true }), until: flags.until === undefined ? null : String(flags.until) });
       return { data: r, text: `attack scope recorded on #${r.control}: ${r.targets.join(', ')} until ${r.until}`, code: 0 };
     }
     if (sub === 'scope' && arg === 'show') {
       const r = showScope(c);
-      return { data: { scope: r }, text: r ? `in force until ${r.until}: ${r.targets.join(', ')} ("${r.words}")` : 'no attack scope in force: ask the owner once and record their words', code: r ? 0 : 3 };
+      let priv = null;
+      try { priv = ops.repoInfo(c).private; } catch { priv = null; }
+      return { data: { scope: r, repoPrivate: priv }, text: r ? `in force until ${r.until}: ${r.targets.join(', ')} ("${r.words}")` : 'no attack scope in force: ask the owner once and record their words', code: r ? 0 : 3 };
     }
     if (sub === 'scope' && arg === 'revoke') {
       const r = revokeScope(c);
       return { data: r, text: `attack scope revoked on #${r.control}`, code: 0 };
+    }
+    if (sub === 'probes' && !arg) {
+      const scope = showScope(c);
+      const p = probeList(root);
+      const ok = Boolean(scope) && p.commands.length > 0 && scope.probes === p.hash;
+      const why = !scope ? 'no attack scope in force' : !p.commands.length ? 'no ## Security probes commands in AGENTS.md' : `the probe list changed since the owner approved the scope (${scope.probes} then, ${p.hash} now): show the owner the new list and record the scope again`;
+      return { data: { ok, commands: ok ? p.commands : [], hash: p.hash, approved: scope ? scope.probes : null }, text: ok ? p.commands.join('\n') : why, code: ok ? 0 : 3 };
     }
     if (sub === 'check' && arg) {
       const scope = showScope(c);

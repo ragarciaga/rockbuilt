@@ -3,8 +3,10 @@
 Probes read the live environment; attempts act as the attacker. Every probe is read-only and
 idempotent; every attempt touches only test accounts. Keep each probe as a script under
 `docs/security/probes/` and its command in AGENTS.md `## Security probes`, one per line, so the
-next run and CI can repeat them. Credentials come from the environment (a CI secret or the
-owner's machine), never from the repo. A probe that needs the owner's machine (a database URL
+next `/rb-attack` can repeat them (`rb attack probes`, only the approved list). Never wire them
+into CI or a routine: they run only inside an approved scope with the owner present.
+Credentials come from the owner's environment, never from the repo, and use a read-only role
+where the database allows it. A probe that needs the owner's machine (a database URL
 the cloud lacks) is a `rb:needs-local` step with the exact command.
 
 ## Probes (read-only)
@@ -47,10 +49,11 @@ Each with the exact request and response in the report. Typical, by hypothesis:
   A.
 - **Webhooks and automations:** call them without the secret, with the bundle's token, with a
   forged payload for B.
-- **Payment and coupons:** complete the flow without paying, reuse a coupon, change the amount
-  on the client.
+- **Payment and coupons** (the provider's test mode only, never a live charge): complete the
+  flow without paying, reuse a coupon, change the amount on the client.
 - **Paid resources:** check that a client cannot trigger unbounded paid calls (rate limit and plan
-  cap enforced on the server, not the client).
+  cap enforced on the server, not the client) with at most 5 calls, inside the `Paid services`
+  cap; read the limit from the code and the provider config rather than spending to find it.
 
 When an attempt works: stop at proving it on B, record it, and write it as a test when the stack
 allows (a SQL test run with `request.jwt.claim.sub` set to A, an API test with A's session) so the

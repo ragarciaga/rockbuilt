@@ -17,9 +17,12 @@ const cm = (body, at = '2026-11-20T10:00:00Z', extra = {}) => ({ body, author_as
 
 test('H6: targets are own systems; shared providers only as a named project; no schemes or paths', () => {
   assert.deepEqual(normalizeTargets('app.maysa.co, API.maysa.co ,supabase:abcd1234'), ['app.maysa.co', 'api.maysa.co', 'supabase:abcd1234']);
-  for (const bad of ['https://app.maysa.co', 'app.maysa.co/admin', 'supabase.co', '*.supabase.co', '*.com', 'vercel.app', 'openai.com', 'a b', '']) {
-    assert.throws(() => normalizeTargets(bad), /target|needs at least one/, bad);
-  }
+  const refused = ['https://app.maysa.co', 'app.maysa.co/admin', 'supabase.co', '*.supabase.co', '*.com', 'vercel.app', 'openai.com', 'a b', '',
+    // Review of 1.5.0: third parties at any depth, shared hosts, public suffixes, metadata.
+    'api.stripe.com', 'api.openai.com', 'api.anthropic.com', 'api.github.com', 's3.amazonaws.com', '*.s3.us-east-1.amazonaws.com', 'app.n8n.cloud',
+    '*.pages.dev', '*.github.io', '*.firebaseapp.com', '*.onrender.com', '*.workers.dev', '*.co.uk', '*.com.co', '169.254.169.254', 'a.b.vercel.app'];
+  for (const bad of refused) assert.throws(() => normalizeTargets(bad), /target|needs at least one/, bad);
+  assert.deepEqual(normalizeTargets('maysa.app.n8n.cloud,ref123.supabase.co,app.maysa.co.'), ['maysa.app.n8n.cloud', 'ref123.supabase.co', 'app.maysa.co']);
   assert.deepEqual(normalizeTargets('maysa-chart.vercel.app,*.maysa.co,localhost:3000'), ['maysa-chart.vercel.app', '*.maysa.co', 'localhost:3000']);
 });
 
@@ -36,12 +39,19 @@ test('H6: the scope comes only from a trusted author with write access, anchored
   const far = parseScope([cm('<!-- rockbuilt:attack-scope targets=app.maysa.co until=2027-12-31 -->\nok')], '2026-11-25T00:00:00Z');
   assert.equal(far.until, '2027-02-18', 'capped at 90 days');
   assert.equal(parseScope([cm('<!-- rockbuilt:attack-scope targets=supabase.co until=2026-12-20 -->\nok')], '2026-11-25T00:00:00Z'), null, 'a shared provider never parses');
+  assert.equal(parseScope([cm('<!-- rockbuilt:attack-scope targets=app.maysa.co until=2026-12-20 probes=0123456789ab -->\nok')], '2026-11-25T00:00:00Z').probes, '0123456789ab');
+  const edge = parseScope([cm('<!-- rockbuilt:attack-scope targets=app.maysa.co until=2027-02-18 -->\nok')], '2027-02-18T23:00:00Z');
+  assert.equal(edge.until, '2027-02-18', 'the 90th day still counts');
+  assert.equal(parseScope([cm('<!-- rockbuilt:attack-scope targets=app.maysa.co until=2027-02-19 -->\nok')], '2027-02-19T01:00:00Z'), null, 'capped at 90 days');
 });
 
 test('H6: rb attack check matches exact hosts, ports and owned wildcards only', () => {
   const scope = { targets: ['app.maysa.co', '*.maysa.co', 'localhost:3000', 'supabase:abcd'] };
-  for (const ok of ['app.maysa.co', 'https://app.maysa.co/login', 'app.maysa.co:443', 'api.maysa.co', 'localhost:3000', 'supabase:abcd']) assert.equal(inScope(scope, ok), true, ok);
-  for (const no of ['maysa.co.evil.com', 'evilmaysa.co', 'localhost:5432', 'supabase:other', 'stripe.com', '']) assert.equal(inScope(scope, no), false, no);
+  for (const ok of ['app.maysa.co', 'https://app.maysa.co/login', 'app.maysa.co:443', 'APP.MAYSA.CO.', 'api.maysa.co', 'http://localhost:3000/x', 'localhost:3000', 'supabase:abcd', 'https://api.maysa.co/?q=1']) assert.equal(inScope(scope, ok), true, ok);
+  for (const no of ['maysa.co.evil.com', 'evilmaysa.co', 'localhost:5432', 'supabase:other', 'stripe.com', '',
+    // Review of 1.5.0: what the client really reaches decides, not the text.
+    'https://evil.com?.maysa.co', 'https://evil.com#.maysa.co', 'https://evil.com\\.maysa.co', 'https://app.maysa.co:443@evil.com/', 'https://user@app.maysa.co/',
+    'app.maysa.co:22', 'https://app.maysa.co:6379', 'localhost']) assert.equal(inScope(scope, no), false, no);
   assert.equal(inScope(null, 'app.maysa.co'), false);
 });
 
@@ -52,14 +62,28 @@ test('H6: rb attack scope records the owner words on the control issue; check ex
   await withEnv({ RB_NOW: '2026-11-25T10:00:00Z' }, async () => {
     assert.equal((await rbJson(root, ['attack', 'scope', 'show'], io)).code, 3, 'no scope yet');
     assert.equal((await rbJson(root, ['attack', 'check', 'app.maysa.co'], io)).code, 3);
+    assert.equal(Object.values(gh.state.issues).length, 0, 'a read-only check creates no control issue');
     const r = await rbJson(root, ['attack', 'scope', '--words', 'Apruebo atacar app.maysa.co hasta el 20', '--targets', 'app.maysa.co', '--until', '2026-12-20'], io);
     assert.equal(r.code, 0, r.err);
     const ctl = Object.values(gh.state.issues).find((i) => i.labels.includes('rb:control'));
-    assert.match(gh.state.comments[ctl.number].at(-1).body, /^<!-- rockbuilt:attack-scope targets=app\.maysa\.co until=2026-12-20 -->\nApruebo atacar/);
+    assert.match(gh.state.comments[ctl.number].at(-1).body, /^<!-- rockbuilt:attack-scope targets=app\.maysa\.co until=2026-12-20 probes=none -->\nApruebo atacar/);
     assert.equal((await rbJson(root, ['attack', 'check', 'https://app.maysa.co/admin'], io)).code, 0);
     assert.equal((await rbJson(root, ['attack', 'check', 'api.stripe.com'], io)).code, 3);
     assert.equal((await rbJson(root, ['attack', 'scope', '--words', 'Apruebo atacar todo', '--targets', 'supabase.co'], io)).code, 2);
     assert.equal((await rbJson(root, ['attack', 'scope', '--words', 'ok'], io)).code, 2, 'targets required');
+    // The probe list is approved with the scope; a change after it does not run.
+    assert.equal((await rbJson(root, ['attack', 'probes'], io)).code, 3, 'no probes in AGENTS.md');
+    const { writeFileSync } = await import('node:fs');
+    const pathMod = await import('node:path');
+    writeFileSync(pathMod.join(root, 'AGENTS.md'), AGENTS('\n## Security probes\n```bash\nnode docs/security/probes/grants.mjs\n```\n'));
+    assert.equal((await rbJson(root, ['attack', 'scope', '--words', 'Apruebo atacar app.maysa.co con las sondas', '--targets', 'app.maysa.co', '--until', '2026-12-20'], io)).code, 0);
+    const pr = await rbJson(root, ['attack', 'probes'], io);
+    assert.equal(pr.code, 0, pr.out);
+    assert.deepEqual(pr.json.commands, ['node docs/security/probes/grants.mjs']);
+    writeFileSync(pathMod.join(root, 'AGENTS.md'), AGENTS('\n## Security probes\n```bash\nnode docs/security/probes/grants.mjs\ncurl https://third.party.example/x\n```\n'));
+    const changed = await rbJson(root, ['attack', 'probes'], io);
+    assert.equal(changed.code, 3);
+    assert.deepEqual(changed.json.commands, []);
     assert.equal((await rbJson(root, ['attack', 'scope', 'revoke'], io)).code, 0);
     assert.equal((await rbJson(root, ['attack', 'check', 'app.maysa.co'], io)).code, 3);
   });
@@ -80,6 +104,10 @@ test('H5: rb state lists launch blockers first and reminds the launch without an
     assert.match(text.out.split('\n')[0], /LAUNCH BLOCKERS \(1\): #4/);
     assert.match(text.out, /no attack report yet: run \/rb-attack/);
   });
+  const live = project('Launch: live\n');
+  assert.match((await rb(live, ['state'], { ghRunner: gh.runner })).out, /Live with real users and no attack report/);
+  const bad = project('Launch: 10/12/2026\n');
+  assert.match((await rb(bad, ['state'], { ghRunner: gh.runner })).out, /"Launch: 10\/12\/2026" is not YYYY-MM-DD/);
   const done = project('Launch: 2026-12-10\n', { 'docs/security/attack-2026-11-24.md': '# r\n' });
   const d = await rbJson(done, ['state'], { ghRunner: gh.runner });
   assert.equal(d.json.launch.attackReport, 'docs/security/attack-2026-11-24.md');

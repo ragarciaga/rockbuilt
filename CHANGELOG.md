@@ -16,7 +16,10 @@ The pre-launch attack (PLAN-1.0 phase 6, issue #82; DESIGN 34).
   digest until fixed (through `/rb-fix`).
 - **Launch milestone:** kickoff and adopt ask when real users arrive (`Launch:` in AGENTS.md);
   until an attack report exists, the status and the digest remind you.
-- The report goes to `docs/security/attack-<date>.md` in a PR you merge.
+- The report goes to `docs/security/attack-<date>.md` in a PR you merge. On a public repository,
+  an open finding's exploit stays out of GitHub until it is fixed.
+- Hardened after an independent review (DESIGN 34.9): the scope check parses targets like a real
+  client, third parties are refused at any depth, and the probe list runs only as you approved it.
 - Update a project with "update rockbuilt" (new labels `rb:attack` and `rb:launch-blocker`; add
   `Launch:` and `## Security probes` to AGENTS.md when you want them).
 

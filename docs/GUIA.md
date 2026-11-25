@@ -166,7 +166,13 @@ haría alguien de afuera.
 5. Abre un issue por hallazgo con severidad y el paso a paso para reproducirlo. Los críticos llevan
    `rb:launch-blocker` y salen primero en el estado y el resumen hasta que se arreglen con
    `/rb-fix`.
-6. Deja el reporte en `docs/security/attack-<fecha>.md` en un PR que fusionas tú.
+6. Deja el reporte en `docs/security/attack-<fecha>.md` en un PR que fusionas tú. Si el repo es
+   público, el paso a paso de un hallazgo abierto no se publica: te llega a ti y queda fuera de
+   GitHub hasta que se arregle.
+
+Las sondas de solo lectura las apruebas junto con el alcance; si alguien las cambia después, no
+corren hasta que las vuelvas a aprobar. Los pagos se prueban solo en el modo de prueba del
+proveedor.
 
 Después de esa vez, solo corre si se lo pides.
 
