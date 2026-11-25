@@ -72,7 +72,7 @@ evals/, tests/, docs/, DESIGN.md
 ```
 AGENTS.md                         canonical project contract (all tools read it)
 CLAUDE.md                         "@AGENTS.md" plus Claude-only notes
-tools/rockbuilt/                  rb.mjs, lib/, guard.mjs, VERSION (committed, do not edit)
+tools/rockbuilt/                  rb.mjs, lib/, guard.mjs, VERSION, AGENTS.template.md (committed, do not edit)
 .claude/skills/rb-*/              skills (Claude Code and Cursor read this path)
 .claude/agents/rb-*.md            agents (Claude Code and Cursor read this path)
 .claude/settings.json             permissions + PreToolUse hook -> node tools/rockbuilt/guard.mjs

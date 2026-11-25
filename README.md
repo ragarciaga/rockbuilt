@@ -319,7 +319,7 @@ separate bot identity is on the [roadmap](docs/roadmap.md).
 |---|---|
 | `AGENTS.md` | The project contract: goal, stack, conventions, how to verify, autonomy settings |
 | `CLAUDE.md` | `@AGENTS.md` plus notes for Claude Code |
-| `tools/rockbuilt/` | The `rb` CLI and the guard hook, with a `VERSION` file |
+| `tools/rockbuilt/` | The `rb` CLI and the guard hook, with a `VERSION` file and the `AGENTS.template.md` an update copies new contract text from |
 | `.claude/skills/rb-*`, `.claude/agents/rb-*` | Skills and agents (Claude Code and Cursor read this path) |
 | `.claude/settings.json` | Permissions, the guard hook and the two hooks that record your hours |
 | `.github/workflows/rockbuilt-ci.yml` | The CI the merge gate requires |

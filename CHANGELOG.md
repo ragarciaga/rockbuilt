@@ -3,8 +3,9 @@
 ## 1.5.1 (2026-11-25)
 
 - **Updating a project from before 1.0 works as described.** `rb doctor` and the install skill told
-  you to copy the level text from `tools/rockbuilt/project/AGENTS.md`, a file vendor never wrote;
-  it now ships there (found while updating 2brain-logic, PLAN-1.0 phase 7).
+  you to copy the level text from `tools/rockbuilt/AGENTS.template.md`, a file vendor never wrote;
+  it now ships as `tools/rockbuilt/AGENTS.template.md` (not named AGENTS.md, so no tool mistakes it
+  for a nested contract). Found while updating 2brain-logic (PLAN-1.0 phase 7).
 
 ## 1.5.0 (2026-11-25)
 

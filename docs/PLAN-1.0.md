@@ -444,7 +444,7 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   con `Kickback budget`, `Profile: full`, `Feature review: off` y `Launch: not set`, etiquetas
   nuevas creadas, 4205 pruebas en verde; `Sensitive paths` no necesitó revisión (menos del 40%).
   La actualización destapó un bug: doctor y el skill de instalación citaban
-  `tools/rockbuilt/project/AGENTS.md`, que vendor nunca escribía (corregido en 1.5.1). Doorcas,
+  `tools/rockbuilt/AGENTS.template.md`, que vendor nunca escribía (corregido en 1.5.1). Doorcas,
   signal-engine, maysa-shop-ops y 3d_brain quedan sin actualizar: el clasificador de permisos de
   la sesión rechazó adjuntarlos; hay que abrirlos en una sesión con ese repo y decir "actualiza
   rockbuilt". 7.2 depende de Doorcas. 7.3 y 7.4 empiezan cuando los PRs estén fusionados.
