@@ -502,7 +502,7 @@ Antes de cotizar con estas cifras, calibra: lleva tus horas a mano una semana y 
 |---|---|
 | `AGENTS.md` | Las reglas del proyecto: objetivo, stack, convenciones, comandos de verificación y autonomía |
 | `CLAUDE.md` | Importa `AGENTS.md` y agrega notas solo para Claude |
-| `tools/rockbuilt/` | El CLI `rb` y el guard; no se edita a mano, se actualiza con `/rockbuilt:install` |
+| `tools/rockbuilt/` | El CLI `rb`, el guard y la plantilla `AGENTS.template.md` de donde una actualización copia texto nuevo del contrato; no se edita a mano, se actualiza con `/rockbuilt:install` |
 | `.claude/skills/rb-*`, `.claude/agents/rb-*` | Los comandos y los agentes de Rockbuilt |
 | `docs/progress.md` | Dónde quedamos y qué sigue, más la tabla de tiempos |
 | `docs/specs/NN-nombre/` | Requisitos, diseño, tareas y reportes de cada funcionalidad |

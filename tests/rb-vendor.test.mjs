@@ -58,12 +58,15 @@ test('vendor fresh: harness files, templates, VERSION, header fields, gitignore'
   const h = harness();
   const r = await rbJson(root, ['vendor', '--from', h, '--type', 'web,ai', '--lang', 'es']);
   assert.equal(r.code, 0, r.err);
-  for (const f of ['tools/rockbuilt/rb.mjs', 'tools/rockbuilt/lib/util.mjs', 'tools/rockbuilt/guard.mjs', 'tools/rockbuilt/VERSION',
+  for (const f of ['tools/rockbuilt/rb.mjs', 'tools/rockbuilt/lib/util.mjs', 'tools/rockbuilt/guard.mjs', 'tools/rockbuilt/VERSION', 'tools/rockbuilt/AGENTS.template.md',
     '.claude/skills/rb-build/SKILL.md', '.claude/skills/rb-build/references/kickback.md', '.claude/agents/rb-verifier.md',
     'AGENTS.md', 'CLAUDE.md', '.claude/LESSONS.md', '.claude/settings.json', '.github/workflows/rockbuilt-ci.yml', 'docs/progress.md']) {
     assert.ok(r.json.created.includes(f), `created ${f}`);
   }
   assert.equal(read(root, 'tools/rockbuilt/VERSION'), '0.3.0\n');
+  // The template an update copies contract text from (1.5.1); a second vendor leaves it unchanged.
+  const again = await rbJson(root, ['vendor', '--from', h]);
+  assert.ok(!again.json.created.includes('tools/rockbuilt/AGENTS.template.md') && !again.json.updated.includes('tools/rockbuilt/AGENTS.template.md'));
   const agents = read(root, 'AGENTS.md');
   assert.match(agents, /^Project type: web, ai$/m);
   assert.match(agents, /^Docs language: es$/m);

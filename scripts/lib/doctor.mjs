@@ -37,7 +37,7 @@ function checkGit() {
 export const SENSITIVE_SHARE = 0.4;
 function levelsChecks(root, text) {
   const out = [];
-  if (/highest tier wins|Tier C pull requests are merged by the human/.test(text)) out.push(warn('contract 1.0', 'AGENTS.md ## Autonomy still describes tiers A, B and C: replace the "How the harness decides" paragraphs with the level text from the template (tools/rockbuilt/project/AGENTS.md)'));
+  if (/highest tier wins|Tier C pull requests are merged by the human/.test(text)) out.push(warn('contract 1.0', 'AGENTS.md ## Autonomy still describes tiers A, B and C: replace the "How the harness decides" paragraphs with the level text from the template (tools/rockbuilt/AGENTS.template.md)'));
   if (headerField(text, 'Kickback budget') === null) out.push(warn('contract 1.0', 'no `Kickback budget:` header line (0 to 3, default 2): add `Kickback budget: 2` under `Max tasks per run`'));
   // PLAN-1.0 G4: the review profile. No line means full.
   const profile = headerField(text, 'Profile');

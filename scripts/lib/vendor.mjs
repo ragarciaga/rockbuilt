@@ -340,6 +340,10 @@ export function vendorProject(root, { from, type, lang, tools } = {}) {
   const guardSrc = need('hooks/guard.mjs');
   if (guardSrc) putOwned(guardSrc, 'tools/rockbuilt/guard.mjs');
   putOwnedText('tools/rockbuilt/VERSION', `${r.version}\n`);
+  // The AGENTS.md template, so an update can copy new contract text from it (doctor and the
+  // install skill point here; before 1.5.1 they named a path that vendor never wrote).
+  const tplSrc = need('harness/project/AGENTS.md');
+  if (tplSrc) putOwned(tplSrc, 'tools/rockbuilt/AGENTS.template.md');
 
   // 2. Skills and agents (Claude Code and Cursor read .claude/).
   const skillsSrc = need('harness/skills');

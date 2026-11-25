@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 1.5.0. Fase en curso: **7 (despliegue y medición)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.5.1. Fase en curso: **7 (despliegue y medición)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -133,8 +133,8 @@ y #52, PRs #26 y #46).
 | 3. Spec | 1.2.0 | Bloque E | Hecha (release v1.2.0) |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Hecha |
 | 5. Trabajo complejo | 1.4.0 | Bloque G | Hecha (PR #87, release v1.4.0) |
-| 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Hecha |
-| 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | Pendiente |
+| 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Hecha (PR #88, release v1.5.0) |
+| 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | En curso |
 | 8. Tracker en vivo | 1.6.0 | Bloque I (después de medir 1.0 a 1.5) | Pendiente |
 
 Nota de orden: la fase 4 (informes en archivo) es la que más tokens ahorra por sesión. Si el
@@ -438,4 +438,14 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   regla (DESIGN 34.9); queda como límite conocido que el CLI no puede probar quién registró el
   alcance. Evals: 25/25, 17,61 USD de la suite más 2,27 de las pasadas del escenario nuevo (19,88
   USD, `evals/results/2026-11-25-1.5.md`).
+- 2026-11-25: 1.5.0 fusionada (#88) con CI verde en Windows, macOS y Linux; release `v1.5.0`.
+- 2026-11-25: fase 7, punto 7.1 en curso. 2brain-logic actualizado de 0.14.0 a 1.5.0: PR
+  ragarciaga/2brain-logic#274 (humano, lo fusiona Andrés), contrato convertido a niveles, encabezado
+  con `Kickback budget`, `Profile: full`, `Feature review: off` y `Launch: not set`, etiquetas
+  nuevas creadas, 4205 pruebas en verde; `Sensitive paths` no necesitó revisión (menos del 40%).
+  La actualización destapó un bug: doctor y el skill de instalación citaban
+  `tools/rockbuilt/AGENTS.template.md`, que vendor nunca escribía (corregido en 1.5.1). Doorcas,
+  signal-engine, maysa-shop-ops y 3d_brain quedan sin actualizar: el clasificador de permisos de
+  la sesión rechazó adjuntarlos; hay que abrirlos en una sesión con ese repo y decir "actualiza
+  rockbuilt". 7.2 depende de Doorcas. 7.3 y 7.4 empiezan cuando los PRs estén fusionados.
 

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.5.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.5.1-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -319,7 +319,7 @@ separate bot identity is on the [roadmap](docs/roadmap.md).
 |---|---|
 | `AGENTS.md` | The project contract: goal, stack, conventions, how to verify, autonomy settings |
 | `CLAUDE.md` | `@AGENTS.md` plus notes for Claude Code |
-| `tools/rockbuilt/` | The `rb` CLI and the guard hook, with a `VERSION` file |
+| `tools/rockbuilt/` | The `rb` CLI and the guard hook, with a `VERSION` file and the `AGENTS.template.md` an update copies new contract text from |
 | `.claude/skills/rb-*`, `.claude/agents/rb-*` | Skills and agents (Claude Code and Cursor read this path) |
 | `.claude/settings.json` | Permissions, the guard hook and the two hooks that record your hours |
 | `.github/workflows/rockbuilt-ci.yml` | The CI the merge gate requires |
@@ -393,7 +393,7 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 1.5.0. 1.5 adds `/rb-attack`: before real users arrive, it attacks the live system once,
+Version 1.5.1. 1.5 adds `/rb-attack`: before real users arrive, it attacks the live system once,
 inside a scope I approve, and every critical finding blocks the launch until fixed. 1.4 adds modes for complex work: time-boxed explorations that never merge,
 calibration loops gated by the eval, one audit per feature, and a review profile per project.
 1.3 checks safety steps before the reviewers, keeps reviewers from seeing each

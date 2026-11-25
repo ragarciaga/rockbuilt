@@ -110,7 +110,7 @@ every harness file is `unchanged` (a project updated before 0.13.1 still lacks t
   `Branch protection: declined (<date>, <reason>)` to the AGENTS.md header in the same PR.
 
 - **1.0 levels** (`contract 1.0` WARN): replace the "How the harness decides" paragraphs of
-  AGENTS.md `## Autonomy` with the level text from `tools/rockbuilt/project/AGENTS.md`, add
+  AGENTS.md `## Autonomy` with the level text from `tools/rockbuilt/AGENTS.template.md`, add
   `Kickback budget: 2` to the header, and run `node tools/rockbuilt/rb.mjs labels` (level labels).
   Open PRs keep their old tier labels: the gate reads them as levels.
 - **Sensitive paths review** (`sensitive paths` WARN, once per project): show the owner the globs
