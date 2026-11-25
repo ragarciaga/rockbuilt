@@ -448,4 +448,8 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   signal-engine, maysa-shop-ops y 3d_brain quedan sin actualizar: el clasificador de permisos de
   la sesión rechazó adjuntarlos; hay que abrirlos en una sesión con ese repo y decir "actualiza
   rockbuilt". 7.2 depende de Doorcas. 7.3 y 7.4 empiezan cuando los PRs estén fusionados.
+- 2026-11-25: 1.5.1 fusionada (#89) con CI verde; release `v1.5.1`. ragarciaga/2brain-logic#274
+  re-vendorizado a 1.5.1. Tarea programada para el 2026-12-09 (14:17, Bogotá) que mide 7.3 y corre
+  7.4 en esta misma sesión. Documentación al día: tabla de comandos y archivos de la GUIA y el
+  README con exploración, `/rb-attack`, `docs/research/` y `docs/security/`; etiquetas de DESIGN 21.
 

@@ -906,9 +906,11 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 An unknown flag is a usage error (exit 2), never ignored. `pr-create` adds `rb:tier-x` from the
 body's `<!-- rockbuilt:tier X -->` when `--label` carries no tier, and refuses a lower one. Run on the PR's head branch, it raises the marker and the label to `rb risk` of the real diff when that is higher (section 24.4).
 
-Labels (exact): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:quick`, `rb:blocked`, `rb:in-progress`,
-`rb:pr-open`, `rb:tier-a`, `rb:tier-b`, `rb:tier-c`, `rb:needs-human`, `rb:needs-local`,
-`rb:approved`, `rb:hold`, `rb:stop`, `rb:running`, `rb:control`.
+Labels (exact, `scripts/lib/gh.mjs` LABELS): `rb:task`, `rb:skeleton`, `rb:bug`, `rb:quick`,
+`rb:blocked`, `rb:in-progress`, `rb:pr-open`, `rb:level-1`, `rb:level-2`, `rb:level-3`,
+`rb:unplanned`, `rb:parked`, `rb:attack`, `rb:launch-blocker`, `rb:feature`,
+`rb:approval-pending`, `rb:tier-a`, `rb:tier-b`, `rb:tier-c` (read as levels), `rb:needs-human`,
+`rb:needs-local`, `rb:approved`, `rb:hold`, `rb:stop`, `rb:running`, `rb:control`.
 
 PR body machine lines (each on its own line):
 `<!-- rockbuilt:status stage=rb-verifier task=<id> outcome=pass head=<sha> -->`,
