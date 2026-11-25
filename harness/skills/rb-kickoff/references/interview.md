@@ -56,6 +56,8 @@ Every "yes" here means the security gate runs for features touching it. Record i
 - Profile: recommend `full`, `minimal` or `none` with one line of why (SKILL.md, Step 3,
   "Profile"). `minimal` keeps CI and tests and reviews only level 3; `none` is for work that never
   reaches real users.
+- Launch: when real users or paying testers arrive (`YYYY-MM-DD` or not set). Say that
+  `/rb-attack` runs once before it.
 - Paid services already approved, each with a monthly cap (for example "OpenAI, USD 20/month for
   evals"), or none. Only what the user names explicitly goes into AGENTS.md `Paid services`.
 - Nightly cloud run: mention it is optional and that they create the routine themselves later

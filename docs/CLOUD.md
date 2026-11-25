@@ -43,7 +43,9 @@ auth, costo o algo irreversible, y lo aprueba un "aprobado" tuyo en el issue.
 rutina fusiona las tareas de nivel 2 en `rb/feature-<NN-slug>` y, cuando están todas, abre el PR de
 la funcionalidad con el auditor ciego y la revisión de seguridad sobre el total. Una tarea en modo
 calibración corre en la rutina solo con su tope dentro de `Paid services`; las exploraciones no
-corren en la rutina (las pides en una sesión).
+corren en la rutina (las pides en una sesión). `/rb-attack` tampoco: corre solo contigo en una
+sesión, con el alcance que apruebas; la rutina solo te recuerda los `rb:launch-blocker` abiertos y
+la fecha de `Launch:` sin reporte de ataque.
 
 ## Antes de empezar
 

@@ -19,6 +19,7 @@ Max tasks per run: 6
 Kickback budget: 2
 Profile: full                        # or minimal (levels 1 and 2 on CI; level 3 verifier and security)
 Feature review: off                  # on: level 2 tasks merge into rb/feature-<NN-slug>, one audit per feature
+Launch: not set                      # YYYY-MM-DD when real users arrive, or live; /rb-attack runs before it
 ```
 
 ## Where each section comes from

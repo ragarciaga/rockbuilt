@@ -94,6 +94,8 @@ Ask in the same message (batched, recommendation first):
   green CI, level 3 gets the verifier and the security review) or `none` (a repo that never
   reaches real users; then AGENTS.md and current-state.md only, no vendoring). Written as
   `Profile:` in the header.
+- **Launch** (PLAN-1.0 H1): when real users arrive (`Launch: YYYY-MM-DD`), or `live` when they
+  already use it; with real users and no `docs/security/attack-*.md`, recommend `/rb-attack` now.
 - **Paid services** already approved, with a monthly cap, or none. **Sensitive paths** beyond
   the built-in floor, if the map found any (for example a legacy billing folder).
 

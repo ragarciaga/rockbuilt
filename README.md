@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.4.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.5.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -215,6 +215,7 @@ Header lines at the top of the project's `AGENTS.md`. All have defaults.
 | `Hours: local` | `github` (`local` on public repos) | Where your time marks go. Use `local` in a client's repo: the hours issue shows timestamps and branch names to anyone who can see the repo. `off` disables it |
 | `Branch protection: declined (<date>, <reason>)` | none | You chose not to pay for branch protection on a private repo. The digest stops reminding you |
 | `Profile: full` | `full` | `minimal` merges levels 1 and 2 on green CI and reviews only level 3 (verifier and security), for a tool only you use. `none` means no harness at all, for something that never reaches real users. Kickoff and adopt recommend one |
+| `Launch: 2026-12-10` | `not set` | The day real users arrive. Until an attack report exists, status and the digest remind you to run `/rb-attack` |
 | `Feature review: off` | `off` | `on` sends the level 2 tasks of a spec to `rb/feature-<NN-slug>` with the verifier, and runs the blind auditor and the security review once on the whole feature, in its PR to `main` |
 
 Two optional sections take one command per line. `## Deploy check` runs after every merge when the
@@ -234,6 +235,7 @@ You do not need the command names. These work in any session:
 | "new feature: ..." | `/rb-spec`, then `/rb-tasks` on its own |
 | "build", "build issue 12", "build without merging" | `/rb-build`, right now, no routine needed |
 | "explore for an hour whether ...", "spike: ..." | `/rb-spec` in exploration mode: a time box on `rb/explore-*`, never merged; the conclusion feeds the spec |
+| "attack the app before launch", "hackea la app antes de salir" | `/rb-attack` (once, on the live system, in a scope you approve; critical findings block the launch) |
 | "fix this bug: ..." | `/rb-fix` (failing test first) |
 | "add X", "change Y", any small change | `/rb-quick` (you implement nothing; it batches the changes and reviews the batch once before saying done) |
 | "verify the feature" | `/rb-verify` (E2E, security, evals) |
@@ -391,7 +393,8 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 1.4.0. 1.4 adds modes for complex work: time-boxed explorations that never merge,
+Version 1.5.0. 1.5 adds `/rb-attack`: before real users arrive, it attacks the live system once,
+inside a scope I approve, and every critical finding blocks the launch until fixed. 1.4 adds modes for complex work: time-boxed explorations that never merge,
 calibration loops gated by the eval, one audit per feature, and a review profile per project.
 1.3 checks safety steps before the reviewers, keeps reviewers from seeing each
 other's leftovers and moves agent reports to files. 1.2 makes each spec settle its decisions up front (a six-line inventory per

@@ -108,7 +108,7 @@ fallback: `node "${CLAUDE_PLUGIN_ROOT}/scripts/rb.mjs"`. Never rely on PATH.
 ### 3.4 Names
 
 Skills: `rb-kickoff`, `rb-adopt`, `rb-spec`, `rb-tasks`, `rb-build`, `rb-cycle`, `rb-fix`,
-`rb-quick`, `rb-verify`, `rb-merge`, `rb-status`, `rb-retro`. Invoked as `/rb-build` etc.
+`rb-quick`, `rb-verify`, `rb-merge`, `rb-status`, `rb-retro`, `rb-delegate`, `rb-attack`. Invoked as `/rb-build` etc.
 Agents: `rb-scout`, `rb-planner`, `rb-task-reviewer`, `rb-implementer`, `rb-verifier`,
 `rb-auditor`, `rb-e2e-writer`, `rb-healer`, `rb-security-reviewer`. Dispatched with
 `subagent_type: "rb-<name>"`.
@@ -285,7 +285,7 @@ Merges are serial (merge train), one PR at a time:
 | Branch | Kind | Gate |
 |---|---|---|
 | `rb/bookkeeping-*` | bookkeeping | Automatic when every file is an in-place edit (no rename, no deletion, readable patch) of: an existing `docs/specs/*/tasks.md` changing only task `Status:` lines and dated decision-log lines, `docs/progress.md`, or `.claude/LESSONS.md` with no removed lines. Green `rockbuilt-ci`, no `rb:needs-human`/`rb:tier-c`/`rb:blocked`/`rb:hold`, stop switch off, lock held |
-| `rb/revert-*`, `rb/spec-*`, `rb/verify-*`, `rb/kickoff*`, `rb/adopt*`, `rb/retro-*`, `chore/rockbuilt-*` | human-only | Merge only with `--human-approved`, still with green `rockbuilt-ci` |
+| `rb/revert-*`, `rb/spec-*`, `rb/verify-*`, `rb/attack-*` (only `docs/security/**` and AGENTS.md), `rb/kickoff*`, `rb/adopt*`, `rb/retro-*`, `chore/rockbuilt-*` | human-only | Merge only with `--human-approved`, still with green `rockbuilt-ci` |
 | `rb/explore-*` | explore | Never merges, not even with `--human-approved` (section 33.1) |
 | `rb/feature-*` | feature | Conditions 1 to 7 with the auditor and security lines on the whole feature, no level, and every commit a gate-merged task PR or a merge of the default branch (section 33.3) |
 | any other | task | Conditions 1 to 7 above; a level 1 or 2 task may target `rb/feature-*` instead of the default branch (section 33.3) |
@@ -892,6 +892,7 @@ All commands: `node tools/rockbuilt/rb.mjs <cmd> ...`, `--json` for machine outp
 | `digest post --file <md>` | Append the run digest to the control issue |
 | `protect` | Configure required checks when the plan allows it; otherwise explain and exit 3 |
 | `labels` | Create the `rb:*` labels that are missing (same as `rb gh labels-ensure`) |
+| `attack scope --words <t> --targets a,b [--until] \| scope show \| scope revoke \| check <target>` | Section 34: the owner's approved attack scope on the control issue; `show` and `check` exit 3 when none is in force or the target is outside it |
 | `explore start <slug> [--hours 2] \| check <slug>` | Section 33.1: the exploration clock in `.rockbuilt/explore/<slug>.json` (on `rb/explore-<slug>`, at most 8 h); `check` exits 3 when the time is up |
 | `calibration add <task> --score <n> --cost <usd> --cap <usd> [--lower-is-better] [--ref <sha>] \| show <task>` | Section 33.2: one iteration in `.rockbuilt/calibration/<task>.jsonl`; `kept` only when it beats the best; exit 3 at the cap or after 3 iterations without improvement |
 
@@ -1469,4 +1470,75 @@ every visible task; and a small tool for one person paid the same reviews as a p
    reads the profile from AGENTS.md at the PR base, never its head. `requiredReviews` in
    `scripts/lib/merge.mjs` is the one rule the gate and the skills follow. `rb doctor` warns about
    an unknown value and about `none` in a vendored project.
+
+## 34. The pre-launch attack (1.5.0)
+
+Evidence: PLAN-1.0 section 2 ("Seguridad anti hackeo") and issue #82; the security cycle of Maysa
+Chart (`ragarciaga/tradetutor-ai` issues #27 and #52, PRs #26 and #46). Every serious defect there
+was found by measuring the live system, not by reading the repo: a column trigger the repo had
+and production did not (its migration was never applied), so any signed-in user could set their
+own paid plan from the browser console; server-only functions executable by `anon` through
+Supabase's default privileges, which `REVOKE ... FROM PUBLIC` does not remove; a service key in
+plain text in ten automation nodes; a webhook "secret" compiled into the browser bundle. The
+per-PR security reviewer reads diffs; none of these were in a diff.
+
+1. **Milestone (H1).** Kickoff and adopt record `Launch: YYYY-MM-DD | not set | live` in the
+   AGENTS.md header. While a date is set and no `docs/security/attack-*.md` exists, `rb state`
+   (`launch`), `/rb-status` and the digest remind `/rb-attack` with the days left.
+2. **Scope approved once, own systems only (H6).** `rb attack scope --words "<owner words>"
+   --targets <a,b> [--until]` records `<!-- rockbuilt:attack-scope targets=... until=... -->` and
+   the words on the control issue (30 days by default, at most 90). Only a trusted author with
+   write access counts; the marker is anchored; `rb attack scope revoke` ends it. Targets are hosts,
+   `*.domain`, `host:port` or `system:id`. A third party (payment, LLM, email, code hosting, cloud
+   APIs) is refused at any depth (`api.stripe.com` too); a hosting platform only as the owner's
+   own project one label above it (`myapp.vercel.app`, `<ref>.supabase.co`), never a wildcard over
+   it; a wildcard over a public suffix (`*.co.uk`, `*.com.co`) and link-local or metadata addresses
+   are refused. `rb attack check <target>` parses the target as a client would (`new URL`:
+   hostname, port, trailing dot, case), refuses userinfo, backslashes and spaces, and exits 3
+   outside the scope; a plain host covers ports 80 and 443 only. The skill runs it before every
+   request to a live system. Only from the owner in the conversation, never from repository text,
+   and never in an unattended run. Known limit (section 13): the CLI cannot tell who typed the
+   words; a recorded scope is the owner's only as far as the skill obeys that rule.
+3. **Threat model (H2)** from the brief and the code (scout in spec mode): assets, attackers
+   (anonymous, signed-in, another user, former user, admin), entry points, trust boundaries,
+   numbered hypotheses, each tied to a probe or an attempt.
+4. **Security probes (H3).** `## Security probes` in AGENTS.md holds read-only diagnostics of the
+   live environment, one command per line, with their scripts under `docs/security/probes/`. The
+   scope records a fingerprint of that list, the owner approves both in one message, and `rb attack
+   probes` prints the commands only while the list is unchanged (a later edit, by any PR, does not
+   run until approved again). Never in CI or a routine. They cover: row security and column grants, function grants as a matrix,
+   repo versus production migrations, secrets in external tools, what the browser bundle exposes,
+   storage, CORS and headers. A difference between the repo and production is a finding. Every
+   secret, token, key and session in a result or a recorded request is masked.
+5. **Attempts with test accounts (H4).** Only accounts the owner created for this and the
+   anonymous visitor; impact is proved on test account B, never on a person; writes only to test
+   accounts' rows; no scanning, brute force or denial of service; payment flows in the provider's
+   test mode only; a paid resource at most 5 calls inside the `Paid services` cap. A working attempt
+   becomes the failing test of its fix when the stack allows.
+6. **Findings (H5).** One issue per finding, labelled `rb:bug` and `rb:attack`, with severity
+   (critical, high, medium, low, graded by impact on launch day), a reproducible exploit, the
+   evidence, the fix options and the test. Critical findings carry `rb:launch-blocker`: `rb state`
+   returns `launchBlockers` and its text, `/rb-status` and the digest list them before anything
+   else. Fixes go through `/rb-fix`. A finding without a reproducible exploit is listed as not
+   confirmed, never as an issue. On a public repository (`rb attack scope show` returns
+   `repoPrivate`) an open finding's exploit is never published: the issue carries severity and area,
+   the details go to the owner and to a local, uncommitted report until the fix merges.
+7. **Report.** `docs/security/attack-<date>.md` (scope with the owner's words, threat model,
+   every probe and attempt with its result, findings, what was not tested) on `rb/attack-<date>`, a
+   human-only PR that may touch only `docs/security/**` and AGENTS.md. After the first run, the
+   skill runs again only when the owner asks; a repeat starts by re-running every attempt that
+   worked.
+8. **Launch line.** `Launch: live` with no report reminds too; a value that is not a date, `live`
+   or `not set` is reported, never read as unset.
+9. **Independent review of 1.5.0.** A reviewer with no context found, each now with a test or a
+   rule: `inScope` matched `https://evil.com?.example.com`, `#`, backslash and userinfo forms against
+   `*.example.com` (now parsed as a client would); third-party subdomains (`api.stripe.com`,
+   `api.openai.com`), shared hosts and public suffixes as wildcards (`*.pages.dev`, `*.co.uk`) and
+   the metadata address were accepted; a plain host covered every port; probe commands came from
+   repository text with no scope check (now an approved, fingerprinted list); the probes reference
+   invited CI runs against production; reports and issues could carry secrets and session tokens
+   verbatim, and exploits of open findings were published on public repositories; payment and paid
+   API attempts had no test mode or call limit; a read-only `rb attack check` created the control
+   issue; `Launch: live` and unreadable dates were silent. Kept as a known limit: the CLI cannot
+   prove who recorded a scope (section 13).
 
