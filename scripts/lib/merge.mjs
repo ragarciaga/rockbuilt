@@ -5,7 +5,7 @@ import path from 'node:path';
 import { holdsLock, stopStatus } from './control.mjs';
 import { GhError, ops } from './gh.mjs';
 import { defaultBranch, resolveBaseRef } from './repo.mjs';
-import { readContract } from './contract.mjs';
+import { headerField, readContract } from './contract.mjs';
 import { BOOKKEEPING_FILE } from './bookkeeping.mjs';
 import { parseQueueRecord } from './queue.mjs';
 import { classify, isTestPath, normalizePatch, samePatches } from './delta.mjs';
@@ -180,11 +180,98 @@ const KIND_FILES = [
   ['rb/verify-', ['docs/specs/**', 'e2e/**', 'playwright.config.*', 'evals/**', '.gitignore', 'package.json', 'package-lock.json']],
 ];
 
+// PLAN-1.0 G1 and G3: an exploration branch never merges; a feature branch carries reviewed level 2
+// tasks to the default branch once, with the auditor and the security review on the whole.
+export const FEATURE_BRANCH = /^rb\/feature-[A-Za-z0-9._-]+$/;
+const EXPLORE_PREFIX = 'rb/explore-';
+
 export function prKind(headRef) {
   const ref = String(headRef || '');
+  if (ref.startsWith(EXPLORE_PREFIX)) return 'explore';
+  if (FEATURE_BRANCH.test(ref)) return 'feature';
   if (ref.startsWith(BOOKKEEPING_PREFIX)) return 'bookkeeping';
   if (HUMAN_ONLY_PREFIXES.some((p) => ref.startsWith(p))) return 'human-only';
   return 'task';
+}
+
+// PLAN-1.0 G4: the review profile from the AGENTS.md header (`Profile: full | minimal | none`).
+// `none` means the project runs without the harness; if the gate runs anyway it applies `full`.
+export const PROFILES = ['full', 'minimal', 'none'];
+export function featureReviewOn(contractText) {
+  return /^on\b/i.test(headerField(contractText, 'Feature review') || '');
+}
+
+export function profileOf(contractText) {
+  const v = (headerField(contractText, 'Profile') || '').toLowerCase().split(/\s/)[0];
+  return v === 'minimal' ? 'minimal' : 'full';
+}
+
+// The reviews a PR needs (DESIGN 29.7, 33). Full profile: level 1 none; level 2 the verifier, plus
+// the blind auditor when something visible changes, the head is sampled or the user asked for it
+// (rb/B<n>, rb/Q<n>), but never on a task into a feature branch (G3: the feature PR gets it once);
+// level 3 all three. Minimal profile: levels 1 and 2 CI only, level 3 the verifier and the security
+// review. A feature PR needs the auditor and the security review on the whole feature. The security
+// review the diff requires (rb risk) is added by the caller in every case.
+export function requiredReviews({ level, profile = 'full', userVisible = false, sampled = false, askedByUser = false, featureBase = false, feature = false }) {
+  if (feature) return ['rb-auditor', 'rb-security-reviewer'];
+  if (profile === 'minimal') return level === 3 ? ['rb-verifier', 'rb-security-reviewer'] : [];
+  const need = [];
+  if (level >= 2) need.push('rb-verifier');
+  if (!featureBase && (level === 3 || (level === 2 && (userVisible || sampled || askedByUser)))) need.push('rb-auditor');
+  if (level === 3) need.push('rb-security-reviewer');
+  return need;
+}
+
+// PLAN-1.0 G3: everything a feature PR brings to the default branch came through the gate. Every
+// commit in default...head is either the squash of a task PR merged into this feature branch by
+// `rb merge-gate` (its trusted merge comment), or a merge whose other parent is already on the
+// default branch (updating the feature branch). A direct push to the feature branch is refused.
+// A merge must be GitHub's own update of the branch (signed web-flow), so it carries no edits of
+// its own; a conflict resolved in GitHub's editor by a person is the known limit.
+const GATE_MERGED = /^Merged by `rb merge-gate`/;
+export function featureProvenance(c, view, branch, no) {
+  const ref = view.head.ref;
+  let commits;
+  try {
+    commits = ops.compareCommits(c, branch, view.head.sha);
+  } catch (e) {
+    no('feature-provenance', `could not list the commits of ${ref}: ${e.message}`);
+    return;
+  }
+  if (commits.truncated) { no('feature-provenance', `${ref} has more commits than GitHub lists (${commits.total}): split the feature`); return; }
+  if (!commits.list.length) { no('feature-provenance', `${ref} has no commits ahead of ${branch}`); return; }
+  let merged;
+  try {
+    merged = ops.prList(c, { state: 'closed', base: ref }).filter((p) => p.merged_at && p.merge_commit_sha && p.base && p.base.ref === ref);
+  } catch (e) {
+    no('feature-provenance', `could not list the PRs merged into ${ref}: ${e.message}`);
+    return;
+  }
+  const bySha = new Map(merged.map((p) => [String(p.merge_commit_sha).toLowerCase(), p]));
+  for (const cm of commits.list) {
+    const short = String(cm.sha).slice(0, 7);
+    if (cm.parents.length === 1) {
+      const p = bySha.get(String(cm.sha).toLowerCase());
+      if (!p) { no('feature-provenance', `commit ${short} on ${ref} is not a task PR merged by the gate: build it as a task into ${ref}`); continue; }
+      let byGate = false;
+      try { byGate = ops.issueComments(c, p.number).some((x) => TRUSTED_ASSOC.has(x.author_association) && GATE_MERGED.test(x.body || '')); } catch { byGate = false; }
+      if (!byGate) no('feature-provenance', `#${p.number} was merged into ${ref} outside rb merge-gate`);
+    } else if (cm.parents.length === 2) {
+      let fromDefault = false;
+      for (const parent of cm.parents) {
+        try {
+          const st = ops.compare(c, parent, branch).status;
+          if (st === 'ahead' || st === 'identical') fromDefault = true;
+        } catch { /* not readable: not confirmed */ }
+      }
+      if (!fromDefault) { no('feature-provenance', `merge ${short} on ${ref} does not bring in ${branch}`); continue; }
+      // Only GitHub's own update of the branch (rb gh pr-update-branch), which GitHub signs as
+      // web-flow: a merge made anywhere else can carry edits of its own (review of 1.4.0).
+      let info = null;
+      try { info = ops.commitInfo(c, cm.sha); } catch { info = null; }
+      if (!info || !info.verified || info.committer !== 'web-flow') no('feature-provenance', `merge ${short} on ${ref} was not made by GitHub (rb gh pr-update-branch): a merge made elsewhere can carry its own edits`);
+    } else no('feature-provenance', `commit ${short} on ${ref} has ${cm.parents.length} parents`);
+  }
 }
 
 // True when every file is a bookkeeping file and LESSONS.md has no removed lines.
@@ -257,10 +344,14 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   const head = view.head ? view.head.sha : null;
   const branch = defaultBranch(root);
 
-  // 1. Open, not draft, base is the default branch, mergeable.
+  const kind = prKind(view.head && view.head.ref);
+  // PLAN-1.0 G3: a task PR may target a feature branch (rb/feature-*) instead of the default branch.
+  const featureBase = kind === 'task' && Boolean(view.base) && FEATURE_BRANCH.test(view.base.ref);
+
+  // 1. Open, not draft, base is the default branch (or a feature branch for a task), mergeable.
   if (view.state !== 'open' || view.merged) no('open', `PR is ${view.merged ? 'merged' : view.state}`);
   if (view.draft) no('draft', 'PR is a draft');
-  if (!view.base || view.base.ref !== branch) no('base', `base is ${view.base ? view.base.ref : '?'}, not ${branch}`);
+  if (!view.base || (view.base.ref !== branch && !featureBase)) no('base', `base is ${view.base ? view.base.ref : '?'}, not ${branch}`);
   if (view.mergeable !== true) no('mergeable', view.mergeable === false ? `not mergeable (${view.mergeable_state || 'conflict'})` : 'mergeability not computed yet; retry');
   // The PR must contain the current tip of the base: CI and reviews ran on that code. Without branch
   // protection GitHub reports "clean" or "unstable" for a PR that is behind (seen live), so compare.
@@ -291,21 +382,43 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  const kind = prKind(view.head && view.head.ref);
-  if (kind !== 'task') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head, dryRun });
+  if (kind !== 'task' && kind !== 'feature') return evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reasons, head, dryRun });
+  const feature = kind === 'feature';
 
-  // 2. Labels (PLAN-1.0 A8). Approval waits on the owner's comment, not on a label.
-  const lt = labelTier(view.labels);
-  const ll = labelLevel(view.labels);
-  if (!ll) no('level-label', 'no rb:level-1 / rb:level-2 / rb:level-3 label');
+  // The rules come from AGENTS.md at the PR base (A5); for a task into a feature branch, from the
+  // default branch, since nothing on a feature branch is reviewed as a whole yet.
+  let baseContract = null;
+  try { baseContract = view.base && view.base.sha ? ops.fileAt(c, 'AGENTS.md', featureBase ? branch : view.base.sha) : null; } catch { baseContract = null; }
+  const profile = profileOf(baseContract);
+  // A feature branch only exists when the project turned it on, read where nothing can loosen it.
+  if ((featureBase || feature) && !featureReviewOn(baseContract)) no('feature-review', `\`Feature review: on\` is not in AGENTS.md on ${branch}: ${feature ? 'merge the tasks to it one by one' : `open the PR against ${branch}`}`);
+
+  // 2. Labels (PLAN-1.0 A8). Approval waits on the owner's comment, not on a label. A feature PR
+  // carries no level: each task in it passed the gate with its own.
+  const lt = feature ? null : labelTier(view.labels);
+  const ll = feature ? null : labelLevel(view.labels);
+  if (!ll && !feature) no('level-label', 'no rb:level-1 / rb:level-2 / rb:level-3 label');
   for (const l of BLOCKING_LABELS) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
 
   // 3. Live level no higher than the label (and the declared level line).
   let risk = null;
   try {
-    risk = computeRisk(root, { pr: view.number, gh: c });
+    risk = computeRisk(root, { pr: view.number, gh: c, ...(featureBase ? { rulesRef: branch } : {}) });
   } catch (e) {
     no('risk', `rb risk failed: ${e.message}`);
+  }
+  // A feature PR holds only level 1 and 2 tasks that asked nothing of the owner: its whole diff
+  // must say the same, apart from size (review of 1.4.0: a forged merge commit brought level 3
+  // code with no verifier and no approval).
+  if (feature && risk) {
+    const l3 = (risk.levelReasons || []).filter((r) => r.rule !== 'size');
+    if (l3.length) no('feature-level', `the feature diff has level 3 content (${l3.slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ')}): level 3 work never goes through a feature branch`);
+    if ((risk.approvals || []).length) no('feature-level', `the feature diff needs the owner (${risk.approvals.map((a) => `${a.reason} ${a.path}`.trim()).slice(0, 3).join('; ')}): such a task never goes through a feature branch`);
+    if ((risk.checks || []).includes('dependency')) {
+      let d = null;
+      try { d = dependencyCheck(root, risk, { ref: view.base && view.base.sha }); } catch (e) { d = { ok: false }; }
+      if (!d.ok) no('feature-level', 'a runtime dependency in the feature diff does not pass the automatic check');
+    }
   }
   const body = parseBody(view.body);
   if (risk && ll && risk.level > ll) no('risk', `rb risk says level ${risk.level} but the label is level ${ll}: ${(risk.levelReasons || []).slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ') || 'not tests, docs, styles or copy'}`);
@@ -313,21 +426,20 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // DESIGN 26: a quick batch (no planner) merges only while the live diff is within the quick
   // limits; a batch that grew needs a plan (/rb-build) or a split, even with the owner's word.
   if (body.quick && risk && risk.quick && !risk.quick.eligible) no('quick', `quick batch outside quick mode: ${risk.quick.reasons.join('; ')}. Split it, or plan the rest with /rb-build and drop <!-- rockbuilt:quick --> once rb-planner's plan is on the issue`);
-  const level = Math.max(ll || 1, risk ? risk.level : 1, body.level || 1);
-  const tier = maxTier(lt || 'A', risk ? risk.tier : 'A', body.tier || 'A');
+  const level = feature ? null : Math.max(ll || 1, risk ? risk.level : 1, body.level || 1);
+  if (featureBase && risk && (risk.approvals || []).length) no('feature-base', `a task that needs the owner (${risk.approvals.map((a) => a.reason).join(', ')}) never goes through a feature branch: open it against ${branch}`);
+  const tier = feature ? 'B' : maxTier(lt || 'A', risk ? risk.tier : 'A', body.tier || 'A');
+  // PLAN-1.0 G3: a level 3 task never goes through a feature branch.
+  if (featureBase && level === 3) no('feature-base', `a level 3 task never goes through a feature branch: open it against ${branch}`);
 
-  // 4. Reviewer lines with head equal to the PR head.
-  // PLAN-1.0 A9 and B2: level 1 merges on CI alone; level 2 gets the verifier, and the auditor
-  // when something visible changes or the PR is sampled; level 3 gets all three.
-  const need = [];
+  // 4. Reviewer lines with head equal to the PR head (requiredReviews, shared with the skills).
   // Sampled by the head commit, which the agent cannot pick the way it can pick a PR number.
   const sampled = Boolean(head) && Number.parseInt(String(head).slice(0, 8), 16) % AUDIT_SAMPLE === 0;
-  if (level >= 2) need.push('rb-verifier');
   // A bug fix (rb/B<n>) or an owner's quick request (rb/Q<n>) describes what the user sees: the blind
   // auditor always checks it.
   const askedByUser = /^rb\/[BQ]\d+/.test((view.head && view.head.ref) || '');
-  if (level === 3 || (level === 2 && ((risk && risk.userVisible) || sampled || askedByUser))) need.push('rb-auditor');
-  if (level === 3) need.push('rb-security-reviewer');
+  const need = requiredReviews({ level, profile, userVisible: Boolean(risk && risk.userVisible), sampled, askedByUser, featureBase, feature });
+  if (feature) featureProvenance(c, view, branch, no);
   // rockbuilt #42: the diff decides too. A PR that rb risk says needs the security review gets it
   // whatever its body says; the plan can only add the review, never drop it.
   const secByDiff = Boolean(risk && risk.security && risk.security.required);
@@ -409,6 +521,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   }
   if (issueView) {
     if (issueView.state && issueView.state !== 'open') no('task-issue', `#${taskIssues[0]} is ${issueView.state}`);
+    if (feature && !(issueView.labels || []).includes('rb:feature')) no('task-issue', `#${taskIssues[0]} is not a feature issue (rb:feature)`);
     const prTask = (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
     const issueTask = (String(issueView.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
     if (prTask && issueTask && !sameTask(prTask, issueTask)) no('task-issue', `the PR is task ${prTask} but #${taskIssues[0]} is task ${issueTask}`);
@@ -434,7 +547,9 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   if (risk && (risk.checks || []).includes('dependency')) {
     try { deps = dependencyCheck(root, risk, { ref: view.base && view.base.sha }); } catch (e) { deps = { ok: false, results: [], unsupported: [`check failed: ${e.message}`] }; }
   }
-  const approvalReasons = [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared, ...(deps && !deps.ok ? ['dependency'] : [])])];
+  // A feature PR asks no approval: every task in it passed the gate with its own (G3).
+  if (featureBase && declared.length) no('feature-base', `the plan asks the owner (${declared.join(', ')}): such a task never goes through a feature branch`);
+  const approvalReasons = feature ? [] : [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared, ...(deps && !deps.ok ? ['dependency'] : [])])];
   let approval = { ok: true, how: null };
   if (approvalReasons.length) {
     if (!taskIssues.length) approval = { ok: false, detail: 'approval needed but the body names no task issue' };
@@ -482,8 +597,6 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     no('checks', `could not read checks: ${e.message}`);
   }
   if (!ciPassed(checks)) no('ci', `no successful ${CI_CHECK} check run from GitHub Actions on ${String(head).slice(0, 7)}: no CI, no automatic merge`);
-  let baseContract = null;
-  try { baseContract = view.base && view.base.sha ? ops.fileAt(c, 'AGENTS.md', view.base.sha) : null; } catch { baseContract = null; }
   e2eRequired(root, checks, no, baseContract);
   for (const x of checks) {
     if (x.status !== 'completed') no('checks', `${x.name} is ${x.status}`);
@@ -503,7 +616,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     }
   }
 
-  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, deps, batch: body.batch, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
+  return { pr: view.number, title: view.title, task: (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1] || null, head, base: view.base ? view.base.ref : null, kind, profile, ...(featureBase ? { featureBase: true } : {}), labelTier: lt, riskTier: risk ? risk.tier : null, declaredTier: body.tier, tier, labelLevel: ll, riskLevel: risk ? risk.level : null, level, needs: need, approvalReasons, approval, deps, batch: body.batch, closes: body.closes, eligible: reasons.length === 0, reasons, checks, ...(behindExempt ? { behindExempt } : {}) };
 }
 
 // Gate for review-less PR kinds: no reviewer lines, but CI, stop switch, blocking labels and the
@@ -512,6 +625,9 @@ function evaluateSpecialKind(root, c, view, kind, { run, humanApproved, no, reas
   for (const l of ['rb:blocked', 'rb:hold']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'bookkeeping' && !humanApproved) for (const l of ['rb:needs-human', 'rb:tier-c']) if (view.labels.includes(l)) no('blocking-label', `carries ${l}`);
   if (kind === 'human-only' && !humanApproved) no('human-only', `${view.head.ref} PRs merge only when the user asks (--human-approved)`);
+  // PLAN-1.0 G1: exploration code never merges, not even on the owner's word. Its conclusion goes
+  // to docs/research/<slug>.md through a rb/spec-* PR.
+  if (kind === 'explore') no('explore', `${view.head.ref} is an exploration branch and never merges: write the conclusion to docs/research/<slug>.md and open it as a rb/spec-* PR`);
   // A human-only branch name is not a way around the task gate (adversarial review of 1.0): a
   // spec or verify PR may only touch what that kind writes.
   const allowed = KIND_FILES.find(([prefix]) => view.head.ref.startsWith(prefix));
@@ -604,7 +720,7 @@ export function mergeGate(root, c, pr, { dryRun = false, run = null, humanApprov
   const step = (what, fn) => {
     try { fn(); after.push({ step: what, ok: true }); } catch (e) { after.push({ step: what, ok: false, error: e.message }); }
   };
-  step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (${g.level ? `level ${g.level}` : `tier ${g.tier}`}${g.approval && g.approval.how === 'delegation' ? `, merged by delegation: ${g.approval.delegation.words}` : ''}${g.approval && g.approval.how === 'owner' ? `, plan approved by ${g.approval.approval.by || 'the owner'} on ${String(g.approval.approval.at).slice(0, 10)}` : ''}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
+  step('revert-comment', () => ops.issueComment(c, g.pr, `Merged by \`rb merge-gate\` (${g.kind === 'feature' ? 'feature, auditor and security review on the whole' : g.level ? `level ${g.level}` : `tier ${g.tier}`}${g.featureBase ? `, into ${g.base}` : ''}${g.approval && g.approval.how === 'delegation' ? `, merged by delegation: ${g.approval.delegation.words}` : ''}${g.approval && g.approval.how === 'owner' ? `, plan approved by ${g.approval.approval.by || 'the owner'} on ${String(g.approval.approval.at).slice(0, 10)}` : ''}${humanApproved ? ', human approved' : ''}). To undo: \`node tools/rockbuilt/rb.mjs revert ${g.pr}\` opens a revert PR.`));
   step('pr-labels', () => { ops.labelRemove(c, g.pr, 'rb:pr-open'); ops.labelRemove(c, g.pr, 'rb:approval-pending'); });
   for (const n of [...g.closes, ...(g.batch || []).filter((x) => !g.closes.includes(x))]) {
     step(`issue-${n}`, () => {

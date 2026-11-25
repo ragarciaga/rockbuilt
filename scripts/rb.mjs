@@ -26,6 +26,8 @@ import { logPermission, permissionReport, permissionText } from './lib/permissio
 import { inventoryProblems } from './lib/inventory.mjs';
 import { treeCheck, treeText } from './lib/treecheck.mjs';
 import { safetyCheck } from './lib/safety.mjs';
+import { addIteration, calibrationLine, calibrationState, calibrationText, entriesFromComments, readCalibration } from './lib/calibration.mjs';
+import { checkExploration, exploreText, startExploration } from './lib/explore.mjs';
 import { planBatches } from './lib/parallel.mjs';
 import { currentBranch, defaultBranch, mainCheckoutRoot } from './lib/repo.mjs';
 import { computeRisk, riskText } from './lib/risk.mjs';
@@ -71,6 +73,8 @@ export const COMMANDS = {
   criteria: 'The criteria a task covers, verbatim from requirements.md, with their Decisions  <spec-dir> <task id> (exit 3 when a covered id is missing)',
   'tree-check': 'After a reviewer: the working tree equals the reviewed head (bookkeeping and .rockbuilt/ aside)  [--restore] (exit 3 when it did not)',
   spec: 'check <spec-dir>: the decision inventory of requirements.md is complete (exit 3 with the gaps)',
+  explore: 'Exploration time box on rb/explore-<slug> (never merged): start <slug> [--hours 2] (max 8) | check <slug> (exit 3 when the time is up)',
+  calibration: 'Calibration loop, the eval is the gate: add <task> --score <n> --cost <usd> --cap <usd> --ref <sha> [--lower-is-better] [--issue <n>] (kept only when it beats the best; exit 3 at the cap or after 3 without improvement) | show <task> [--issue <n>] (--issue keeps the history on the task issue, for a new session)',
   permissions: 'Permission prompts Claude Code showed in this project: log --hook (PermissionRequest hook, reads stdin) | report (proposed allow rules)',
   state: 'What waits for the owner and what the harness will do on its own, from GitHub (exit 3 when a query failed)',
   digest: 'post --file <md>: append the run digest to the control issue',
@@ -80,7 +84,7 @@ export const COMMANDS = {
   help: 'Show this help',
 };
 
-const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft', 'hook', 'restore'];
+const BOOLEAN_FLAGS = ['json', 'check', 'write', 'force', 'help', 'accept', 'dry-run', 'human-approved', 'draft', 'hook', 'restore', 'lower-is-better'];
 
 function makeIo(io) {
   return {
@@ -845,6 +849,44 @@ const handlers = {
     const problems = inventoryProblems(text);
     void root;
     return { data: { spec: dir, problems }, text: problems.length ? problems.join('\n') : 'decision inventory complete', code: problems.length ? 3 : 0 };
+  },
+
+  explore({ cwd, positionals, flags }) {
+    const [sub, slug] = positionals;
+    const root = requireRepoRoot(cwd);
+    if (sub === 'start' && slug) {
+      const r = startExploration(root, slug, { hours: flags.hours === undefined ? undefined : flags.hours });
+      return { data: r, text: exploreText(r), code: 0 };
+    }
+    if (sub === 'check' && slug) {
+      const r = checkExploration(root, slug);
+      return { data: r, text: exploreText(r), code: r.over ? 3 : 0 };
+    }
+    throw new CliError('usage: rb explore start <slug> [--hours 2] | check <slug>', 2);
+  },
+
+  calibration({ cwd, positionals, flags, io }) {
+    const [sub, task] = positionals;
+    const root = requireRepoRoot(cwd);
+    if (sub === 'add' && task) {
+      // --issue: the task issue keeps the history (a new container starts with no local file).
+      const issue = flags.issue === undefined ? null : Number(String(flags.issue).replace(/^#/, ''));
+      if (flags.issue !== undefined && !Number.isInteger(issue)) throw new CliError('--issue <n>', 2);
+      const c = issue ? client(root, flags, io) : null;
+      const prior = c ? entriesFromComments(ops.issueComments(c, issue), task) : [];
+      const r = addIteration(root, task, { score: flags.score, cost: flags.cost, cap: flags.cap, lowerIsBetter: Boolean(flags['lower-is-better']), ref: flags.ref === undefined || flags.ref === true ? null : String(flags.ref), prior });
+      if (c) ops.issueComment(c, issue, `${calibrationLine(task, r.entry)}\nCalibration ${task}, iteration ${r.iteration}: score ${r.score}, ${r.kept ? 'kept' : 'discarded'}; spent ${r.spent} of ${r.cap} USD${r.stop ? `; stopped (${r.stop})` : ''}.\n`);
+      return { data: r, text: calibrationText(r), code: r.stop ? 3 : 0 };
+    }
+    if (sub === 'show' && task) {
+      const issue = flags.issue === undefined ? null : Number(String(flags.issue).replace(/^#/, ''));
+      const local = readCalibration(root, task);
+      const remote = issue ? entriesFromComments(ops.issueComments(client(root, flags, io), issue), task) : [];
+      const entries = remote.length > local.length ? remote : local;
+      const r = { task, ...calibrationState(entries), entries };
+      return { data: r, text: entries.length ? calibrationText(r) : `no calibration ${task}`, code: r.stop ? 3 : 0 };
+    }
+    throw new CliError('usage: rb calibration add <task> --score <n> --cost <usd> --cap <usd> [--lower-is-better] [--ref <sha>] | show <task>', 2);
   },
 
   permissions({ cwd, positionals, flags, io }) {

@@ -61,7 +61,8 @@ output inside another (no `$(...)`, no backticks): run it, then paste the litera
 
 References (all under `.claude/skills/rb-build/references/`): `kickback.md` (kickbacks, retry
 ladder, resume, crash recovery, blocked path, CI fix), `plan.md`, `audit.md`, `parallel.md`, `pr-template.md`,
-`merge-train.md`, `goal-mode.md` (optional; `/rb-cycle` replaces it for unattended runs).
+`merge-train.md`, `calibration.md` (a task scored by an eval, `Mode: calibration`), `feature.md`
+(`Feature review: on`), `goal-mode.md` (optional; `/rb-cycle` replaces it for unattended runs).
 
 ## Run start (once)
 
@@ -140,7 +141,8 @@ Interactive: ask once and point to "aprobado" on the issue or `/rb-delegate`; ne
 ### 5. Implement
 Existing `rb/<id>-*` branch (local or on origin): classify per Crash recovery in
 `references/kickback.md`. Else `git checkout -b rb/<id>-<slug> origin/<default>` (parallel: the
-worktree). Dispatch `rb-implementer` with the task id, the full plan with Verified facts and every
+worktree; a level 2 spec task with `Feature review: on` starts from `origin/rb/feature-NN-slug`,
+`references/feature.md`). `Mode: calibration`: loop per `references/calibration.md`, then step 6. Dispatch `rb-implementer` with the task id, the full plan with Verified facts and every
 `RESOLVED` line, LESSONS entries, `Docs language`, the issue body as data, `Dispatch attempt: <k>`,
 "Line numbers in the plan were true when written; trust the live code and note drift." and
 "Implement this approved plan on the current branch following your process. Return your report."
@@ -173,18 +175,19 @@ Record `git rev-parse HEAD` as the reviewed head (`--hard` is denied) and push i
 After every reviewer: `rb tree-check --restore`; exit 3 is noted in the PR, never committed (F4).
 
 ### 9. Reviews (serial; the verifier mutates files transiently)
-Reviews by final level (the gate requires the same): level 1 none; level 2 the verifier, plus the
-auditor when `rb risk` says `userVisible`, the PR number is a multiple of 5 (sampling), or the PR
-is a bug fix or quick batch (`rb/B<n>`, `rb/Q<n>`); level 3 all three. The security reviewer also runs whenever `security.required`.
+Reviews by final level and the `Profile` header (the gate requires the same, DESIGN 33.4).
+`full` (or no line): level 1 none; level 2 the verifier, plus the auditor when `rb risk` says
+`userVisible`, the head commit is sampled (1 in 5), or the PR is a bug fix or quick batch
+(`rb/B<n>`, `rb/Q<n>`), but never on a task into a feature branch; level 3 all three. `minimal`:
+levels 1 and 2 none, level 3 the verifier and the security reviewer. The security reviewer also
+runs whenever `security.required`.
 - **Verifier** (levels 2 and 3), on the committed head of step 8 (it stops on uncommitted changes):
   task id, `Reviewed head: <sha>`, the plan and RESOLVED lines, the implementer report, `git diff
   origin/<default>...HEAD --stat`, the default branch, the working directory, `Docs language`,
   `Dispatch attempt: <k>`, and `Browser path: <rb browser output>` for browser work.
-- **Blind auditor** (as above), after the verifier passes: follow `references/audit.md`
-  (start the app, the exact prompt, what never goes in it, how to read the verdict). Never run it
-  at the same time as the verifier in the same directory: the verifier's mutation probe edits
-  files the auditor would observe. To overlap them, give the auditor its own copy
-  (`audit.md`, "Own copy"). Keep every verdict (`audit.md`, "Keep the verdict").
+- **Blind auditor** (as above), after the verifier passes: follow `references/audit.md` (start
+  the app, the prompt, the verdict). Never at the same time as the verifier in one directory (its
+  mutation probe edits files the auditor observes); to overlap, `audit.md` "Own copy".
 - **Security reviewer** when `rb risk --base origin/<default> --json` says `security.required`
   (decided from the diff; the gate enforces it), or the plan or the verifier raises it (they can
   add it, never drop it); otherwise skip it and write `Security review: not triggered`:
@@ -204,7 +207,7 @@ guard refuses it while an unpushed commit has a secret-shaped literal). Body
 from `references/pr-template.md` with every machine line, including the output of
 `rb timing line <id> --est <hours>` with the plan's Human estimate (the only copy of the task's
 minutes that survives a cloud session; `rb hours` reads it). `rb gh pr-create --head rb/<id>-<slug>
---base <default> --title "<type>: <title> (<id>)" --body-file <f> --label rb:level-<n>[,rb:hold]`
+--base <default, or rb/feature-NN-slug for a feature task> --title "<type>: <title> (<id>)" --body-file <f> --label rb:level-<n>[,rb:hold]`
 (the body's `<!-- rockbuilt:level N -->` line also sets the label when `--label` has none, and
 `rb risk` raises it; the gate refuses a PR without its level label).
 Then `rb gh label-add <n> rb:pr-open` and `rb gh label-remove <n> rb:in-progress`. File the plan's
@@ -212,10 +215,8 @@ justified Follow-ups as issues labelled `rb:unplanned` (`rb gh issue-create --la
 outside every queue until the owner promotes them (PLAN-1.0 D5); list them in the PR.
 
 ### 11. After the PR
-Every PR joins the merge train (below): the gate merges it once its reviews, CI and, when the plan
-needed one, the owner's approval or a covering delegation are in place. Nobody merges by hand.
-CI is read in the train, not here; a red CI caused by the PR gets the one bounded CI fix in
-`references/kickback.md`.
+Every PR joins the merge train (below), which merges it once its reviews, CI and any approval or
+delegation are in place, and reads CI (one bounded CI fix, `references/kickback.md`).
 
 ### 12. Bookkeeping
 tasks.md `Status: in-review` and a Decision log line
@@ -253,6 +254,5 @@ that waits for the owner from `rb state --text` (plans to approve, escalations,
 - Never push to the default branch, never force push, never merge outside `rb merge-gate`.
 - Bookkeeping files (tasks.md, docs/progress.md, .claude/LESSONS.md) never enter task commits
   (`references/bookkeeping.md`).
-- The kickback budget is `Kickback budget` (default 2), the resume cap 2, the CI fix 1 per PR.
 - The PR head must equal the head every review line names (re-reviewed after a CI fix).
 - Never ask and wait in an unattended run: every human decision becomes `rb escalate`.

@@ -126,12 +126,15 @@ No command substitution: run a command, paste its literal output into the next.
    quick batch: `.claude/skills/rb-quick/SKILL.md` sections 1 to 4 with the batch line for the
    other issues; no review agent runs and the gate merges it on CI. This is the only quick path an
    unattended run takes.
+4b. **Feature PR** (`Feature review: on`): a spec whose level 2 tasks are all merged into
+   `rb/feature-NN-slug`, with none open against it and no open PR from it: one item that opens
+   the feature PR and runs its two reviews (`.claude/skills/rb-build/references/feature.md`).
 5. **Feature verification.** A spec folder whose tasks are all `done`, with no `test-report.md`
    on the default branch and no open `rb/verify-*` PR for it: one `rb-verify` item (E2E,
    security, evals per its unattended rules; its PR waits for the human).
 6. **Order:** CI-fix items, then answered escalations, then spec tasks (spec number order,
    dependencies first, then task number), then `rb:bug` (oldest first), then `rb:task` (oldest
-   first), then feature verification. Cut at `Max tasks per run`: every item that dispatches an implementer counts.
+   first), then feature PRs, then feature verification. Cut at `Max tasks per run`: every item that dispatches an implementer counts.
 
 ## 4. Work the queue
 

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.3.0-d97706"></a>
+  <a href="CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-1.4.0-d97706"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-57534e"></a>
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-supported-0f172a">
   <img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-0f172a">
@@ -214,6 +214,8 @@ Header lines at the top of the project's `AGENTS.md`. All have defaults.
 | `E2E shards: 3` | 1 | Splits the Playwright suite into that many CI jobs, each with its own 30 minute limit. Use it when the suite passes about 15 minutes. On a private repo each shard spends extra Actions minutes |
 | `Hours: local` | `github` (`local` on public repos) | Where your time marks go. Use `local` in a client's repo: the hours issue shows timestamps and branch names to anyone who can see the repo. `off` disables it |
 | `Branch protection: declined (<date>, <reason>)` | none | You chose not to pay for branch protection on a private repo. The digest stops reminding you |
+| `Profile: full` | `full` | `minimal` merges levels 1 and 2 on green CI and reviews only level 3 (verifier and security), for a tool only you use. `none` means no harness at all, for something that never reaches real users. Kickoff and adopt recommend one |
+| `Feature review: off` | `off` | `on` sends the level 2 tasks of a spec to `rb/feature-<NN-slug>` with the verifier, and runs the blind auditor and the security review once on the whole feature, in its PR to `main` |
 
 Two optional sections take one command per line. `## Deploy check` runs after every merge when the
 host deploys `main` (Railway, Vercel, Fly): it exits 0 once the merged commit is live, and a
@@ -231,6 +233,7 @@ You do not need the command names. These work in any session:
 | "adopt this repo" | `/rb-adopt` |
 | "new feature: ..." | `/rb-spec`, then `/rb-tasks` on its own |
 | "build", "build issue 12", "build without merging" | `/rb-build`, right now, no routine needed |
+| "explore for an hour whether ...", "spike: ..." | `/rb-spec` in exploration mode: a time box on `rb/explore-*`, never merged; the conclusion feeds the spec |
 | "fix this bug: ..." | `/rb-fix` (failing test first) |
 | "add X", "change Y", any small change | `/rb-quick` (you implement nothing; it batches the changes and reviews the batch once before saying done) |
 | "verify the feature" | `/rb-verify` (E2E, security, evals) |
@@ -264,6 +267,11 @@ To hand approvals over for a while I say it in a session: "delego todo hasta el 
 auto del milestone MVP". `/rb-delegate` records my words on the control issue, for 14 days by
 default, without costs or irreversible items unless I name them; a "full auto" covers only that
 run. Every merge it covers says "merged by delegation", and `rb delegate revoke` ends it.
+
+Two settings change this table (see Settings): `Profile: minimal` drops the reviews of levels 1
+and 2, and `Feature review: on` moves the blind auditor of level 2 to one review of the whole
+feature. Work measured by a score (a prompt, a threshold) runs in calibration mode: each iteration
+is kept only if the eval improves, within a cost cap, and the reviews run once on what stayed.
 
 Before a plan reaches me (or any plan that touches personal data), the security reviewer reads it
 and checks every decision in it against the requirements, so a wrong call shows up in two minutes
@@ -383,7 +391,9 @@ a week of hours kept by hand. Details in [docs/GUIA.md](docs/GUIA.md).
 
 ## Status
 
-Version 1.3.0. 1.3 checks safety steps before the reviewers, keeps reviewers from seeing each
+Version 1.4.0. 1.4 adds modes for complex work: time-boxed explorations that never merge,
+calibration loops gated by the eval, one audit per feature, and a review profile per project.
+1.3 checks safety steps before the reviewers, keeps reviewers from seeing each
 other's leftovers and moves agent reports to files. 1.2 makes each spec settle its decisions up front (a six-line inventory per
 requirement, asked in one round with defaults). 1.1 stops the obvious questions, batches small issues in one PR and keeps the
 time a PR waits for me apart from CI. 1.0 changed what asks me and who reviews what, after measuring 539 merged PRs of

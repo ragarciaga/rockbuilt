@@ -53,6 +53,9 @@ Every "yes" here means the security gate runs for features touching it. Record i
   approves only schema, architecture, the auth model, costs and irreversible steps, grouped in one
   message per run. Then one line: anything that can cost money always asks first, in both
   modes. `supervised` means every PR waits for the user.
+- Profile: recommend `full`, `minimal` or `none` with one line of why (SKILL.md, Step 3,
+  "Profile"). `minimal` keeps CI and tests and reviews only level 3; `none` is for work that never
+  reaches real users.
 - Paid services already approved, each with a monthly cap (for example "OpenAI, USD 20/month for
   evals"), or none. Only what the user names explicitly goes into AGENTS.md `Paid services`.
 - Nightly cloud run: mention it is optional and that they create the routine themselves later

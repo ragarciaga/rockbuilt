@@ -8,7 +8,9 @@ description: >
   mode for refactors and migrations. Use when the user says
   "spec this feature", "write the requirements", "design the feature", "new feature", "next
   feature", "especifica esta funcionalidad", "hagamos el spec", "escribe los requerimientos",
-  "nueva funcionalidad", "quiero agregar", "refactor de". Not for bugs (/rb-fix).
+  "nueva funcionalidad", "quiero agregar", "refactor de", and for a time-boxed exploration before
+  a spec: "spike", "explore whether", "is it feasible", "explora", "haz una exploración", "¿es
+  viable?". Not for bugs (/rb-fix).
 argument-hint: "<feature name or one-line description> [--short]"
 ---
 
@@ -76,6 +78,14 @@ run identical real inputs, write `docs/research/<topic>/REPORT.md` with measured
 propose an ADR. Strip credentials from anything written. A benchmark against a paid service
 costs money: ask first with an estimate (DESIGN.md section 14). Offer to run it in a separate
 session if it is long.
+
+## Step 2b (optional): Explore (PLAN-1.0 G1)
+
+When the spec cannot be written until something is tried (an unknown API, a file format, whether
+a model can do the job), or the user asks for a spike: follow `references/explore.md`. A time box
+(`rb explore start <slug> --hours <n>`, default 2) on `rb/explore-<slug>`, no planner and no
+reviewers, never merged (the gate refuses the branch); what survives is the conclusion in
+`docs/research/<slug>.md`, which enters with this spec's PR and feeds its decisions.
 
 ## Step 3: requirements.md
 

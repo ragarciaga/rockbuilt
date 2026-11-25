@@ -319,7 +319,7 @@ test('lock: acquire, refuse while held, take over after 3 hours, release', async
     assert.equal(a.code, 0);
     assert.equal(a.json.control, 1);
     assert.deepEqual(gh.state.issues[1].labels.sort(), ['rb:control', 'rb:running']);
-    assert.equal(Object.keys(gh.state.labels).length, 23, 'labels ensured with the control issue');
+    assert.equal(Object.keys(gh.state.labels).length, 24, 'labels ensured with the control issue');
   });
   await withEnv({ RB_NOW: '2026-10-09T03:59:00.000Z' }, async () => {
     const b = await rbJson(root, ['lock', 'acquire', '--run', 'n2'], io);
@@ -441,7 +441,7 @@ test('rb gh ops: issue-view with comments and association, checks merge, labels-
   assert.deepEqual(checks.json.map((c) => [c.name, c.status, c.conclusion]), [['rockbuilt-ci', 'completed', 'success'], ['ci/legacy', 'completed', 'failure']]);
 
   const labels = await rbJson(root, ['labels'], io);
-  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 23);
+  assert.equal(labels.json.labels.filter((l) => l.action === 'created').length, 24);
   assert.ok((await rbJson(root, ['gh', 'labels-ensure'], io)).json.every((l) => l.action === 'ok'));
 
   const pr = await rbJson(root, ['gh', 'pr-create', '--head', 'rb/T1-x', '--title', 'T1', '--body-file', path.join(dir, 'b.md'), '--label', 'rb:tier-a'], io);

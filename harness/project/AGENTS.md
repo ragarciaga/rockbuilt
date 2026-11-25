@@ -8,6 +8,8 @@ Parallel: auto
 Max parallel: 3
 Max tasks per run: 6
 Kickback budget: 2
+Profile: full
+Feature review: off
 
 This file is the project contract. Every coding agent (Claude Code, Cursor, Codex) reads it, and
 the Rockbuilt harness (`node tools/rockbuilt/rb.mjs`) parses its header lines and sections. Keep
@@ -100,6 +102,11 @@ How the harness decides (computed by `rb risk` from the real diff; the highest l
   something the user sees changes, and on one PR in five by sampling. Merged when CI is green.
 - **Level 3** (`Sensitive paths`, auth, permissions, payments, personal data, deletion, schema,
   CI and deploy, harness files, large diffs): verifier, blind auditor and security reviewer.
+- **Profile** (header): `full` is the above. `minimal` merges levels 1 and 2 on green CI and gives
+  level 3 the verifier and the security reviewer. `none` means the project runs without the harness.
+- **Feature review** (header, `on` or `off`): with `on`, level 2 tasks of a spec merge into
+  `rb/feature-<NN-slug>` with CI and the verifier, and the blind auditor and the security reviewer
+  review the whole feature once, in its PR to the default branch. Level 3 tasks never go there.
 - **The owner approves the plan** only for schema and migrations, architecture (ADR, a new spec,
   a design decision), the auth model, a cost outside `Paid services` or over its cap, and anything
   irreversible. Everything else takes a safe default and is reported. The harness sets the item
