@@ -324,6 +324,7 @@ separate bot identity is on the [roadmap](docs/roadmap.md).
 | `.claude/settings.json` | Permissions, the guard hook and the two hooks that record your hours |
 | `.github/workflows/rockbuilt-ci.yml` | The CI the merge gate requires |
 | `docs/specs/`, `docs/adr/`, `docs/progress.md`, `.claude/LESSONS.md` | Specs, decisions, progress and lessons |
+| `docs/research/`, `docs/security/` | Exploration conclusions; `/rb-attack` reports and the read-only probes you approved |
 | `.cursor/*` (`--tools cursor`), `.agents/skills`, `.codex/*` (`--tools codex`) | Adapters for other tools |
 
 Cloud sessions do not load plugins, so the harness is copied ("vendored") into each repo. The

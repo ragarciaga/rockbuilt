@@ -91,6 +91,8 @@ Si el proyecto venía de la versión 0.2 (el contrato estaba en `CLAUDE.md`), `/
 | Avanzar el backlog ahora | `/rb-build` (o `/rb-cycle` para una pasada completa) |
 | Probar una funcionalidad completa (E2E, evals, seguridad) | `/rb-verify` |
 | Fusionar un PR del harness o en modo supervisado, o el que tú digas | "haz merge del PR 12" o `/rb-merge 12` |
+| Explorar si algo es viable antes de la spec | "explora una hora si X funciona" (`/rb-spec`, modo exploración) |
+| Atacar la app antes de salir con usuarios reales | "hackea la app antes de salir" (`/rb-attack`) |
 | Delegar aprobaciones por un tiempo | "delego todo hasta el viernes", "full auto del milestone MVP" (`/rb-delegate`) |
 | Ver qué espera por ti | `rb state` (o `/rb-status`) |
 | Hacer varios issues pequeños en un solo PR | "haz en lote el 12 y el 15" o `/rb-quick #12 #15` |
@@ -507,6 +509,8 @@ Antes de cotizar con estas cifras, calibra: lleva tus horas a mano una semana y 
 | `docs/progress.md` | Dónde quedamos y qué sigue, más la tabla de tiempos |
 | `docs/specs/NN-nombre/` | Requisitos, diseño, tareas y reportes de cada funcionalidad |
 | `docs/adr/` | Decisiones de arquitectura con su porqué |
+| `docs/research/` | Conclusiones de exploraciones y benchmarks, que alimentan los specs |
+| `docs/security/` | Reportes de `/rb-attack` y las sondas de solo lectura que aprobaste |
 | `docs/rockbuilt/known-failures.json` | Fallas conocidas aceptadas; la lista solo puede bajar |
 | `.claude/LESSONS.md` | Errores que no se deben repetir |
 | `.claude/settings.json` | Permisos y el guard: qué corre sin preguntar y qué está prohibido |
