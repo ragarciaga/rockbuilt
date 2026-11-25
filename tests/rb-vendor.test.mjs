@@ -58,7 +58,7 @@ test('vendor fresh: harness files, templates, VERSION, header fields, gitignore'
   const h = harness();
   const r = await rbJson(root, ['vendor', '--from', h, '--type', 'web,ai', '--lang', 'es']);
   assert.equal(r.code, 0, r.err);
-  for (const f of ['tools/rockbuilt/rb.mjs', 'tools/rockbuilt/lib/util.mjs', 'tools/rockbuilt/guard.mjs', 'tools/rockbuilt/VERSION',
+  for (const f of ['tools/rockbuilt/rb.mjs', 'tools/rockbuilt/lib/util.mjs', 'tools/rockbuilt/guard.mjs', 'tools/rockbuilt/VERSION', 'tools/rockbuilt/project/AGENTS.md',
     '.claude/skills/rb-build/SKILL.md', '.claude/skills/rb-build/references/kickback.md', '.claude/agents/rb-verifier.md',
     'AGENTS.md', 'CLAUDE.md', '.claude/LESSONS.md', '.claude/settings.json', '.github/workflows/rockbuilt-ci.yml', 'docs/progress.md']) {
     assert.ok(r.json.created.includes(f), `created ${f}`);

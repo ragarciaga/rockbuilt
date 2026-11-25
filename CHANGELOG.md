@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1 (2026-11-25)
+
+- **Updating a project from before 1.0 works as described.** `rb doctor` and the install skill told
+  you to copy the level text from `tools/rockbuilt/project/AGENTS.md`, a file vendor never wrote;
+  it now ships there (found while updating 2brain-logic, PLAN-1.0 phase 7).
+
 ## 1.5.0 (2026-11-25)
 
 The pre-launch attack (PLAN-1.0 phase 6, issue #82; DESIGN 34).
