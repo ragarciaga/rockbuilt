@@ -8,7 +8,7 @@ curso, y al terminar marca lo hecho y agrega una línea en la bitácora del fina
 trivial, menos interrupciones al dueño, specs que no dejen huecos, y el ciclo completo solo donde
 están los defectos graves. Si algo queda mal, se ajusta con la regla de retroceso (sección 3).
 
-**Estado.** Versión en `main`: 1.3.0. Fase en curso: **5 (trabajo complejo)**. Ver la tabla de fases.
+**Estado.** Versión en `main`: 1.4.0. Fase en curso: **6 (seguridad anti hackeo)**. Ver la tabla de fases.
 
 ## Cómo arrancar una sesión nueva
 
@@ -132,7 +132,7 @@ y #52, PRs #26 y #46).
 | 2. No interrumpir y lotes | 1.1.0 | Bloques C (sin C1) y D | Hecha |
 | 3. Spec | 1.2.0 | Bloque E | Hecha (release v1.2.0) |
 | 4. Menos devoluciones y contexto | 1.3.0 | Bloque F | Hecha |
-| 5. Trabajo complejo | 1.4.0 | Bloque G | Pendiente |
+| 5. Trabajo complejo | 1.4.0 | Bloque G | Hecha |
 | 6. Seguridad anti hackeo | 1.5.0 | Bloque H | Pendiente |
 | 7. Despliegue y medición | sin versión | Actualizar proyectos, medir dos semanas, retro | Pendiente |
 | 8. Tracker en vivo | 1.6.0 | Bloque I (después de medir 1.0 a 1.5) | Pendiente |
@@ -272,13 +272,13 @@ Bloque F:
 ### Fase 5. Trabajo complejo (1.4.0)
 
 Bloque G:
-- [ ] G1 Modo exploración: rama con tiempo fijo, sin revisores, nunca a `main`; entrega una
+- [x] G1 Modo exploración: rama con tiempo fijo, sin revisores, nunca a `main`; entrega una
       conclusión que alimenta el spec.
-- [ ] G2 Modo calibración: la eval es el gate; cada iteración con tope de costo y se queda solo si
+- [x] G2 Modo calibración: la eval es el gate; cada iteración con tope de costo y se queda solo si
       mejora; una revisión normal al final.
-- [ ] G3 Revisión por funcionalidad en nivel 2: tareas a una rama de la funcionalidad con pruebas
+- [x] G3 Revisión por funcionalidad en nivel 2: tareas a una rama de la funcionalidad con pruebas
       y verifier; auditor y seguridad una vez sobre la funcionalidad completa.
-- [ ] G4 Kickoff y adopt recomiendan perfil: completo, mínimo (solo CI y pruebas) o ninguno.
+- [x] G4 Kickoff y adopt recomiendan perfil: completo, mínimo (solo CI y pruebas) o ninguno.
 
 ### Fase 6. Seguridad anti hackeo (1.5.0)
 
@@ -408,3 +408,17 @@ de trail-blazer-flow v3.8.0). Va después de medir 1.0 a 1.5, porque se alimenta
   guard sí bloqueaba al auditor corriendo la CLI con argumentos (corregido). F10 no se repitió.
 - 2026-11-24: revisión independiente de la fase 4: 10 hallazgos (1 alto: un revisor podía crear y ejecutar código desde su informe), todos corregidos con prueba (DESIGN 32.14).
 - 2026-11-24: evals de la 1.3.0: 23/23, 14,18 USD (`evals/results/2026-11-24-1.3.md`).
+- 2026-11-25: fase 5 hecha (1.4.0, DESIGN 33). G1 `rb explore` y la rama `rb/explore-*` que el
+  gate nunca fusiona (ni con `--human-approved`); la conclusión va a `docs/research/<slug>.md` por
+  el PR del spec. G2 `rb calibration` (se queda solo lo que mejora, para al tope o tras 3 sin
+  mejora, historia en el issue de la tarea). G3 revisión por funcionalidad con `Feature review: on`
+  y la etiqueta `rb:feature`. G4 `Profile: full | minimal | none` leído en la base del PR.
+  Defaults decididos: `Feature review` apagado por defecto y leído en la rama principal; una tarea
+  con aprobación del dueño nunca va a la rama de funcionalidad; el reloj de la exploración es un
+  commit vacío en su rama (máximo 8 h); el tope de calibración es para todo el ciclo y no se sube
+  (subirlo es otra calibración con aprobación de costo); `none` no instala el harness y el gate lo
+  trata como `full`. Revisión independiente: 6 hallazgos (1 alto: un merge fabricado metía código
+  de nivel 3 en la rama de funcionalidad), todos corregidos con prueba (DESIGN 33.5). Evals:
+  24/24, 14,68 USD más 1,22 de la primera pasada de los escenarios nuevos (15,90 USD en total,
+  `evals/results/2026-11-25-1.4.md`).
+
