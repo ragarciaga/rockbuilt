@@ -15,10 +15,13 @@ Complex work (PLAN-1.0 phase 5, issue #81; DESIGN 33).
 - **Review per feature.** With `Feature review: on` in AGENTS.md, level 2 tasks merge into
   `rb/feature-<NN-slug>` with CI and the verifier, and the blind auditor and the security reviewer
   review the whole feature once, in its PR to `main`. Level 3 tasks never go there, and the gate
-  refuses a feature branch with commits it did not merge.
+  refuses a feature branch with commits it did not merge (only GitHub's own "update branch" may
+  bring `main` in), and anything level 3 or that needs your approval.
 - **Profile.** Kickoff and adopt recommend `Profile: full`, `minimal` (CI and tests; reviews only
   for level 3) or `none` (no harness, for something that never reaches real users). The gate reads
   it from the PR's base, so a PR cannot lower its own reviews.
+- Hardened after an independent review (DESIGN 33.5): a forged merge commit could slip code into a
+  feature branch, and the calibration and exploration state now survive a new session.
 - Update a project with "update rockbuilt" (new label `rb:feature`; add `Profile:` and
   `Feature review:` to the AGENTS.md header, both optional).
 

@@ -197,6 +197,10 @@ export function prKind(headRef) {
 // PLAN-1.0 G4: the review profile from the AGENTS.md header (`Profile: full | minimal | none`).
 // `none` means the project runs without the harness; if the gate runs anyway it applies `full`.
 export const PROFILES = ['full', 'minimal', 'none'];
+export function featureReviewOn(contractText) {
+  return /^on\b/i.test(headerField(contractText, 'Feature review') || '');
+}
+
 export function profileOf(contractText) {
   const v = (headerField(contractText, 'Profile') || '').toLowerCase().split(/\s/)[0];
   return v === 'minimal' ? 'minimal' : 'full';
@@ -222,8 +226,8 @@ export function requiredReviews({ level, profile = 'full', userVisible = false, 
 // commit in default...head is either the squash of a task PR merged into this feature branch by
 // `rb merge-gate` (its trusted merge comment), or a merge whose other parent is already on the
 // default branch (updating the feature branch). A direct push to the feature branch is refused.
-// Known limit: a merge commit's own edits are not recomputed; the auditor and the security review
-// read the whole feature diff.
+// A merge must be GitHub's own update of the branch (signed web-flow), so it carries no edits of
+// its own; a conflict resolved in GitHub's editor by a person is the known limit.
 const GATE_MERGED = /^Merged by `rb merge-gate`/;
 export function featureProvenance(c, view, branch, no) {
   const ref = view.head.ref;
@@ -260,7 +264,12 @@ export function featureProvenance(c, view, branch, no) {
           if (st === 'ahead' || st === 'identical') fromDefault = true;
         } catch { /* not readable: not confirmed */ }
       }
-      if (!fromDefault) no('feature-provenance', `merge ${short} on ${ref} does not bring in ${branch}`);
+      if (!fromDefault) { no('feature-provenance', `merge ${short} on ${ref} does not bring in ${branch}`); continue; }
+      // Only GitHub's own update of the branch (rb gh pr-update-branch), which GitHub signs as
+      // web-flow: a merge made anywhere else can carry edits of its own (review of 1.4.0).
+      let info = null;
+      try { info = ops.commitInfo(c, cm.sha); } catch { info = null; }
+      if (!info || !info.verified || info.committer !== 'web-flow') no('feature-provenance', `merge ${short} on ${ref} was not made by GitHub (rb gh pr-update-branch): a merge made elsewhere can carry its own edits`);
     } else no('feature-provenance', `commit ${short} on ${ref} has ${cm.parents.length} parents`);
   }
 }
@@ -381,6 +390,8 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   let baseContract = null;
   try { baseContract = view.base && view.base.sha ? ops.fileAt(c, 'AGENTS.md', featureBase ? branch : view.base.sha) : null; } catch { baseContract = null; }
   const profile = profileOf(baseContract);
+  // A feature branch only exists when the project turned it on, read where nothing can loosen it.
+  if ((featureBase || feature) && !featureReviewOn(baseContract)) no('feature-review', `\`Feature review: on\` is not in AGENTS.md on ${branch}: ${feature ? 'merge the tasks to it one by one' : `open the PR against ${branch}`}`);
 
   // 2. Labels (PLAN-1.0 A8). Approval waits on the owner's comment, not on a label. A feature PR
   // carries no level: each task in it passed the gate with its own.
@@ -391,11 +402,22 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
 
   // 3. Live level no higher than the label (and the declared level line).
   let risk = null;
-  if (!feature) {
-    try {
-      risk = computeRisk(root, { pr: view.number, gh: c, ...(featureBase ? { rulesRef: branch } : {}) });
-    } catch (e) {
-      no('risk', `rb risk failed: ${e.message}`);
+  try {
+    risk = computeRisk(root, { pr: view.number, gh: c, ...(featureBase ? { rulesRef: branch } : {}) });
+  } catch (e) {
+    no('risk', `rb risk failed: ${e.message}`);
+  }
+  // A feature PR holds only level 1 and 2 tasks that asked nothing of the owner: its whole diff
+  // must say the same, apart from size (review of 1.4.0: a forged merge commit brought level 3
+  // code with no verifier and no approval).
+  if (feature && risk) {
+    const l3 = (risk.levelReasons || []).filter((r) => r.rule !== 'size');
+    if (l3.length) no('feature-level', `the feature diff has level 3 content (${l3.slice(0, 3).map((r) => `${r.rule} ${r.path}`.trim()).join('; ')}): level 3 work never goes through a feature branch`);
+    if ((risk.approvals || []).length) no('feature-level', `the feature diff needs the owner (${risk.approvals.map((a) => `${a.reason} ${a.path}`.trim()).slice(0, 3).join('; ')}): such a task never goes through a feature branch`);
+    if ((risk.checks || []).includes('dependency')) {
+      let d = null;
+      try { d = dependencyCheck(root, risk, { ref: view.base && view.base.sha }); } catch (e) { d = { ok: false }; }
+      if (!d.ok) no('feature-level', 'a runtime dependency in the feature diff does not pass the automatic check');
     }
   }
   const body = parseBody(view.body);
@@ -405,6 +427,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   // limits; a batch that grew needs a plan (/rb-build) or a split, even with the owner's word.
   if (body.quick && risk && risk.quick && !risk.quick.eligible) no('quick', `quick batch outside quick mode: ${risk.quick.reasons.join('; ')}. Split it, or plan the rest with /rb-build and drop <!-- rockbuilt:quick --> once rb-planner's plan is on the issue`);
   const level = feature ? null : Math.max(ll || 1, risk ? risk.level : 1, body.level || 1);
+  if (featureBase && risk && (risk.approvals || []).length) no('feature-base', `a task that needs the owner (${risk.approvals.map((a) => a.reason).join(', ')}) never goes through a feature branch: open it against ${branch}`);
   const tier = feature ? 'B' : maxTier(lt || 'A', risk ? risk.tier : 'A', body.tier || 'A');
   // PLAN-1.0 G3: a level 3 task never goes through a feature branch.
   if (featureBase && level === 3) no('feature-base', `a level 3 task never goes through a feature branch: open it against ${branch}`);
@@ -498,6 +521,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
   }
   if (issueView) {
     if (issueView.state && issueView.state !== 'open') no('task-issue', `#${taskIssues[0]} is ${issueView.state}`);
+    if (feature && !(issueView.labels || []).includes('rb:feature')) no('task-issue', `#${taskIssues[0]} is not a feature issue (rb:feature)`);
     const prTask = (String(view.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
     const issueTask = (String(issueView.body || '').match(/<!--\s*rockbuilt:task\s+([A-Za-z0-9_-]+)/) || [])[1];
     if (prTask && issueTask && !sameTask(prTask, issueTask)) no('task-issue', `the PR is task ${prTask} but #${taskIssues[0]} is task ${issueTask}`);
@@ -524,6 +548,7 @@ export function evaluateGate(root, c, pr, { run = null, humanApproved = false, d
     try { deps = dependencyCheck(root, risk, { ref: view.base && view.base.sha }); } catch (e) { deps = { ok: false, results: [], unsupported: [`check failed: ${e.message}`] }; }
   }
   // A feature PR asks no approval: every task in it passed the gate with its own (G3).
+  if (featureBase && declared.length) no('feature-base', `the plan asks the owner (${declared.join(', ')}): such a task never goes through a feature branch`);
   const approvalReasons = feature ? [] : [...new Set([...(risk ? risk.approvals.map((a) => a.reason) : []), ...declared, ...(deps && !deps.ok ? ['dependency'] : [])])];
   let approval = { ok: true, how: null };
   if (approvalReasons.length) {

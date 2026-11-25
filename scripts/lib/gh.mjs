@@ -327,7 +327,7 @@ export const ops = {
   // A commit's sha, tree and parents (any ref GitHub resolves: sha, branch).
   commitInfo(c, ref) {
     const d = c.api('GET', `{repo}/commits/${encodeURIComponent(ref)}`) || {};
-    return { sha: d.sha || null, tree: d.commit && d.commit.tree ? d.commit.tree.sha : null, parents: (d.parents || []).map((p) => p.sha) };
+    return { sha: d.sha || null, tree: d.commit && d.commit.tree ? d.commit.tree.sha : null, parents: (d.parents || []).map((p) => p.sha), verified: Boolean(d.commit && d.commit.verification && d.commit.verification.verified), committer: d.committer ? d.committer.login : null };
   },
   refDelete(c, branch) {
     c.api('DELETE', `{repo}/git/refs/heads/${branch.split('/').map(encodeURIComponent).join('/')}`);

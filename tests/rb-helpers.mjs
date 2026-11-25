@@ -237,7 +237,7 @@ export function handle(s, method, fullPath, body) {
   }
   if ((m = r.match(/^commits\/([^/]+)$/)) && method === 'GET') {
     const info = (s.commitInfo || {})[decodeURIComponent(m[1])];
-    return info ? ok({ sha: info.sha, commit: { tree: { sha: info.tree } }, parents: (info.parents || []).map((sha) => ({ sha })) }) : err(404, 'No commit found');
+    return info ? ok({ sha: info.sha, commit: { tree: { sha: info.tree }, verification: { verified: Boolean(info.verified) } }, committer: info.committer ? { login: info.committer } : null, parents: (info.parents || []).map((sha) => ({ sha })) }) : err(404, 'No commit found');
   }
   if ((m = r.match(/^git\/refs\/heads\/(.+)$/)) && method === 'DELETE') { s.deletedRefs = [...(s.deletedRefs || []), decodeURIComponent(m[1])]; return ok(undefined, 204); }
   if ((m = r.match(/^commits\/([^/]+)\/check-runs$/))) {

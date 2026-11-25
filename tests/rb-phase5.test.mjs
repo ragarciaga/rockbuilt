@@ -57,6 +57,7 @@ test('G1: rb explore start needs the branch, keeps a clock, check exits 3 when t
   sh(root, 'git', ['checkout', '-b', 'rb/explore-pdf-import']);
   const bad = await rbJson(root, ['explore', 'start', 'pdf-import', '--hours', '9']);
   assert.equal(bad.code, 2, 'more than 8 hours is refused');
+  assert.equal((await rbJson(root, ['explore', 'start', 'pdf-import', '--hours'])).code, 2, 'a bare --hours is refused');
   await withEnv({ RB_NOW: '2026-11-25T10:00:00Z' }, async () => {
     const s = await rbJson(root, ['explore', 'start', 'pdf-import']);
     assert.equal(s.code, 0, s.err);
@@ -76,11 +77,18 @@ test('G1: rb explore start needs the branch, keeps a clock, check exits 3 when t
     assert.equal(c.json.over, true);
   });
   assert.equal((await rbJson(root, ['explore', 'start', '../x'])).code, 2, 'the slug is validated');
+  // Review of 1.4.0: the clock is a commit on the branch, so a new session (no .rockbuilt) keeps it.
+  const { rmSync } = await import('node:fs');
+  rmSync(path.join(root, '.rockbuilt', 'explore'), { recursive: true, force: true });
+  await withEnv({ RB_NOW: '2026-11-25T12:01:00Z' }, async () => {
+    assert.equal((await rbJson(root, ['explore', 'check', 'pdf-import'])).code, 3, 'still over after losing the cache');
+    assert.equal((await rbJson(root, ['explore', 'start', 'pdf-import'])).code, 3, 'the clock cannot be restarted');
+  });
 });
 
 test('G2: rb calibration keeps only improvements and stops after three without one', async () => {
   const root = project();
-  const add = (score, cost, extra = []) => rbJson(root, ['calibration', 'add', 'T4', '--score', String(score), '--cost', String(cost), '--cap', '5', ...extra]);
+  const add = (score, cost, extra = ['--ref', 'def5678']) => rbJson(root, ['calibration', 'add', 'T4', '--score', String(score), '--cost', String(cost), '--cap', '5', ...extra]);
   let r = await add(0.7, 0.5, ['--ref', 'abc1234']);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.json.kept, true);
@@ -107,7 +115,7 @@ test('G2: rb calibration keeps only improvements and stops after three without o
 
 test('G2: rb calibration stops at the cost cap, fixes cap and direction, validates numbers', async () => {
   const root = project();
-  const add = (task, score, cost, cap = '1', extra = []) => rbJson(root, ['calibration', 'add', task, '--score', String(score), '--cost', String(cost), '--cap', cap, ...extra]);
+  const add = (task, score, cost, cap = '1', extra = []) => rbJson(root, ['calibration', 'add', task, '--score', String(score), '--cost', String(cost), '--cap', cap, '--ref', 'abc1234', ...extra]);
   let r = await add('T5', 120, 0.6, '1', ['--lower-is-better']);
   assert.equal(r.json.kept, true);
   r = await add('T5', 100, 0.3, '1', ['--lower-is-better']);
@@ -122,6 +130,7 @@ test('G2: rb calibration stops at the cost cap, fixes cap and direction, validat
   for (const bad of [['x', '1'], ['1', '-1'], ['1', 'abc']]) assert.equal((await add('T6', bad[0], bad[1])).code, 2, bad.join(' '));
   assert.equal((await add('T6', 1, 0, '0')).code, 2, 'a zero cap is refused');
   assert.equal((await add('../x', 1, 0)).code, 2, 'the task id is validated');
+  assert.equal((await rbJson(root, ['calibration', 'add', 'T7', '--score', '1', '--cost', '0', '--cap', '1'])).code, 2, 'the ref is required');
   assert.equal(readFileSync(path.join(root, '.rockbuilt', 'calibration', 'T5.jsonl'), 'utf8').trim().split('\n').length, 3);
 });
 
@@ -129,7 +138,7 @@ test('G3: a level 2 task into a feature branch needs the verifier only, with the
   const root = project();
   const gh = fakeGh();
   seedTask(gh, { base: 'rb/feature-01-budgets' });
-  gh.state.contents['main:AGENTS.md'] = AGENTS();
+  gh.state.contents['main:AGENTS.md'] = AGENTS('Feature review: on\n');
   const r = await gate(root, gh);
   assert.equal(r.code, 0, JSON.stringify(r.json.reasons));
   assert.deepEqual(r.json.needs, ['rb-verifier']);
@@ -138,26 +147,40 @@ test('G3: a level 2 task into a feature branch needs the verifier only, with the
   const other = fakeGh();
   seedTask(other, { base: 'release-1' });
   assert.ok(rules(await gate(root, other)).includes('base'), 'only rb/feature-* bases');
+  // Review of 1.4.0: only when the default branch's AGENTS.md turns it on.
+  const off = fakeGh();
+  seedTask(off, { base: 'rb/feature-01-budgets' });
+  off.state.contents['main:AGENTS.md'] = AGENTS();
+  assert.ok(rules(await gate(root, off)).includes('feature-review'));
+  // A task that needs the owner never goes through a feature branch.
+  const paid = fakeGh();
+  seedTask(paid, { base: 'rb/feature-01-budgets', file: 'src/pay.js' });
+  paid.state.files[10] = [{ filename: 'src/pay.js', status: 'added', additions: 1, deletions: 0, patch: "@@\n+import OpenAI from 'openai';" }];
+  paid.state.contents['main:AGENTS.md'] = AGENTS('Feature review: on\n');
+  assert.ok(rules(await gate(root, paid)).includes('feature-base'), JSON.stringify((await gate(root, paid)).json.reasons));
 });
 
 test('G3: a level 3 task never goes through a feature branch', async () => {
   const root = project();
   const gh = fakeGh();
   seedTask(gh, { base: 'rb/feature-01-budgets', labels: ['rb:level-3'], stages: ['rb-verifier', 'rb-auditor', 'rb-security-reviewer'] });
+  gh.state.contents['main:AGENTS.md'] = AGENTS('Feature review: on\n');
   const r = await gate(root, gh);
   assert.ok(rules(r).includes('feature-base'), JSON.stringify(r.json.reasons));
 });
 
 // Feature PR #20 rb/feature-01-budgets -> main, closing feature issue #5, built from task PR #11.
-function seedFeature(gh, { commits, gateComment = true, auditor = true } = {}) {
+function seedFeature(gh, { commits, gateComment = true, auditor = true, issueLabel = 'rb:feature', featureReview = true, signed = true, files = null } = {}) {
   const s = gh.state;
   const ref = 'rb/feature-01-budgets';
-  s.issues[5] = { number: 5, title: 'Feature 01 budgets', body: 'feature review', state: 'open', labels: ['rb:task'] };
+  s.issues[5] = { number: 5, title: 'Feature 01 budgets', body: 'feature review', state: 'open', labels: [issueLabel] };
+  s.contents[`${'b'.repeat(40)}:AGENTS.md`] = AGENTS(featureReview ? 'Feature review: on\n' : '');
+  s.commitInfo = { ['2'.repeat(40)]: { sha: '2'.repeat(40), tree: 't', parents: ['1'.repeat(40), '9'.repeat(40)], verified: signed, committer: signed ? 'web-flow' : 'rb-bot' } };
   const lines = [auditor ? line('rb-auditor', HEAD, 'F01') : '', line('rb-security-reviewer', HEAD, 'F01')].filter(Boolean);
   const body = `Closes #5\n\n${lines.join('\n')}\n`;
   s.issues[20] = { number: 20, title: 'feat: budgets (feature 01)', body, state: 'open', labels: ['rb:pr-open'], isPr: true };
   s.pulls[20] = { number: 20, head: ref, base: 'main', headSha: HEAD };
-  s.files[20] = [{ filename: 'src/budgets.js', status: 'added', additions: 900, deletions: 0, patch: '@@\n+x' }];
+  s.files[20] = files || [{ filename: 'src/budgets.js', status: 'added', additions: 900, deletions: 0, patch: '@@\n+x' }];
   s.issues[11] = { number: 11, title: 'feat: T1', body: 'Closes #3', state: 'closed', labels: [], isPr: true };
   s.pulls[11] = { number: 11, head: 'rb/T1-budgets', base: ref, headSha: 'd'.repeat(40), merged_at: '2026-11-20T00:00:00Z', merge_commit_sha: '1'.repeat(40) };
   s.comments[11] = gateComment ? [{ id: 9001, body: 'Merged by `rb merge-gate` (level 2, into rb/feature-01-budgets). To undo: ...', user: { login: 'rb-bot' }, author_association: 'OWNER', created_at: '2026-11-20T00:00:00Z' }] : [];
@@ -189,6 +212,23 @@ test('G3: the feature PR needs the auditor and the security review, and only gat
   seedFeature(foreign, { commits: [{ sha: '1'.repeat(40), parents: ['0'.repeat(40)] }, { sha: '2'.repeat(40), parents: ['1'.repeat(40), '9'.repeat(40)] }] });
   foreign.state.compare.main = { status: 'diverged' };
   assert.match(JSON.stringify((await rbJson(root, ['merge-gate', '20', '--human-approved', '--dry-run'], { ghRunner: foreign.runner })).json.reasons), /merge 2222222 .*does not bring in main/);
+
+  // Review of 1.4.0: a merge GitHub did not make (a forged commit-tree) is refused.
+  const forged = fakeGh();
+  seedFeature(forged, { commits: [{ sha: '2'.repeat(40), parents: ['1'.repeat(40), '9'.repeat(40)] }], signed: false });
+  assert.match(JSON.stringify((await rbJson(root, ['merge-gate', '20', '--human-approved', '--dry-run'], { ghRunner: forged.runner })).json.reasons), /merge 2222222 .*not made by GitHub/);
+  // The whole feature diff is level 1 or 2 and asks nothing of the owner (size aside).
+  const heavy = fakeGh();
+  seedFeature(heavy, { commits: [{ sha: '1'.repeat(40), parents: ['0'.repeat(40)] }], files: [{ filename: 'src/auth/session.js', status: 'modified', additions: 5, deletions: 5, patch: '@@\n+x' }, { filename: 'db/migrations/001.sql', status: 'added', additions: 1, deletions: 0, patch: '@@\n+DROP TABLE users;' }] });
+  const hv = await rbJson(root, ['merge-gate', '20', '--human-approved', '--dry-run'], { ghRunner: heavy.runner });
+  assert.ok(rules(hv).includes('feature-level'), JSON.stringify(hv.json.reasons));
+  // The issue it closes is the feature issue; Feature review must be on at the base.
+  const wrongIssue = fakeGh();
+  seedFeature(wrongIssue, { commits: [{ sha: '1'.repeat(40), parents: ['0'.repeat(40)] }], issueLabel: 'rb:task' });
+  assert.match(JSON.stringify((await rbJson(root, ['merge-gate', '20', '--human-approved', '--dry-run'], { ghRunner: wrongIssue.runner })).json.reasons), /not a feature issue/);
+  const off = fakeGh();
+  seedFeature(off, { commits: [{ sha: '1'.repeat(40), parents: ['0'.repeat(40)] }], featureReview: false });
+  assert.ok(rules(await rbJson(root, ['merge-gate', '20', '--human-approved', '--dry-run'], { ghRunner: off.runner })).includes('feature-review'));
 
   const noAudit = fakeGh();
   seedFeature(noAudit, { commits: [{ sha: '1'.repeat(40), parents: ['0'.repeat(40)] }], auditor: false });
@@ -228,3 +268,20 @@ test('G4: doctor warns about an unknown profile', async () => {
   assert.match(JSON.stringify(r.json), /Profile: light is not full, minimal or none/);
 });
 
+test('G2: rb calibration --issue keeps the history on the task issue, so a new session does not restart the spend', async () => {
+  const root = project();
+  const gh = fakeGh();
+  gh.state.issues[3] = { number: 3, title: 'T8', body: '', state: 'open', labels: ['rb:task'] };
+  const io = { ghRunner: gh.runner };
+  const add = (score, cost) => rbJson(root, ['calibration', 'add', 'T8', '--score', String(score), '--cost', String(cost), '--cap', '1', '--ref', 'abc1234', '--issue', '3'], io);
+  assert.equal((await add(0.5, 0.4)).code, 0);
+  assert.match(gh.state.comments[3].at(-1).body, /^<!-- rockbuilt:calibration task=T8 iteration=1 score=0.5 cost=0.4 cap=1 lower=0 ref=abc1234 kept=1 -->/);
+  const { rmSync } = await import('node:fs');
+  rmSync(path.join(root, '.rockbuilt', 'calibration'), { recursive: true, force: true });
+  const r = await add(0.6, 0.7);
+  assert.equal(r.json.iteration, 2, 'continues from the issue');
+  assert.equal(r.json.stop, 'cap');
+  assert.equal(r.code, 3);
+  const show = await rbJson(root, ['calibration', 'show', 'T8', '--issue', '3'], io);
+  assert.equal(show.json.iterations, 2);
+});

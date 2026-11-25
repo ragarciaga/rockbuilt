@@ -19,12 +19,15 @@ On the task branch, after the plan (steps 1 to 4):
    score so far and the last result: "one hypothesis per iteration, the smallest change that tests
    it; report the hypothesis". Commit it: `git commit -am "calibrate: <hypothesis> (<id>)"`.
 2. Run the eval commands (`rb verify-cmds Evals`), read the score and the cost of this run.
-3. `rb calibration add <id> --score <score> --cost <usd> --cap <cap> --ref <git rev-parse HEAD>`
-   (add `--lower-is-better` on the first call when lower wins, such as latency or error rate).
+3. `rb calibration add <id> --score <score> --cost <usd> --cap <cap> --ref <git rev-parse HEAD>
+   --issue <task issue>` (with GitHub; it posts the iteration there, so a new session continues
+   the same loop and spend). Add `--lower-is-better` on every call when lower wins (latency, error
+   rate): the direction is fixed at the first call and must repeat.
    - `kept: false`: undo the iteration with `git revert --no-edit HEAD` (never a hard reset).
    - Exit 3 (`stop: cap` or `stop: plateau`, three iterations without improvement): leave the loop.
-   - Before the next iteration: when `remaining` is below the cost of one eval run, leave the loop.
-4. Post `rb calibration show <id>` on the task issue when the loop ends.
+   - Before the next iteration: when `remaining` is below the cost of one eval run, leave the loop
+     (an iteration already run is recorded even if it crosses the cap: that money is spent).
+4. Post `rb calibration show <id> --issue <n>` on the task issue when the loop ends.
 
 The cap and the direction are fixed by the first call; `rb calibration` refuses a change. A higher
 cap is the owner's decision (cost): once they approve it, continue as `<id>-2` from the kept

@@ -2,7 +2,7 @@
 // records its score and cost; an iteration stays only when it beats the best so far, and the loop
 // stops at the cost cap or after three iterations without improvement. Machine-local state in
 // .rockbuilt/calibration/<task>.jsonl (one JSON line per iteration).
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { CliError, now } from './util.mjs';
 
@@ -47,13 +47,16 @@ function number(v, name, { min = -Infinity, positive = false } = {}) {
 
 // Records one iteration. The cap and the direction are fixed by the first iteration: a later call
 // may not change them (raising the cap is the owner's cost decision: a new calibration name).
-export function addIteration(root, task, { score, cost, cap, lowerIsBetter = false, ref = null } = {}) {
+// `prior`: the iterations recorded on the task issue (a fresh container has no local file); the
+// longer history wins, so a new session never restarts the spend at zero.
+export function addIteration(root, task, { score, cost, cap, lowerIsBetter = false, ref = null, prior = [] } = {}) {
   const file = fileFor(root, task);
   const s = number(score, 'score');
   const k = number(cost, 'cost', { min: 0 });
   const capN = number(cap, 'cap', { positive: true });
-  if (ref !== null && !/^[0-9a-f]{7,40}$/i.test(String(ref))) throw new CliError('--ref is a commit sha', 2);
-  const entries = readCalibration(root, task);
+  if (!/^[0-9a-f]{7,40}$/i.test(String(ref ?? ''))) throw new CliError('--ref <sha>: the commit of this iteration (a kept one is what the loop restores)', 2);
+  const local = readCalibration(root, task);
+  const entries = prior.length > local.length ? prior : local;
   const before = calibrationState(entries);
   if (entries.length) {
     if (capN !== before.cap) throw new CliError(`the cap of ${task} is ${before.cap} USD, fixed at its first iteration; a higher cap is the owner's decision (cost): start a new calibration (${task}-2) from the kept version once they approve it`, 2);
@@ -63,9 +66,31 @@ export function addIteration(root, task, { score, cost, cap, lowerIsBetter = fal
   const kept = !before.best || better(s, before.best.score, Boolean(lowerIsBetter));
   const entry = { at: now().toISOString(), iteration: entries.length + 1, score: s, cost: k, cap: capN, lowerIsBetter: Boolean(lowerIsBetter), ref, kept };
   mkdirSync(path.dirname(file), { recursive: true });
+  if (entries !== local) writeFileSync(file, entries.map((e) => `${JSON.stringify(e)}\n`).join(''));
   appendFileSync(file, `${JSON.stringify(entry)}\n`);
   const after = calibrationState([...entries, entry]);
-  return { task, iteration: entry.iteration, score: s, kept, ...after, remaining: Math.max(0, Math.round((after.cap - after.spent) * 1e6) / 1e6), next: after.stop ? 'stop' : 'continue' };
+  return { task, iteration: entry.iteration, score: s, kept, entry, ...after, remaining: Math.max(0, Math.round((after.cap - after.spent) * 1e6) / 1e6), next: after.stop ? 'stop' : 'continue' };
+}
+
+// One iteration as a machine line on the task issue, and back.
+export function calibrationLine(task, e) {
+  return `<!-- rockbuilt:calibration task=${task} iteration=${e.iteration} score=${e.score} cost=${e.cost} cap=${e.cap} lower=${e.lowerIsBetter ? 1 : 0} ref=${e.ref} kept=${e.kept ? 1 : 0} -->`;
+}
+
+export function entriesFromComments(comments, task) {
+  const out = new Map();
+  for (const cm of comments) {
+    if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(cm.author_association)) continue;
+    for (const m of String(cm.body || '').matchAll(/<!--\s*rockbuilt:calibration\s+([^>]*?)\s*-->/g)) {
+      const kv = Object.fromEntries([...m[1].matchAll(/([\w-]+)=(\S+)/g)].map((x) => [x[1], x[2]]));
+      if (kv.task !== task) continue;
+      const e = { at: cm.created_at, iteration: Number(kv.iteration), score: Number(kv.score), cost: Number(kv.cost), cap: Number(kv.cap), lowerIsBetter: kv.lower === '1', ref: kv.ref, kept: kv.kept === '1' };
+      if ([e.iteration, e.score, e.cost, e.cap].every(Number.isFinite) && !out.has(e.iteration)) out.set(e.iteration, e);
+    }
+  }
+  const list = [...out.values()].sort((a, b) => a.iteration - b.iteration);
+  // Only a gapless history from iteration 1 counts.
+  return list.filter((e, i) => e.iteration === i + 1);
 }
 
 export function calibrationText(r) {

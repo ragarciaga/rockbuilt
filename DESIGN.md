@@ -1419,31 +1419,47 @@ every visible task; and a small tool for one person paid the same reviews as a p
 
 1. **Exploration (G1).** A question the spec cannot settle on paper is answered on
    `rb/explore-<slug>` inside a time box: `rb explore start <slug> --hours <n>` (default 2, at most
-   8) records the clock on the branch, `rb explore check` exits 3 when it is up. No planner, no
+   8) records the clock as an empty commit on the branch (a local file is only a cache, so a new
+   session or container keeps it), `rb explore check` exits 3 when it is up and a second start is
+   refused. No planner, no
    reviewers. The gate refuses every `rb/explore-*` PR, even with `--human-approved`: exploration
    code never merges. Its product is `docs/research/<slug>.md` (answer, evidence, consequences for
    the spec, what was not tried), which enters through the spec's `rb/spec-*` PR.
 2. **Calibration (G2).** When a criterion is an `[eval]` with a threshold and the work is tuning,
    the planner writes `Mode: calibration` with a cap for the whole loop and the cost of one eval
    run. Each iteration is one hypothesis, committed, evaluated, then `rb calibration add <task>
-   --score --cost --cap [--lower-is-better] --ref`: it stays only when it beats the best (a tie does
+   --score --cost --cap --ref [--lower-is-better] [--issue <n>]` (`--issue` posts the iteration
+   on the task issue and reads the history back from it, so a new session never restarts the
+   spend; the longer history wins): it stays only when it beats the best (a tie does
    not), else it is reverted; the loop stops when the money spent reaches the cap or after three
    iterations without improvement (`PLATEAU`), and `rb calibration` refuses more. The cap and the
    direction are fixed by the first iteration: a higher cap is the owner's cost decision and a new
-   calibration. The reviews of the task's level run once, on the kept version; a best score below
+   calibration. An iteration already run is recorded even when it crosses the cap (the money is
+   spent); the skill does not start one whose cost exceeds what remains. The reviews of the task's level run once, on the kept version; a best score below
    the threshold is the blocked path, never a PR.
-3. **Review per feature (G3).** With `Feature review: on` in AGENTS.md, the level 2 tasks of a
-   spec target `rb/feature-<NN-slug>`: the gate accepts that base for a task of level 1 or 2
-   (refuses level 3), requires the verifier and drops the auditor (the security review the diff
+3. **Review per feature (G3).** With `Feature review: on` in AGENTS.md (read on the default
+   branch; off, the gate refuses both kinds), the level 2 tasks of a spec target
+   `rb/feature-<NN-slug>`: the gate accepts that base for a task of level 1 or 2 that asks nothing
+   of the owner (refuses level 3 and any approval reason), requires the verifier and drops the auditor (the security review the diff
    requires stays), judges the task by AGENTS.md at the default branch (nothing on the feature
    branch is reviewed as a whole yet), merges it there and closes its issue. The merge queue never
    takes such a PR. The feature PR (`rb/feature-*` to the default branch, `Closes` the feature
    issue, labelled `rb:feature`) needs CI, the blind auditor and the security reviewer on its head
-   with verdicts posted on the feature issue, no level and no approval (each task had its own), and
-   provenance: every commit in default...head is a squash of a PR merged into that branch with the
-   gate's trusted merge comment, or a merge whose other parent is on the default branch. A direct
-   push blocks the feature. Known limit: a merge commit's own edits are not recomputed; the auditor
-   and the security reviewer read the whole feature diff.
+   with verdicts posted on the feature issue (it must carry `rb:feature`), no level label and no
+   approval, a whole diff that `rb risk` finds level 1 or 2 with no approval reason (size aside)
+   and whose runtime dependencies pass the check, and provenance: every commit in default...head is
+   a squash of a PR merged into that branch with the gate's trusted merge comment, or a merge whose
+   other parent is on the default branch and that GitHub made and signed (`web-flow`, from `rb gh
+   pr-update-branch`). A direct push or a local merge blocks the feature. Known limit: a conflict
+   resolved by a person in GitHub's web editor is signed the same way.
+5. **Independent review of 1.4.0.** A reviewer with no context found, each now with a test: a
+   forged two-parent commit (both parents on the default branch, any tree) passed provenance and
+   brought level 3 code, a migration and a paid SDK with no verifier and no approval (merges must
+   be GitHub's, and the whole feature diff is checked); the gate ignored `Feature review: off` and
+   accepted any open issue as the feature issue; the calibration and exploration state lived only
+   in a gitignored file, so a new container restarted the spend and the clock (now on the task issue
+   and in a commit); the reference passed `--lower-is-better` only once, which the code refuses; a
+   bare `--hours` meant one hour; a kept iteration could have no ref (now required).
 4. **Profile (G4).** Kickoff and adopt recommend, and write, `Profile: full | minimal | none` in the
    AGENTS.md header. `full` (default, also for a missing or unknown value) is section 29.7.
    `minimal`: levels 1 and 2 merge on green CI, level 3 gets the verifier and the security

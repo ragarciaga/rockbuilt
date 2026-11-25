@@ -1,9 +1,10 @@
 # Review per feature (PLAN-1.0 G3, DESIGN 33.3)
 
-With `Feature review: on` in AGENTS.md, the level 2 tasks of a spec merge into one feature branch
+With `Feature review: on` in AGENTS.md on the default branch (the gate reads it there), the level 2 tasks of a spec merge into one feature branch
 with CI and the verifier, and the blind auditor and the security reviewer review the whole
 feature once, in the feature's PR to the default branch. It trades one late, larger review for one
-review per task. Standalone issues, bugs, quick batches and level 3 tasks never use it.
+review per task. Standalone issues, bugs, quick batches, level 3 tasks and any task whose plan
+needs the owner (schema, architecture, auth model, cost, irreversible) never use it.
 
 ## The feature branch and issue
 
@@ -35,15 +36,18 @@ Once per spec (`docs/specs/NN-slug`), before its first level 2 task:
 
 When every level 2 task of the spec is merged into the feature branch and none is open against it:
 
-1. Bring the default branch in (merge, never rebase or force push): open the PR (`rb gh pr-create
-   --head rb/feature-NN-slug --base <default> --title "feat: <feature> (feature NN)"`, body
-   `Closes #<feature issue>`), then `rb gh pr-update-branch <pr>` if it is behind.
+1. Open the PR (`rb gh pr-create --head rb/feature-NN-slug --base <default> --title "feat:
+   <feature> (feature NN)"`, body `Closes #<feature issue>`), then, if it is behind, `rb gh
+   pr-update-branch <pr>`. That is the only way to bring the default branch in: the gate accepts
+   a merge commit on a feature branch only when GitHub made it (signed `web-flow`); a local merge,
+   rebase or force push blocks the feature.
 2. Blind auditor on the whole feature: every criterion of the tasks merged into it, the app
    started from the feature head (`references/audit.md`), task id `F<NN>`.
 3. Security reviewer, `Mode: task`, task id `F<NN>`, diff `origin/<default>...origin/rb/feature-NN-slug`.
 4. Post both verdicts on the feature issue; their lines go to the PR body with the reviewed head.
    A finding is a kickback: a fix task into the feature branch (verifier, gate), then both reviews
    again on the new head. `Kickback budget` applies to the feature as one task.
-5. The merge train merges it through `rb merge-gate`: it checks that every commit on the branch is
-   a task PR the gate merged there (or a merge of the default branch), so a direct push to a
-   feature branch blocks the feature.
+5. The merge train merges it through `rb merge-gate`: every commit on the branch must be a task PR
+   the gate merged there or GitHub's own update from the default branch, the issue it closes must
+   be the `rb:feature` issue, and the whole feature diff must be level 1 or 2 with no owner
+   approval (size aside). A direct push blocks the feature.

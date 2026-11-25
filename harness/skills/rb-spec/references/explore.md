@@ -10,7 +10,7 @@ planner, no implementer, no reviewers, no PR of its code. Its only product is a 
 2. Slug: the question's topic in English kebab-case (`pdf-statements`). From the default branch:
    `git checkout -b rb/explore-<slug> origin/<default>`.
 3. `rb explore start <slug> --hours <n>`: `n` is what the user said, else 2 (at most 8). It
-   records the clock in `.rockbuilt/explore/<slug>.json`.
+   records the clock as an empty commit on the branch (push it: a new session reads it there).
 4. A paid service, a new account or real user data is still the owner's call (cost, irreversible):
    ask first, as everywhere.
 

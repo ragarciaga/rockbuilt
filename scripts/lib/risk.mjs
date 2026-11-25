@@ -531,7 +531,7 @@ function computeTier(root, { files: fileList, pr, base, gh, rulesRef = null } = 
     // PLAN-1.0 A5: the rules a PR is judged by come from AGENTS.md at its base, never its head,
     // so a PR cannot loosen Sensitive paths or Paid services for itself.
     // A task into a feature branch (PLAN-1.0 G3) is judged by the default branch's rules.
-    const featureBase = Boolean(view.base && /^rb\/feature-/.test(view.base.ref));
+    const featureBase = Boolean(view.base && /^rb\/feature-[A-Za-z0-9._-]+$/.test(view.base.ref));
     const rules = rulesRef || (featureBase ? defaultBranch(root) : view.base && view.base.sha);
     const baseContract = rules ? ops.fileAt(gh, 'AGENTS.md', rules) : null;
     if (baseContract != null) autonomy = { ...autonomy, sensitivePaths: [], tierAPaths: [], paidServices: [], ...parseAutonomy(baseContract) };
